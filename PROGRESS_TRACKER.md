@@ -138,42 +138,23 @@
 - [x] ♻️ Refactor
 - [x] 📝 Commit: "feat: add division boundary finder"
 
-**TDD Cycle 5: Data Division Extraction**
-- [ ] ✍️ Write test: `test_extract_data_division()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `extract_data_division()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add data division extraction"
+**TDD Cycles 5-8: Division Extraction (Combined)**
+- [x] ✍️ Write tests for all divisions and not-found case
+- [x] 🔴 Run tests → Should FAIL
+- [x] 💻 Implement generic `extract_division()` function
+- [x] 🟢 Run tests → Should PASS (6/6)
+- [x] ♻️ Refactor: Single function handles all divisions
+- [x] 📝 Commit: "feat: add division extraction"
 
-**TDD Cycle 6: Procedure Division Extraction**
-- [ ] ✍️ Write test: `test_extract_procedure_division()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `extract_procedure_division()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add procedure division extraction"
-
-**TDD Cycle 7: Other Divisions**
-- [ ] ✍️ Write tests for identification, environment divisions
-- [ ] 🔴 Run tests → Should FAIL
-- [ ] 💻 Implement extractors
-- [ ] 🟢 Run tests → Should PASS
-- [ ] 📝 Commit: "feat: add remaining division extractors"
-
-**TDD Cycle 8: Missing Division Handling**
-- [ ] ✍️ Write test: `test_extract_division_not_found()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Add None return for missing divisions
-- [ ] 🟢 Run test → Should PASS
-- [ ] 📝 Commit: "fix: handle missing divisions gracefully"
+Note: Implemented as single generic function instead of separate functions per division.
+This is more maintainable and follows DRY principles.
 
 #### End of Day 2 Checklist
-- [ ] All Day 2 tests pass
-- [ ] Deduplication working
-- [ ] All division extractors working
+- [x] All Day 2 tests pass (20/20)
+- [x] Deduplication working
+- [x] All division extractors working
 - [ ] Code coverage ≥ 85%
-- [ ] All commits pushed
+- [x] All commits pushed
 
 ---
 

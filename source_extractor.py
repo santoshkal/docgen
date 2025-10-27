@@ -200,3 +200,33 @@ def find_division_boundaries(file_path: str) -> Dict[str, Dict[str, int]]:
             divisions[div_name]['end'] = len(lines)
 
     return divisions
+
+
+def extract_division(file_path: str, division_name: str) -> Optional[str]:
+    """
+    Extract a specific COBOL division from a source file.
+
+    Args:
+        file_path: Path to the COBOL source file
+        division_name: Name of the division (e.g., 'DATA DIVISION', 'PROCEDURE DIVISION')
+
+    Returns:
+        Source code of the division, or None if division not found
+
+    Examples:
+        >>> source = extract_division("program.cbl", "DATA DIVISION")
+        >>> "WORKING-STORAGE SECTION" in source
+        True
+    """
+    boundaries = find_division_boundaries(file_path)
+
+    # Normalize division name to uppercase
+    division_name = division_name.upper()
+
+    if division_name not in boundaries:
+        return None
+
+    start = boundaries[division_name]['start']
+    end = boundaries[division_name]['end']
+
+    return extract_lines(file_path, start, end)

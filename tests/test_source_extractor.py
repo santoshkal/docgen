@@ -13,7 +13,8 @@ from source_extractor import (
     extract_lines_with_context,
     compute_source_hash,
     deduplicate_source_extracts,
-    find_division_boundaries
+    find_division_boundaries,
+    extract_division
 )
 
 
@@ -286,3 +287,43 @@ class TestDivisionExtraction:
         assert boundaries['ENVIRONMENT DIVISION']['start'] == 5
         assert boundaries['DATA DIVISION']['start'] == 9
         assert boundaries['PROCEDURE DIVISION']['start'] == 14
+
+    def test_extract_data_division(self, test_cobol_file):
+        """Test extracting DATA DIVISION"""
+        source = extract_division(test_cobol_file, 'DATA DIVISION')
+
+        assert source is not None
+        assert 'DATA DIVISION' in source
+        assert 'WORKING-STORAGE SECTION' in source
+        assert 'WS-COUNTER' in source
+
+    def test_extract_procedure_division(self, test_cobol_file):
+        """Test extracting PROCEDURE DIVISION"""
+        source = extract_division(test_cobol_file, 'PROCEDURE DIVISION')
+
+        assert source is not None
+        assert 'PROCEDURE DIVISION' in source
+        assert 'MAIN-PARA' in source
+        assert 'STOP RUN' in source
+
+    def test_extract_identification_division(self, test_cobol_file):
+        """Test extracting IDENTIFICATION DIVISION"""
+        source = extract_division(test_cobol_file, 'IDENTIFICATION DIVISION')
+
+        assert source is not None
+        assert 'IDENTIFICATION DIVISION' in source
+        assert 'PROGRAM-ID' in source
+
+    def test_extract_environment_division(self, test_cobol_file):
+        """Test extracting ENVIRONMENT DIVISION"""
+        source = extract_division(test_cobol_file, 'ENVIRONMENT DIVISION')
+
+        assert source is not None
+        assert 'ENVIRONMENT DIVISION' in source
+        assert 'CONFIGURATION SECTION' in source
+
+    def test_extract_division_not_found(self, test_cobol_file):
+        """Test extracting a non-existent division"""
+        source = extract_division(test_cobol_file, 'NONEXISTENT DIVISION')
+
+        assert source is None
