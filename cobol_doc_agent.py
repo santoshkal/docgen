@@ -662,14 +662,16 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
         # Pass 1: Overview & Structure - Need full symbol tree, division structure
         filtered["superbol_symbols"] = superbol_symbols  # FULL symbols
 
-        # CFG: Summary stats only (not needed for overview)
+        # CFG: Summary stats + CRITICAL external calls and copybooks for executive summary
         if isinstance(superbol_cfg, dict):
             filtered["superbol_cfg"] = {
                 "summary": {
                     "total_nodes": len(superbol_cfg.get("nodes", [])),
                     "total_edges": len(superbol_cfg.get("edges", [])),
                     "entry_points": len([n for n in superbol_cfg.get("nodes", []) if n.get("type") == "entry"])
-                }
+                },
+                "calls": superbol_cfg.get("calls", []),  # MUST have for Executive Summary
+                "copybooks": superbol_cfg.get("copybooks", [])  # MUST have for Program Structure
             }
         else:
             filtered["superbol_cfg"] = superbol_cfg
@@ -701,9 +703,13 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
             edges = superbol_cfg.get("edges", [])
 
             # Conservative limits: 500 nodes, 1000 edges (vs aggressive 100/200)
+            # CRITICAL: Preserve calls[] and copybooks[] arrays for external dependencies
             filtered["superbol_cfg"] = {
                 "nodes": limit_array(nodes, 500),
                 "edges": limit_array(edges, 1000),
+                "calls": superbol_cfg.get("calls", []),  # MUST preserve external calls
+                "copybooks": superbol_cfg.get("copybooks", []),  # MUST preserve copybooks
+                "performs": limit_array(superbol_cfg.get("performs", []), 1000),
                 "total_nodes": len(nodes),
                 "total_edges": len(edges)
             }
@@ -874,9 +880,13 @@ def filter_metadata_for_section_enhanced(section: Dict[str, Any], full_metadata:
     if is_performance or is_logic or is_communication:
         # Performance/Logic: Limited CFG (max 100 nodes, 200 edges)
         if isinstance(superbol_cfg, dict):
+            # CRITICAL: Always preserve calls[] and copybooks[] for external dependencies
             filtered["superbol_cfg"] = {
                 "nodes": limit_array(superbol_cfg.get("nodes", []), 100),
                 "edges": limit_array(superbol_cfg.get("edges", []), 200),
+                "calls": superbol_cfg.get("calls", []),  # MUST preserve external calls
+                "copybooks": superbol_cfg.get("copybooks", []),  # MUST preserve copybooks
+                "performs": limit_array(superbol_cfg.get("performs", []), 200),
                 "total_nodes": len(superbol_cfg.get("nodes", [])),
                 "total_edges": len(superbol_cfg.get("edges", []))
             }
@@ -885,10 +895,13 @@ def filter_metadata_for_section_enhanced(section: Dict[str, Any], full_metadata:
     elif is_metrics:
         # Metrics: CFG summary stats only
         if isinstance(superbol_cfg, dict):
+            # CRITICAL: Preserve calls[] and copybooks[] for dependency metrics
             filtered["superbol_cfg"] = {
                 "node_count": len(superbol_cfg.get("nodes", [])),
                 "edge_count": len(superbol_cfg.get("edges", [])),
-                "entry_points": len([n for n in superbol_cfg.get("nodes", []) if n.get("type") == "entry"])
+                "entry_points": len([n for n in superbol_cfg.get("nodes", []) if n.get("type") == "entry"]),
+                "calls": superbol_cfg.get("calls", []),  # For external dependency metrics
+                "copybooks": superbol_cfg.get("copybooks", [])  # For copybook metrics
             }
         else:
             filtered["superbol_cfg"] = {"note": "CFG data available"}

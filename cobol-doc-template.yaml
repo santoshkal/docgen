@@ -45,6 +45,18 @@ sections:
       2. Where does it fit in the system? (check gnucobol program_calls)
       3. Key responsibilities (analyze main paragraphs from ctags)
       4. External dependencies (list programs called)
+
+      **CRITICAL - Extract External Program Calls:**
+      Look in superbol_cfg JSON for the "calls" array:
+      - superbol_cfg.calls[] contains external program calls
+      - Each call has: from (calling paragraph), to (program name), line (line number)
+      - If calls[] array exists and has entries, list ALL programs called
+      - Format: "PROGRAM-NAME (called from paragraph-name at line N)"
+      - If calls[] is empty or missing, state "None found in metadata"
+
+      Example:
+      If superbol_cfg.calls = [{"from": "PARA-1", "to": "PROG-A", "line": 123}]
+      Then output: "PROG-A (called from PARA-1 at line 123)"
     template: |
       {{summary_paragraph}}
 
@@ -73,6 +85,34 @@ sections:
         template: |
           | {{division}} | {{section_name}} | {{line_number}} | {{inferred_purpose}} |
 
+      - id: copybooks-referenced
+        title: Referenced Copybooks
+        instruction: |
+          **CRITICAL - Extract Copybook Information:**
+          Look in superbol_cfg JSON for the "copybooks" array:
+          - superbol_cfg.copybooks[] contains all COPY statements
+          - Each copybook has: name, line (where COPY appears), context (section name)
+
+          For EACH copybook in the array, create documentation:
+          1. Copybook name
+          2. Line number where COPY statement appears
+          3. Context (which DIVISION/SECTION: WORKING-STORAGE, LINKAGE, etc.)
+          4. Inferred purpose based on name
+
+          If copybooks[] array is empty or missing, output: "No copybooks referenced"
+          If copybooks[] has entries, list ALL copybooks found
+
+          Example output for copybook:
+          ### CUSTOMER-RECORD (Line 27)
+          **Context**: WORKING-STORAGE SECTION
+          **Purpose**: Customer data structure with ID, name, address fields
+        repeatable: true
+        template: |
+          ### {{copybook_name}} (Line {{copybook_line}})
+
+          **Context**: {{copybook_context}}
+          **Purpose**: {{copybook_purpose}}
+
       - id: data-structures
         title: Data Structures
         instruction: |
@@ -92,16 +132,30 @@ sections:
     instruction: |
       Use SuperBol CFG JSON to create detailed control flow documentation with external call context.
 
+      **CRITICAL - MUST EXTRACT EXTERNAL CALLS:**
+      The superbol_cfg JSON has a "calls" array that you MUST extract:
+
+      1. Look for superbol_cfg.calls[] array in the metadata
+      2. If calls[] exists and has entries, you MUST include them in the diagram
+      3. Each call object has: {"from": "paragraph", "to": "program-name", "line": number}
+      4. Show calls as DASHED ARROWS (-.->|"call line N"|) in Mermaid diagrams
+      5. If calls[] is empty, state "No external calls found"
+
       CRITICAL: Extract from superbol_cfg:
       - nodes[]: All paragraphs with name, type, line
       - edges[]: Internal flow (perform relationships)
-      - calls[]: External program calls with from/to/line
+      - **calls[]: External program calls with from/to/line** ← MUST USE THIS
       - performs[]: Explicit perform statements with from/to/line
 
       Create visualizations showing:
-      1. Internal control flow (performs between paragraphs)
-      2. External calls WITH line numbers and calling context
+      1. Internal control flow (performs between paragraphs) - solid arrows
+      2. External calls WITH line numbers and calling context - dashed arrows
       3. Integration of both in a comprehensive diagram
+
+      Example:
+      If calls = [{"from": "PARA-1", "to": "EXTERNAL-PROG", "line": 100}]
+      Then diagram MUST include:
+      PARA_1 -.->|"call line 100"| EXTERNAL_PROG["`EXTERNAL-PROG<br/>(External)`"]
     sections:
       - id: cfg-with-calls-diagram
         title: Control Flow with External Calls
@@ -134,11 +188,19 @@ sections:
             Node ID: REMARKS_000026
             Full syntax: REMARKS_000026["`000026-REMARKS`"]
 
+          **CRITICAL - EXTRACT superbol_cfg.calls[] array:**
+          You MUST look in the metadata for superbol_cfg.calls[]
+          If this array exists and has entries, extract EACH call and show in diagram
+
           From superbol_cfg.calls[], create a diagram showing:
           1. Each paragraph as a node (SANITIZED node ID, original name in backtick label)
-          2. PERFORM relationships as solid arrows
-          3. CALL relationships as dashed arrows WITH line numbers as labels
-          4. Group related paragraphs (e.g., INITIALIZE-SYSTEM with its calls)
+          2. PERFORM relationships as solid arrows (-->|perform|)
+          3. **CALL relationships as DASHED arrows (-.->|"call line N"|) WITH line numbers**
+          4. External programs as nodes with special styling (classDef external)
+          5. Group related paragraphs (e.g., INITIALIZE-SYSTEM with its calls)
+
+          Mandatory: If calls[] has entries, you MUST add them to the diagram
+          Each call in calls[] array must appear as a dashed arrow in the diagram
 
           Example structure with sanitization:
           ```
@@ -166,12 +228,23 @@ sections:
       - id: external-call-context
         title: External Call Context
         instruction: |
-          From superbol_cfg.calls[], create detailed documentation of EACH external call:
+          **CRITICAL - Extract External Calls:**
+          Look in superbol_cfg JSON for the "calls" array
 
-          For each entry in calls[]:
-          - from: calling paragraph
+          For EACH entry in superbol_cfg.calls[], document:
+          - from: calling paragraph name
           - to: external program name
-          - line: exact line number
+          - line: exact line number where CALL appears
+
+          Create a table or list showing ALL external calls found.
+
+          If calls[] is empty or missing: output "No external calls found in metadata"
+          If calls[] has entries: list ALL of them with full details
+
+          Format for each call:
+          **Program-Name** (called at line N)
+          - Called from: paragraph-name
+          - Purpose: [infer from context]
 
           Document the context: what the calling paragraph does, why it calls this program.
         template: |
@@ -186,10 +259,14 @@ sections:
         instruction: |
           Analyze each paragraph's complexity based on:
           - Number of PERFORM statements (from performs[])
-          - Number of external CALLs (from calls[])
+          - Number of external CALLs (from calls[]) ← Count calls where "from" matches paragraph
           - Total edges in/out (from edges[])
 
-          Classify as: Low (<3), Medium (3-5), High (>5)
+          **CRITICAL:** For "External Calls" column:
+          Count how many entries in superbol_cfg.calls[] have "from" matching this paragraph
+          Example: If paragraph is "PARA-1" and calls = [{"from":"PARA-1", ...}], then call_count = 1
+
+          Classify complexity as: Low (<3), Medium (3-5), High (>5)
         template: |
           | {{paragraph}} | {{line}} | {{perform_count}} | {{call_count}} | {{total_edges}} | {{complexity_level}} |
 
@@ -237,25 +314,46 @@ sections:
   - id: inter-program-communication
     title: Inter-Program Communication
     instruction: |
-      Use GnuCOBOL analysis JSON to document program relationships comprehensively.
+      **CRITICAL - Document External Program Calls:**
+      This section MUST document all external CALL statements found in metadata.
 
-      CRITICAL: Extract from gnucobol_analysis:
+      PRIMARY SOURCE: superbol_cfg.calls[] array
+      - Look in superbol_cfg JSON for the "calls" array
+      - Each entry has: {"from": "paragraph", "to": "program-name", "line": number}
+      - This is the PRIMARY source for external call documentation
+
+      SECONDARY SOURCE: gnucobol_analysis (if available and success=true)
       - program_calls[program_name]: List of ALL programs this program calls
       - call_summary.call_counts: Frequency of each program call across entire system
       - per_file_analysis: Detailed call information
 
+      **If superbol_cfg.calls[] has entries, you MUST document them**
+      **If gnucobol_analysis has program_calls, use for additional context**
+      **If BOTH are empty/missing, state: "No external program calls found"**
+
       Create THREE levels of documentation:
-      1. This program's direct dependencies
-      2. System-wide call frequency (which programs are most critical)
-      3. Detailed call context from each paragraph
+      1. This program's direct dependencies (from superbol_cfg.calls[])
+      2. System-wide call frequency (from gnucobol if available)
+      3. Detailed call context from each paragraph (from superbol_cfg.calls[])
     sections:
       - id: call-frequency-heatmap
         title: Call Frequency Analysis
         type: table
         columns: [Program Called, Call Count, Called From Paragraphs, Category]
         instruction: |
-          From gnucobol_analysis.program_calls[program_name], count how many times each program is called.
-          Use superbol_cfg.calls[] to identify which paragraphs make each call.
+          **PRIMARY SOURCE: superbol_cfg.calls[]**
+          Extract ALL entries from superbol_cfg.calls[] array
+          For each unique program name in "to" field, count occurrences
+
+          Steps:
+          1. Get all calls from superbol_cfg.calls[]
+          2. Group by "to" (program name)
+          3. Count how many times each program appears
+          4. List "from" paragraphs that call each program
+          5. Categorize by frequency
+
+          If superbol_cfg.calls[] is empty: output "No external calls found"
+          If superbol_cfg.calls[] has entries: create table with ALL programs
 
           Categorize by frequency:
           - 🔥 Critical: >5 calls
@@ -273,22 +371,29 @@ sections:
         instruction: |
           Create Mermaid diagram showing this program's dependencies.
 
+          **PRIMARY SOURCE: superbol_cfg.calls[]**
+          Extract program names from superbol_cfg.calls[] array
+          Create diagram with current program calling external programs
+
           **CRITICAL:** Apply Mermaid sanitization rules:
           - Program names must be sanitized for use as node IDs
           - Use backtick syntax for labels with special characters
           - Replace " with ', / with -, * with -
 
-          From gnucobol_analysis.program_calls[program_name]:
+          Steps:
           1. Current program as central node (styled prominently, sanitized ID)
-          2. All programs it calls as connected nodes (sanitized IDs)
-          3. Use superbol_cfg.calls[] to add line number labels
-          4. Color-code by call frequency
+          2. For EACH entry in superbol_cfg.calls[], create a dashed arrow to "to" program
+          3. Add line number labels from "line" field: -.->|"line N"|
+          4. Color-code external programs (use classDef external)
+
+          If superbol_cfg.calls[] is empty: output "No external calls to display"
+          If superbol_cfg.calls[] has entries: show ALL calls in diagram
 
           Example:
           ```
           MAINPROG((MAINPROG))
-          MAINPROG -.->|"5x"| LOGGER
-          MAINPROG -.->|"1x line 33"| DBCONNECT
+          MAINPROG -.->|"line 33"| LOGGER
+          MAINPROG -.->|"line 45"| DBCONNECT
           ```
         template: |
           ```mermaid
@@ -350,17 +455,23 @@ sections:
       - id: call-details-with-context
         title: Detailed Call Analysis
         instruction: |
-          For EACH unique external program called, document:
+          **CRITICAL - Document Each External Program:**
+          Use superbol_cfg.calls[] as PRIMARY source
 
-          From superbol_cfg.calls[]:
-          - Which paragraphs call it (from field)
-          - Line numbers (line field)
-          - How many times total
+          For EACH unique program name in superbol_cfg.calls[] "to" field:
+          1. List ALL paragraphs that call it (from "from" field)
+          2. List ALL line numbers (from "line" field)
+          3. Count total calls to this program
+          4. Infer purpose from program name and context
 
-          From gnucobol_analysis.call_summary.call_counts:
-          - System-wide usage (helps understand criticality)
+          If superbol_cfg.calls[] is empty: output "No external programs called"
+          If superbol_cfg.calls[] has entries: create subsection for EACH unique program
 
-          Explain the purpose and integration pattern.
+          Optional: From gnucobol_analysis.call_summary.call_counts (if available):
+          - Add system-wide usage statistics
+          - Show how many other programs call this
+
+          Explain the purpose and integration pattern for each called program.
         repeatable: true
         template: |
           ### {{called_program_name}}
@@ -370,7 +481,7 @@ sections:
           - Called From Paragraphs:
             {{paragraph_and_line_list}}
 
-          **System-Wide Context**:
+          **System-Wide Context** (if available):
           - Total Calls Across System: {{system_wide_call_count}}
           - Called By {{programs_calling_count}} different programs
           - Classification: {{program_role}}
