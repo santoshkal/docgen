@@ -62,6 +62,14 @@ def test_division_metadata():
     }
 
 
+@pytest.fixture
+def test_paragraph_metadata():
+    """Metadata for paragraphs in test COBOL file"""
+    return {
+        'MAIN-PARA': {'start': 15, 'end': 18}
+    }
+
+
 class TestBasicExtraction:
     """Test basic line extraction functionality"""
 

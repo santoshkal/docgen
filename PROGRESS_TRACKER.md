@@ -163,8 +163,8 @@ This is more maintainable and follows DRY principles.
 #### Morning (3 hours): Paragraph Extractors
 
 **Setup Paragraph Test Fixtures**
-- [ ] ✍️ Create paragraph metadata fixture
-- [ ] 📝 Commit: "test: add paragraph fixtures"
+- [x] ✍️ Create paragraph metadata fixture
+- [x] 📝 Commit: "test: add paragraph fixtures"
 
 **TDD Cycle 1: Single Paragraph**
 - [ ] ✍️ Write test: `test_extract_paragraph_by_name()`
