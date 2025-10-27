@@ -157,3 +157,46 @@ def deduplicate_source_extracts(extracts: List[Dict[str, Any]]) -> List[Dict[str
             deduplicated.append(extract)
 
     return deduplicated
+
+
+def find_division_boundaries(file_path: str) -> Dict[str, Dict[str, int]]:
+    """
+    Find COBOL division boundaries by scanning file for DIVISION keywords.
+
+    Args:
+        file_path: Path to the COBOL source file
+
+    Returns:
+        Dictionary mapping division names to {'start': line_num, 'end': line_num}
+        Line numbers are 1-indexed
+
+    Examples:
+        >>> boundaries = find_division_boundaries("program.cbl")
+        >>> boundaries['DATA DIVISION']['start']
+        42
+    """
+    divisions = {}
+    division_names = []
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    # Find all division start lines
+    for line_num, line in enumerate(lines, start=1):
+        stripped = line.strip().upper()
+        if stripped.endswith(' DIVISION.'):
+            # Extract division name (remove the trailing period)
+            division_name = stripped.rstrip('.')
+            divisions[division_name] = {'start': line_num}
+            division_names.append(division_name)
+
+    # Calculate end lines for each division
+    for i, div_name in enumerate(division_names):
+        if i < len(division_names) - 1:
+            # End is the line before next division starts
+            divisions[div_name]['end'] = divisions[division_names[i + 1]]['start'] - 1
+        else:
+            # Last division ends at EOF
+            divisions[div_name]['end'] = len(lines)
+
+    return divisions

@@ -12,7 +12,8 @@ from source_extractor import (
     extract_lines_by_ranges,
     extract_lines_with_context,
     compute_source_hash,
-    deduplicate_source_extracts
+    deduplicate_source_extracts,
+    find_division_boundaries
 )
 
 
@@ -265,3 +266,23 @@ class TestDeduplication:
         # Should keep only the first one
         assert len(result) == 1
         assert result[0]['name'] == 'PARA-001'
+
+
+class TestDivisionExtraction:
+    """Test COBOL division extraction functionality"""
+
+    def test_find_division_boundaries(self, test_cobol_file):
+        """Test finding division boundaries in COBOL file"""
+        boundaries = find_division_boundaries(test_cobol_file)
+
+        # Should find all 4 divisions
+        assert 'IDENTIFICATION DIVISION' in boundaries
+        assert 'ENVIRONMENT DIVISION' in boundaries
+        assert 'DATA DIVISION' in boundaries
+        assert 'PROCEDURE DIVISION' in boundaries
+
+        # Check line numbers are correct
+        assert boundaries['IDENTIFICATION DIVISION']['start'] == 1
+        assert boundaries['ENVIRONMENT DIVISION']['start'] == 5
+        assert boundaries['DATA DIVISION']['start'] == 9
+        assert boundaries['PROCEDURE DIVISION']['start'] == 14
