@@ -109,12 +109,12 @@
 - [x] 📝 Commit: "feat: add source code hashing"
 
 **TDD Cycle 2: Deduplication**
-- [ ] ✍️ Write test: `test_deduplicate_source_extracts()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `deduplicate_source_extract()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add source deduplication"
+- [x] ✍️ Write test: `test_deduplicate_source_extracts()`
+- [x] 🔴 Run test → Should FAIL
+- [x] 💻 Implement `deduplicate_source_extract()`
+- [x] 🟢 Run test → Should PASS
+- [x] ♻️ Refactor
+- [x] 📝 Commit: "feat: add source deduplication"
 
 **TDD Cycle 3: Deduplication Edge Cases**
 - [ ] ✍️ Write tests for edge cases (empty source, identical hashes)

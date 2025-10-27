@@ -8,7 +8,7 @@ Implements Tier 1 of the four-tier extraction strategy: Metadata-based structure
 """
 
 import hashlib
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 
 
 def extract_lines(file_path: str, start: int, end: int) -> str:
@@ -124,3 +124,36 @@ def compute_source_hash(source_code: str) -> str:
         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
     """
     return hashlib.sha256(source_code.encode('utf-8')).hexdigest()
+
+
+def deduplicate_source_extracts(extracts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Remove duplicate source code extracts based on content hash.
+
+    Keeps the first occurrence of each unique source code.
+
+    Args:
+        extracts: List of dictionaries with 'name' and 'source' keys
+
+    Returns:
+        Deduplicated list of extracts (first occurrence kept)
+
+    Examples:
+        >>> extracts = [
+        ...     {'name': 'PARA-1', 'source': 'MOVE A TO B.'},
+        ...     {'name': 'PARA-2', 'source': 'MOVE A TO B.'}  # Duplicate
+        ... ]
+        >>> result = deduplicate_source_extracts(extracts)
+        >>> len(result)
+        1
+    """
+    seen_hashes = set()
+    deduplicated = []
+
+    for extract in extracts:
+        source_hash = compute_source_hash(extract['source'])
+        if source_hash not in seen_hashes:
+            seen_hashes.add(source_hash)
+            deduplicated.append(extract)
+
+    return deduplicated

@@ -11,7 +11,8 @@ from source_extractor import (
     extract_lines,
     extract_lines_by_ranges,
     extract_lines_with_context,
-    compute_source_hash
+    compute_source_hash,
+    deduplicate_source_extracts
 )
 
 
@@ -161,3 +162,26 @@ class TestDeduplication:
         # Hash should be SHA256 format (64 hex characters)
         assert len(hash1) == 64
         assert all(c in '0123456789abcdef' for c in hash1)
+
+    def test_deduplicate_source_extracts(self):
+        """Test deduplication of source code extracts"""
+        extracts = [
+            {'name': 'PARA-001', 'source': 'MOVE A TO B.\n'},
+            {'name': 'PARA-002', 'source': 'DISPLAY "Hello".\n'},
+            {'name': 'PARA-003', 'source': 'MOVE A TO B.\n'},  # Duplicate of PARA-001
+            {'name': 'PARA-004', 'source': 'ADD 1 TO COUNTER.\n'},
+            {'name': 'PARA-005', 'source': 'DISPLAY "Hello".\n'},  # Duplicate of PARA-002
+        ]
+
+        result = deduplicate_source_extracts(extracts)
+
+        # Should have 3 unique extracts
+        assert len(result) == 3
+
+        # Check that we kept the first occurrence of each
+        names = [e['name'] for e in result]
+        assert 'PARA-001' in names
+        assert 'PARA-002' in names
+        assert 'PARA-004' in names
+        assert 'PARA-003' not in names  # Duplicate removed
+        assert 'PARA-005' not in names  # Duplicate removed
