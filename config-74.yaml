@@ -16,12 +16,17 @@ validate_checksums:
 output:
   create_dirs: true
   metadata_dir: /home/santosh/cobol-74/metadata
-  docs_path: /home/santosh/cobol-74/docs
+  docs_path: /home/santosh/cobol-74/option-a-docs
 
 # Metadata generation (enabled with checksum-based intelligence)
 metadata:
   generate: true
   skip_existing: true
+
+# Source Code Extraction (Phase 1)
+source_extraction:
+  enabled: true  # Enable source code extraction for documentation sections
+  compress: true  # Remove comments and blank lines to reduce token usage
 
 # MCP Config
 servers:

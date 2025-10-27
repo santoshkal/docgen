@@ -151,6 +151,11 @@ class ConfigLoader:
         config = self._ensure_loaded()
         return config.get('servers', {})
 
+    def get_source_extraction_config(self) -> Dict[str, Any]:
+        """Get source code extraction configuration (Phase 1)"""
+        config = self._ensure_loaded()
+        return config.get('source_extraction', {})
+
     def to_agent_params(self) -> Dict[str, Any]:
         """
         Convert configuration to agent function parameters

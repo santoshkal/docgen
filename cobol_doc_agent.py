@@ -27,6 +27,15 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
     print("⚠ Warning: langchain-anthropic not installed. Run: pip install langchain-anthropic")
 
+# Import Source Extraction (Phase 1)
+try:
+    from source_integration import extract_source_for_section
+    from section_requirements import should_extract_source
+    SOURCE_EXTRACTION_AVAILABLE = True
+except ImportError:
+    SOURCE_EXTRACTION_AVAILABLE = False
+    print("⚠ Warning: Source extraction modules not found. Run without source extraction.")
+
 # ============================================================================
 # STATE DEFINITION
 # ============================================================================
@@ -68,6 +77,11 @@ class AgentState(TypedDict):
     current_pass: Optional[int]  # Current pass number (1, 2, or 3) in two-pass mode
     passes: Optional[List[List[Dict[str, Any]]]]  # List of passes, each containing sections
     current_pass_index: int  # Current pass being processed in two-pass mode
+
+    # Source Code Extraction (Phase 1 Integration)
+    enable_source_extraction: bool  # Whether to extract source code for sections (default: False)
+    compress_source: bool  # Whether to compress source (remove comments/blanks) (default: True)
+    cobol_file_path: Optional[str]  # Path to COBOL source file for extraction
 
     # Processing State
     current_section: str
@@ -982,6 +996,8 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
     Two modes:
     - Two-pass mode: Uses pass-based conservative filtering (preserves quality)
     - Single-pass mode: Uses aggressive section-based filtering (saves tokens)
+
+    Phase 1 Integration: Also extracts source code if enabled
     """
     # Build full metadata
     full_metadata = {
@@ -1003,6 +1019,34 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
         # Single-pass mode: Use aggressive section-based filtering
         filtered_context = filter_metadata_for_section_enhanced(section, full_metadata)
         print(f"  → Using single-pass mode (aggressive filtering)")
+
+    # Phase 1: Source Code Extraction Integration
+    if state.get("enable_source_extraction", False) and SOURCE_EXTRACTION_AVAILABLE:
+        section_id = section.get("id", "")
+        cobol_file_path = state.get("cobol_file_path")
+
+        if cobol_file_path and should_extract_source(section_id):
+            compress = state.get("compress_source", True)
+            print(f"  → Extracting source code (compress={compress})")
+
+            try:
+                source_code = extract_source_for_section(
+                    section_id,
+                    cobol_file_path,
+                    paragraph_metadata=None,  # Could be enhanced to use ctags paragraphs
+                    compress=compress
+                )
+
+                if source_code:
+                    filtered_context["source_code"] = source_code
+                    print(f"  → Source code extracted successfully")
+                else:
+                    print(f"  → No source code extracted for this section")
+            except Exception as e:
+                print(f"  ⚠ Warning: Source extraction failed: {e}")
+                # Continue without source code - graceful degradation
+    elif state.get("enable_source_extraction", False) and not SOURCE_EXTRACTION_AVAILABLE:
+        print(f"  ⚠ Warning: Source extraction enabled but modules not available")
 
     return filtered_context
 
@@ -1270,7 +1314,10 @@ def generate_documentation(
     metadata_checksum_path: str = "./metadata-checksum.yaml",
     servers_config: Optional[Dict[str, Any]] = None,
     llm_config: Optional[Dict[str, Any]] = None,
-    use_two_pass_mode: bool = True  # NEW: Enable two-pass generation by default
+    use_two_pass_mode: bool = True,  # NEW: Enable two-pass generation by default
+    enable_source_extraction: bool = False,  # Phase 1: Enable source code extraction
+    compress_source: bool = True,  # Phase 1: Compress extracted source (remove comments/blanks)
+    cobol_file_path: Optional[str] = None  # Phase 1: Path to COBOL source file
 ) -> str:
     """
     Main entry point for documentation generation.
@@ -1289,6 +1336,9 @@ def generate_documentation(
         servers_config: Optional MCP servers configuration from YAML config
         llm_config: Optional LLM configuration (provider, model, api_key, temperature)
         use_two_pass_mode: Enable two-pass generation (conservative filtering, better quality)
+        enable_source_extraction: Enable Phase 1 source code extraction (default: False)
+        compress_source: Compress extracted source by removing comments/blanks (default: True)
+        cobol_file_path: Path to COBOL source file for extraction (auto-determined if None)
 
     Returns:
         Path to generated documentation file
@@ -1305,7 +1355,22 @@ def generate_documentation(
         print(f"Strategy: Two-pass generation (conservative filtering)")
     else:
         print(f"Strategy: Single-pass generation (aggressive filtering)")
+    if enable_source_extraction:
+        print(f"Phase 1: Source extraction ENABLED (compress={compress_source})")
     print(f"{'='*70}\n")
+
+    # Auto-determine COBOL file path if not provided
+    if enable_source_extraction and not cobol_file_path:
+        # Try to find the COBOL file in workspace
+        from pathlib import Path as PathLib
+        workspace = PathLib(workspace_path)
+        # Look for .cbl, .cob, .c74 files with matching name
+        for ext in ['.cbl', '.cob', '.c74', '.CBL', '.COB']:
+            candidate = workspace / f"{program_name}{ext}"
+            if candidate.exists():
+                cobol_file_path = str(candidate)
+                print(f"  → Auto-detected COBOL file: {cobol_file_path}")
+                break
 
     # Initialize state
     initial_state = AgentState(
@@ -1331,6 +1396,9 @@ def generate_documentation(
         current_pass=None,  # NEW: Current pass number
         passes=None,  # NEW: Passes list (populated during template structure extraction)
         current_pass_index=0,  # NEW: Current pass index
+        enable_source_extraction=enable_source_extraction,  # Phase 1: Source extraction flag
+        compress_source=compress_source,  # Phase 1: Compression flag
+        cobol_file_path=cobol_file_path,  # Phase 1: Path to COBOL source
         current_section="",
         section_ids=[],  # Initialize section IDs list
         current_section_index=0,  # Initialize index
@@ -1426,6 +1494,13 @@ Examples:
             print(f"  Docs path: {output_config.get('docs_path', 'N/A')}")
             print(f"  Generate metadata: {metadata_config.get('generate', False)}")
             print(f"  LLM: {llm_config.get('provider', 'N/A')} / {llm_config.get('model', 'N/A')}")
+
+            # Display source extraction config
+            source_extraction_config = config_loader.get_source_extraction_config()
+            if source_extraction_config:
+                print(f"  Source extraction: {source_extraction_config.get('enabled', False)}")
+                print(f"  Compress source: {source_extraction_config.get('compress', True)}")
+
             print()
 
         except Exception as e:
@@ -1479,6 +1554,12 @@ Examples:
         servers_config = config_loader.get_servers_config()
         llm_config = config_loader.get_llm_config()
 
+        # Phase 1: Source extraction configuration
+        source_extraction_config = config_loader.get_source_extraction_config()
+        enable_source_extraction = source_extraction_config.get('enabled', False)
+        compress_source = source_extraction_config.get('compress', True)
+        # cobol_file_path will be auto-detected based on source_files_arg
+
     else:
         # Use CLI arguments only (backward compatibility)
         program_name = args.program_name
@@ -1493,6 +1574,10 @@ Examples:
         metadata_checksum_path = "./metadata-checksum.yaml"
         servers_config = {}
         llm_config = {}  # Default to OpenAI gpt-4o
+
+        # Phase 1: Source extraction defaults (disabled by default)
+        enable_source_extraction = False
+        compress_source = True
 
     # Validation: either program_name or source_files must be provided
     if not program_name and not source_files_arg:
@@ -1558,7 +1643,10 @@ Examples:
                     source_checksum_path=source_checksum_path,
                     metadata_checksum_path=metadata_checksum_path,
                     servers_config=servers_config,
-                    llm_config=llm_config
+                    llm_config=llm_config,
+                    enable_source_extraction=enable_source_extraction,
+                    compress_source=compress_source,
+                    cobol_file_path=full_filename  # Use the actual file being processed
                 )
                 successful.append((prog_name, output_path))
                 print(f"✓ Successfully generated documentation for {prog_name}")
@@ -1598,7 +1686,10 @@ Examples:
             source_checksum_path=source_checksum_path,
             metadata_checksum_path=metadata_checksum_path,
             servers_config=servers_config,
-            llm_config=llm_config
+            llm_config=llm_config,
+            enable_source_extraction=enable_source_extraction,
+            compress_source=compress_source,
+            cobol_file_path=None  # Will be auto-detected
         )
 
         print(f"\n{'='*70}")
