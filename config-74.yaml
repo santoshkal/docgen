@@ -1,0 +1,53 @@
+# Test Configuration for COBOL Documentation Agent
+# Using test COBOL files from ~/test-cobol
+
+# Source files
+source:
+  mode: single
+  source_files: /home/santosh/cobol-74/TDAS-MINDISTCALC.c74
+  program_name: TDAS-MINDISTCALC
+
+# Validate checksums for source files (required), and metadata files, if present.
+validate_checksums:
+  source_checksum_file_path: /home/santosh/cobol-74/source-checksum.yaml
+  metadata_checksum_file_path: /home/santosh/cobol-74/metadata-checksum.yaml
+
+# Output paths
+output:
+  create_dirs: true
+  metadata_dir: /home/santosh/cobol-74/metadata
+  docs_path: /home/santosh/cobol-74/docs
+
+# Metadata generation (enabled with checksum-based intelligence)
+metadata:
+  generate: true
+  skip_existing: true
+
+# MCP Config
+servers:
+  ctags:
+    enabled: true
+    docker_image: ctags-mcp:test
+  gnuCobol:
+    enabled: true
+    docker_image: gnucobol-mcp:test
+  superbol-lsp:
+    enabled: true
+    docker_image: multilspy-mcp-test:latest
+
+# Documentation template
+template:
+  path: ./cobol-doc-template.yaml
+
+# LLM configuration
+llm:
+  provider: openai
+  # model: gpt-5
+  model: gpt-4.1
+  api_key: ${OPENAI_API_KEY}
+  temperature: 0.2
+
+# Logging
+logging:
+  level: info
+  format: detailed

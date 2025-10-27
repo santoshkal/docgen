@@ -47,7 +47,7 @@
 - [x] 💻 Implement `extract_lines()` basic version
 - [x] 🟢 Run test → Should PASS
 - [x] ♻️ Refactor: Add docstrings
-- [ ] 📝 Commit: "feat: add basic extract_lines function"
+- [x] 📝 Commit: "feat: add basic extract_lines function"
 
 **TDD Cycle 2: Basic Extraction Test**
 - [x] ✍️ Write test: `test_extract_lines_basic()`
@@ -55,19 +55,19 @@
 - [x] 💻 Implement full extraction logic
 - [x] 🟢 Run test → Should PASS
 - [x] ♻️ Refactor: Add error handling
-- [ ] 📝 Commit: "feat: implement basic line extraction"
+- [x] 📝 Commit: "feat: implement basic line extraction"
 
 #### Afternoon (4 hours): Core Extraction Functions
 
 **TDD Cycle 3: Validation**
-- [ ] ✍️ Write tests:
-  - [ ] `test_extract_lines_invalid_range()`
-  - [ ] `test_extract_lines_file_not_found()`
-  - [ ] `test_extract_lines_end_before_start()`
-- [ ] 🔴 Run tests → Should FAIL
-- [ ] 💻 Add validation to `extract_lines()`
-- [ ] 🟢 Run tests → Should PASS
-- [ ] ♻️ Refactor: Clean up validation logic
+- [x] ✍️ Write tests:
+  - [x] `test_extract_lines_invalid_range()`
+  - [x] `test_extract_lines_file_not_found()`
+  - [x] `test_extract_lines_end_before_start()`
+- [x] 🔴 Run tests → Should FAIL
+- [x] 💻 Add validation to `extract_lines()`
+- [x] 🟢 Run tests → Should PASS
+- [x] ♻️ Refactor: Clean up validation logic
 - [ ] 📝 Commit: "feat: add validation to extract_lines"
 
 **TDD Cycle 4: Range Extraction**

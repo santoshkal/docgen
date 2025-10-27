@@ -1,0 +1,29 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	generate_metadata(generate_metadata)
+	load_metadata(load_metadata)
+	load_template(load_template)
+	extract_structure(extract_structure)
+	process_section(process_section)
+	assemble_document(assemble_document)
+	save_document(save_document)
+	__end__([<p>__end__</p>]):::last
+	__start__ -. &nbsp;generate&nbsp; .-> generate_metadata;
+	__start__ -. &nbsp;load&nbsp; .-> load_metadata;
+	assemble_document --> save_document;
+	extract_structure --> process_section;
+	generate_metadata --> load_metadata;
+	load_metadata --> load_template;
+	load_template --> extract_structure;
+	process_section -. &nbsp;assemble&nbsp; .-> assemble_document;
+	save_document --> __end__;
+	process_section -. &nbsp;continue&nbsp; .-> process_section;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+

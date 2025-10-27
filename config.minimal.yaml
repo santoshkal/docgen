@@ -1,0 +1,68 @@
+# Source files
+source:
+  mode: batch  
+  source_files: ../cobol-source
+  # Only needed for single mode
+  program_name: MAINPROG  
+
+# Validate checksums for source files (required), and metadata files, if present.
+validate_checksums:
+  # Source of truth to set generate_metadata_node to true
+  source_checksum_file_path: ./source-checksum.yaml
+  #Optional, ignore if does not exist
+  metadata_checksum_file_path: ./metadata_checksum.yaml
+
+# Output paths
+output:
+  # Creates the required dirs, if not exist
+  create_dirs: true
+  # Path to store the generated Metadata using MCP Servers
+  metadata_dir: ../output
+  # Path to store final generated Markdown document
+  docs_path: ../docs
+
+# MCP COnfig
+servers:
+  ctags:
+    enabled: true
+    docker_image: ctags-mcp-server:latest
+    # Optional extra args required for MCP Server
+    extra_args: []
+
+  gnuCobol:
+    enabled: true
+    docker_image: gnucobol-mcp-server:latest
+    # Optional extra args required for MCP Server
+    extra_args: []
+
+  superbol-lsp:
+    enabled: true
+    docker_image: superbol-lsp-mcp-server:latest
+    # Optional extra args required for MCP Server
+    extra_args: []
+
+# Metadata generation
+metadata:
+  # The validate_checksums value from above can override and set it to true
+  # if there's a delta in old checksum_file and checksums of source files provided.
+  generate: true
+  skip_existing: true
+
+# Template config
+template:
+  path: ./cobol-doc-template.yaml
+
+# LLM configuration
+llm:
+  provider: openai  
+  # Or set it to anthropic, azure_openai, google, ollama
+  model: gpt-4o
+  # accepts ENV
+  api_key: ${OPENAI_API_KEY}  
+  # Or set OPENAI_API_KEY environment variable, Or model specific Key
+  temperature: 0.2
+
+# Logging
+logging:
+  level: info
+  verbose: true

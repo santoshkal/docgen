@@ -1,0 +1,52 @@
+# Test Configuration for COBOL Documentation Agent
+# Using test COBOL files from ~/test-cobol
+
+# Source files
+source:
+  mode: batch
+  source_files: /home/santosh/test-cobol/cobol-source
+  program_name: MAINPROG
+
+# Validate checksums for source files (required), and metadata files, if present.
+validate_checksums:
+  source_checksum_file_path: /home/santosh/test-cobol/source-checksum.yaml
+  metadata_checksum_file_path: /home/santosh/test-cobol/metadata-checksum.yaml
+
+# Output paths
+output:
+  create_dirs: true
+  metadata_dir: /home/santosh/test-cobol/metadata
+  docs_path: /home/santosh/test-cobol/docs
+
+# Metadata generation (enabled with checksum-based intelligence)
+metadata:
+  generate: true
+  skip_existing: true
+
+# MCP Config
+servers:
+  ctags:
+    enabled: true
+    docker_image: ctags-mcp:upstream
+  gnuCobol:
+    enabled: true
+    docker_image: gnucobol-mcp:upstream
+  superbol-lsp:
+    enabled: true
+    docker_image: superbol-lsp-mcp:upstream
+
+# Documentation template
+template:
+  path: ./cobol-doc-template.yaml
+
+# LLM configuration
+llm:
+  provider: openai
+  model: gpt-4o
+  api_key: ${OPENAI_API_KEY}
+  temperature: 0.2
+
+# Logging
+logging:
+  level: info
+  format: detailed

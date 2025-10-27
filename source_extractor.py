@@ -22,10 +22,21 @@ def extract_lines(file_path: str, start: int, end: int) -> str:
     Returns:
         Extracted lines as a string with newlines preserved
 
+    Raises:
+        ValueError: If line numbers are invalid (negative, zero, or end < start)
+        FileNotFoundError: If the file doesn't exist
+
     Examples:
         >>> extract_lines("program.cbl", 1, 10)
         'Line 1\\nLine 2\\n...Line 10\\n'
     """
+    # Validate line numbers
+    if start <= 0 or end <= 0:
+        raise ValueError("Line numbers must be positive (1-indexed)")
+
+    if end < start:
+        raise ValueError("End line must be >= start line")
+
     with open(file_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
         # Convert 1-indexed to 0-indexed

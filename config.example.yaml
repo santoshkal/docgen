@@ -1,0 +1,260 @@
+# COBOL Documentation Agent - Configuration File
+# ==============================================
+# This file contains all configuration options for the COBOL Documentation Agent
+
+# ============================================================================
+# SOURCE FILES CONFIGURATION
+# ============================================================================
+source:
+  # Mode: 'single' or 'batch'
+  # - single: Process one program specified by program_name
+  # - batch: Process all COBOL files in source_files path
+  mode: batch
+
+  # Path to COBOL source file(s)
+  # Can be:
+  #   - A directory containing *.COB files (for batch mode)
+  #   - A single .COB file path (for single file processing)
+  source_files: ../cobol-source
+
+  # Program name (required for single mode, ignored in batch mode)
+  program_name: MAINPROG
+
+  # Workspace directory containing COBOL source files
+  # Used when source_files is not specified or for additional context
+  workspace: ../cobol-source
+
+
+# ============================================================================
+# OUTPUT PATHS CONFIGURATION
+# ============================================================================
+output:
+  # Directory for storing extracted metadata (ctags, gnucobol, superbol)
+  metadata_dir: ../output
+
+  # Directory for storing generated documentation markdown files
+  docs_path: ../docs
+
+  # Create output directories if they don't exist
+  create_dirs: true
+
+
+# ============================================================================
+# METADATA GENERATION (MCP) CONFIGURATION
+# ============================================================================
+metadata:
+  # Whether to generate metadata via MCP servers. TODO: Requried?
+  generate: true
+
+  # Skip metadata generation if files already exist TODO: Required?
+  skip_existing: true
+
+  # Force regenerate all metadata even if it exists TODO: REquired?
+  force_regenerate: false
+
+  # MCP Servers Configuration (optional - uses defaults if not specified)
+  servers:
+    ctags:
+      enabled: true
+      docker_image: ctags-mcp-server:latest
+      # Custom docker args (optional)
+      # docker_args: []
+
+    gnucobol:
+      enabled: true
+      docker_image: gnucobol-mcp-server:latest
+
+    superbol:
+      enabled: true
+      docker_image: superbol-mcp-server:latest
+
+
+# ============================================================================
+# TEMPLATE CONFIGURATION
+# ============================================================================
+template:
+  # Path to documentation template YAML file
+  path: ./cobol-doc-template.yaml
+
+  # Custom template variables (optional)
+  # These will be available in the template as {{custom.variable_name}}
+  custom_vars:
+    company_name: "Your Company Name"
+    project_name: "COBOL Modernization Project"
+    author: "Documentation Team"
+
+
+# ============================================================================
+# LLM CONFIGURATION
+# ============================================================================
+llm:
+  # LLM Provider TODO: Review
+  #
+  # Supported: openai, anthropic, azure_openai, google, ollama, bedrock
+  provider: openai
+
+  # Model name (provider-specific)
+  # OpenAI: gpt-4o, gpt-4-turbo, gpt-3.5-turbo
+  # Anthropic: claude-3-5-sonnet-20241022, claude-3-opus-20240229
+  # Azure: Your deployment name
+  # Google: gemini-pro, gemini-1.5-pro
+  # Ollama: llama2, mistral, codellama
+  model: gpt-4o
+
+  # API Key (or set via environment variable)
+  # TODO: Should read ENVs
+  # 
+  # Leave empty to use environment variables:
+  #   - OpenAI: OPENAI_API_KEY
+  #   - Anthropic: ANTHROPIC_API_KEY
+  #   - Azure: AZURE_OPENAI_API_KEY
+  #   - Google: GOOGLE_API_KEY
+  api_key: ${OPENAI_API_KEY}
+
+  # Temperature (0.0 - 1.0)
+  # Lower = more focused/deterministic, Higher = more creative
+  temperature: 0.2
+
+  # Max tokens for response
+  max_tokens: 4096
+
+  # System prompt override (optional)
+  # If not specified, uses default prompts from the agent
+  # system_prompt: "You are an expert COBOL documentation writer..."
+
+  # Provider-specific configurations
+  openai:
+    # API base URL (optional, for custom endpoints)
+    # api_base: https://api.openai.com/v1
+
+    # Organization ID (optional)
+    # organization: org-xxxxx
+
+  anthropic:
+    # API base URL (optional)
+    # api_base: https://api.anthropic.com
+
+    # Max tokens to sample
+    max_tokens_to_sample: 4096
+
+  azure_openai:
+    # Required for Azure
+    api_base: https://your-resource.openai.azure.com
+    api_version: "2024-02-15-preview"
+    deployment_name: your-gpt4-deployment
+
+  google:
+    # Project ID for Google Cloud
+    # project_id: your-project-id
+
+    # Location
+    # location: us-central1
+
+  ollama:
+    # Ollama base URL
+    base_url: http://localhost:11434
+
+    # Additional parameters
+    # num_ctx: 4096
+    # num_predict: 2048
+
+  bedrock:
+    # AWS Region
+    region_name: us-east-1
+
+    # Model ID
+    # model_id: anthropic.claude-3-sonnet-20240229-v1:0
+
+
+# ============================================================================
+# BATCH PROCESSING CONFIGURATION
+# ============================================================================
+batch:
+  # Enable parallel processing of multiple files
+  parallel: false
+
+  # Number of files to process concurrently (if parallel=true)
+  max_workers: 4
+
+  # Continue processing even if some files fail
+  continue_on_error: true
+
+  # Generate summary report after batch processing
+  generate_report: true
+
+
+# ============================================================================
+# LOGGING AND OUTPUT CONFIGURATION
+# ============================================================================
+logging:
+  # Log level: debug, info, warning, error
+  level: info
+
+  # Enable verbose output
+  verbose: true
+
+  # Log file path (optional, logs to stdout if not specified)
+  # log_file: ./cobol_doc_agent.log
+
+  # Show progress bars
+  show_progress: true
+
+
+# ============================================================================
+# ADVANCED CONFIGURATION
+# ============================================================================
+advanced:
+  # Retry configuration for LLM calls
+  llm_retry:
+    max_retries: 3
+    retry_delay: 2  # seconds
+
+  # Timeout for external operations (seconds)
+  timeouts:
+    mcp_generation: 600  # 10 minutes for metadata generation
+    llm_call: 120        # 2 minutes per LLM call
+    docker_pull: 300     # 5 minutes for Docker image pull
+
+  # Cache configuration
+  cache:
+    # Enable caching of LLM responses
+    enable_llm_cache: false
+
+    # Cache directory
+    # cache_dir: ./.cache
+
+  # Section processing
+  sections:
+    # Skip certain sections (list of section IDs from template)
+    skip: []
+
+    # Process only specific sections
+    # only: ["executive-summary", "program-structure"]
+
+
+# ============================================================================
+# VALIDATION AND SAFETY
+# ============================================================================
+validation:
+  # Validate COBOL source files before processing
+  validate_cobol_syntax: false
+
+  # Check for required metadata files before doc generation
+  check_metadata: true
+
+  # Maximum file size to process (MB)
+  max_file_size: 10
+
+
+# ============================================================================
+# EXPERIMENTAL FEATURES (Use with caution)
+# ============================================================================
+experimental:
+  # Use streaming for LLM responses
+  use_streaming: false
+
+  # Enable multi-agent collaboration (if supported)
+  multi_agent: false
+
+  # Custom post-processing scripts
+  # post_process_script: ./custom_postprocess.py

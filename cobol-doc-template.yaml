@@ -1,0 +1,533 @@
+# COBOL Code Documentation Template (BMAD-METHOD Inspired)
+# This template ensures consistent documentation generation across COBOL projects
+
+template:
+  id: cobol-documentation-template-v1
+  name: COBOL Code Documentation
+  version: 1.0
+  output:
+    format: markdown
+    filename: "docs/{{program_name}}-documentation.md"
+    title: "{{program_name}} - Code Documentation"
+
+workflow:
+  mode: automated
+  metadata_sources:
+    - superbol_symbols
+    - superbol_cfg
+    - gnucobol_analysis
+    - ctags_outline
+
+sections:
+  - id: document-header
+    title: "{{program_name}} Documentation"
+    instruction: |
+      Extract program name from metadata and create document header.
+      Include generation timestamp and metadata sources used.
+    sections:
+      - id: metadata-info
+        title: Document Information
+        template: |
+          **Generated**: {{generation_timestamp}}
+          **Program ID**: {{program_name}}
+          **Source File**: {{source_file_path}}
+          **Metadata Sources**: SuperBol LSP, GnuCOBOL Analyzer, Universal-Ctags
+
+  - id: executive-summary
+    title: Executive Summary
+    instruction: |
+      Analyze all metadata to create a 3-5 sentence high-level overview:
+      1. What does this program do? (infer from program calls and structure)
+      2. Where does it fit in the system? (check gnucobol program_calls)
+      3. Key responsibilities (analyze main paragraphs from ctags)
+      4. External dependencies (list programs called)
+    template: |
+      {{summary_paragraph}}
+
+      **Key Responsibilities:**
+      {{responsibilities_list}}
+
+      **External Program Dependencies:**
+      {{dependencies_list}}
+
+  - id: program-structure
+    title: Program Structure
+    instruction: |
+      Parse ctags outline JSON to extract and document COBOL divisions and sections.
+      For each division, list contained sections and data items.
+    sections:
+      - id: divisions-overview
+        title: COBOL Division Structure
+        type: table
+        columns: [Division, Section/Element, Line Number, Purpose]
+        instruction: |
+          Extract from ctags-outline.json:
+          - IDENTIFICATION DIVISION → PROGRAM-ID, AUTHOR
+          - ENVIRONMENT DIVISION → CONFIGURATION SECTION
+          - DATA DIVISION → WORKING-STORAGE SECTION (data items)
+          - PROCEDURE DIVISION → Paragraphs
+        template: |
+          | {{division}} | {{section_name}} | {{line_number}} | {{inferred_purpose}} |
+
+      - id: data-structures
+        title: Data Structures
+        instruction: |
+          Extract all data items (kind: "data") from ctags outline.
+          Group by level (01, 05, 88, etc.) and explain purpose.
+        repeatable: true
+        template: |
+          ### {{data_item_name}} (Line {{line_number}})
+
+          **Level**: {{level}}
+          **Picture**: {{picture_clause}}
+          **Purpose**: {{inferred_purpose}}
+          **Used In**: {{usage_locations}}
+
+  - id: control-flow-analysis
+    title: Control Flow Analysis
+    instruction: |
+      Use SuperBol CFG JSON to create detailed control flow documentation with external call context.
+
+      CRITICAL: Extract from superbol_cfg:
+      - nodes[]: All paragraphs with name, type, line
+      - edges[]: Internal flow (perform relationships)
+      - calls[]: External program calls with from/to/line
+      - performs[]: Explicit perform statements with from/to/line
+
+      Create visualizations showing:
+      1. Internal control flow (performs between paragraphs)
+      2. External calls WITH line numbers and calling context
+      3. Integration of both in a comprehensive diagram
+    sections:
+      - id: cfg-with-calls-diagram
+        title: Control Flow with External Calls
+        type: mermaid
+        mermaid_type: graph
+        instruction: |
+          Generate enhanced Mermaid flowchart from SuperBol CFG showing BOTH internal flow AND external calls:
+
+          From superbol_cfg.calls[], create a diagram showing:
+          1. Each paragraph as a node
+          2. PERFORM relationships as solid arrows
+          3. CALL relationships as dashed arrows WITH line numbers as labels
+          4. Group related paragraphs (e.g., INITIALIZE-SYSTEM with its calls)
+
+          Example structure:
+          ```
+          PARAGRAPH1[Paragraph Name]
+          PARAGRAPH1 -->|perform| PARAGRAPH2
+          PARAGRAPH1 -.->|"call line 33"| EXTERNALPRG1
+          PARAGRAPH1 -.->|"call line 38"| EXTERNALPRG2
+          ```
+
+          Use different styles:
+          - Solid arrows (-->) for PERFORM
+          - Dashed arrows (-.->)for CALL
+          - Labels with line numbers
+          - Different colors for external programs
+        template: |
+          ```mermaid
+          graph LR
+            {{paragraph_nodes_with_calls}}
+
+            classDef external fill:#aff,stroke:#06c,stroke-width:2px
+            classDef paragraph fill:#fff,stroke:#333,stroke-width:1px
+            {{styling_classes}}
+          ```
+
+      - id: external-call-context
+        title: External Call Context
+        instruction: |
+          From superbol_cfg.calls[], create detailed documentation of EACH external call:
+
+          For each entry in calls[]:
+          - from: calling paragraph
+          - to: external program name
+          - line: exact line number
+
+          Document the context: what the calling paragraph does, why it calls this program.
+        template: |
+          ### External Calls by Paragraph
+
+          {{external_calls_by_paragraph}}
+
+      - id: paragraph-complexity
+        title: Paragraph Complexity Analysis
+        type: table
+        columns: [Paragraph, Line, Performs, External Calls, Total Edges, Complexity]
+        instruction: |
+          Analyze each paragraph's complexity based on:
+          - Number of PERFORM statements (from performs[])
+          - Number of external CALLs (from calls[])
+          - Total edges in/out (from edges[])
+
+          Classify as: Low (<3), Medium (3-5), High (>5)
+        template: |
+          | {{paragraph}} | {{line}} | {{perform_count}} | {{call_count}} | {{total_edges}} | {{complexity_level}} |
+
+  - id: data-flow-analysis
+    title: Data Flow Analysis
+    instruction: |
+      Analyze how data flows through the program:
+      1. Identify input data (ACCEPT statements, LINKAGE SECTION)
+      2. Track data transformations (MOVE, COMPUTE)
+      3. Identify output data (DISPLAY, output files)
+      4. Document data passing to external programs
+    sections:
+      - id: dfa-diagram
+        title: Data Flow Diagram
+        type: mermaid
+        mermaid_type: graph
+        instruction: |
+          Create Mermaid diagram showing:
+          - Data sources (input)
+          - Processing steps (paragraphs that modify data)
+          - Data sinks (output/external calls)
+        template: |
+          ```mermaid
+          graph LR
+            {{dfa_mermaid_content}}
+          ```
+
+      - id: data-transformations
+        title: Data Transformations
+        instruction: |
+          Document key data transformations in the program.
+          Look for COMPUTE, MOVE, STRING, UNSTRING operations.
+        repeatable: true
+        template: |
+          **{{transformation_step}}**: {{source_data}} → {{target_data}}
+          - Location: Line {{line_number}}
+          - Operation: {{operation_type}}
+          - Purpose: {{inferred_purpose}}
+
+  - id: inter-program-communication
+    title: Inter-Program Communication
+    instruction: |
+      Use GnuCOBOL analysis JSON to document program relationships comprehensively.
+
+      CRITICAL: Extract from gnucobol_analysis:
+      - program_calls[program_name]: List of ALL programs this program calls
+      - call_summary.call_counts: Frequency of each program call across entire system
+      - per_file_analysis: Detailed call information
+
+      Create THREE levels of documentation:
+      1. This program's direct dependencies
+      2. System-wide call frequency (which programs are most critical)
+      3. Detailed call context from each paragraph
+    sections:
+      - id: call-frequency-heatmap
+        title: Call Frequency Analysis
+        type: table
+        columns: [Program Called, Call Count, Called From Paragraphs, Category]
+        instruction: |
+          From gnucobol_analysis.program_calls[program_name], count how many times each program is called.
+          Use superbol_cfg.calls[] to identify which paragraphs make each call.
+
+          Categorize by frequency:
+          - 🔥 Critical: >5 calls
+          - ⚠️ High: 3-5 calls
+          - ℹ️ Medium: 1-2 calls
+
+          Sort by call count descending.
+        template: |
+          | {{program_name}} | {{call_count}} | {{calling_paragraphs}} | {{category_icon}} {{category}} |
+
+      - id: program-call-diagram
+        title: Program Call Hierarchy
+        type: mermaid
+        mermaid_type: graph
+        instruction: |
+          Create Mermaid diagram showing this program's dependencies.
+
+          From gnucobol_analysis.program_calls[program_name]:
+          1. Current program as central node (styled prominently)
+          2. All programs it calls as connected nodes
+          3. Use superbol_cfg.calls[] to add line number labels
+          4. Color-code by call frequency
+
+          Example:
+          ```
+          MAINPROG((MAINPROG))
+          MAINPROG -.->|"5x"| LOGGER
+          MAINPROG -.->|"1x line 33"| DBCONNECT
+          ```
+        template: |
+          ```mermaid
+          graph LR
+            CURRENT{{{{program_name}}}}
+            {{called_program_nodes}}
+            {{call_relationships_with_frequency}}
+
+            classDef current fill:#f9f,stroke:#333,stroke-width:4px
+            classDef critical fill:#f66,stroke:#333,stroke-width:2px
+            classDef high fill:#fc9,stroke:#333,stroke-width:2px
+            classDef medium fill:#9cf,stroke:#333,stroke-width:1px
+            class CURRENT current
+            {{frequency_styling}}
+          ```
+
+      - id: system-wide-dependencies
+        title: System-Wide Program Dependencies
+        type: mermaid
+        mermaid_type: graph
+        instruction: |
+          From gnucobol_analysis.program_calls (ALL programs), create a system architecture view.
+
+          Show:
+          1. Current program highlighted
+          2. Programs it calls (1 level deep)
+          3. Programs those call (2 levels deep if not too complex)
+          4. Identify architectural layers
+
+          This gives context of where this program fits in the system.
+        template: |
+          ```mermaid
+          graph TD
+            subgraph "Entry Layer"
+              {{entry_programs}}
+            end
+
+            subgraph "Business Logic Layer"
+              {{business_programs}}
+              {{current_program_highlighted}}
+            end
+
+            subgraph "Data Access Layer"
+              {{data_programs}}
+            end
+
+            subgraph "Utility Services"
+              {{utility_programs}}
+            end
+
+            {{layer_relationships}}
+          ```
+
+      - id: call-details-with-context
+        title: Detailed Call Analysis
+        instruction: |
+          For EACH unique external program called, document:
+
+          From superbol_cfg.calls[]:
+          - Which paragraphs call it (from field)
+          - Line numbers (line field)
+          - How many times total
+
+          From gnucobol_analysis.call_summary.call_counts:
+          - System-wide usage (helps understand criticality)
+
+          Explain the purpose and integration pattern.
+        repeatable: true
+        template: |
+          ### {{called_program_name}}
+
+          **This Program's Usage**:
+          - Call Count: {{local_call_count}}
+          - Called From Paragraphs:
+            {{paragraph_and_line_list}}
+
+          **System-Wide Context**:
+          - Total Calls Across System: {{system_wide_call_count}}
+          - Called By {{programs_calling_count}} different programs
+          - Classification: {{program_role}}
+
+          **Purpose & Integration**:
+          {{inferred_purpose_and_integration}}
+
+  - id: business-logic
+    title: Business Logic Explanation
+    instruction: |
+      Synthesize all metadata to explain business logic with execution flow.
+
+      CRITICAL: Use superbol_cfg.performs[] AND superbol_cfg.calls[] to create accurate sequence:
+
+      From performs[]:
+      - Build paragraph execution order
+      - Identify loops (PERFORM UNTIL patterns)
+      - Track conditional branching
+
+      From calls[]:
+      - Show external program interactions IN SEQUENCE
+      - Include line numbers in sequence flow
+      - Show bi-directional communication patterns
+
+      Create realistic execution flow showing:
+      1. Initialization sequence
+      2. Main business logic with branches
+      3. Error handling paths
+      4. Cleanup sequence
+    sections:
+      - id: execution-flow-sequence
+        title: Execution Flow Sequence
+        type: mermaid
+        mermaid_type: sequence
+        instruction: |
+          Create detailed sequence diagram from metadata showing REALISTIC execution flow.
+
+          Use superbol_cfg to build sequence:
+          1. Start with MAIN-PROGRAM or entry paragraph
+          2. Follow performs[] to show internal paragraph calls
+          3. Integrate calls[] to show external program interactions
+          4. Include line numbers as notes
+          5. Show loops, conditionals, and error paths
+
+          Example structure:
+          ```
+          User->>MAINPROG: Start
+          MAINPROG->>INITIALIZE-SYSTEM: PERFORM (line 21)
+          INITIALIZE-SYSTEM->>DBCONNECT: CALL (line 33)
+          Note over DBCONNECT: Establishes DB connection
+          DBCONNECT-->>INITIALIZE-SYSTEM: Return
+          INITIALIZE-SYSTEM->>LOGGER: CALL (line 38)
+          LOGGER-->>INITIALIZE-SYSTEM: Return
+          loop User Operations
+              MAINPROG->>PROCESS-USER-SELECTION: PERFORM
+              alt Customer Operations
+                  PROCESS-USER-SELECTION->>CUSTMGMT: CALL (line 71)
+              alt Account Operations
+                  PROCESS-USER-SELECTION->>ACCTOPER: CALL (line 82)
+              alt Transactions
+                  PROCESS-USER-SELECTION->>TRANPROC: CALL (line 96)
+              end
+          end
+          ```
+
+          Be comprehensive but realistic - show actual execution path.
+        template: |
+          ```mermaid
+          sequenceDiagram
+            participant User
+            participant {{program_name}}
+            {{external_program_participants}}
+
+            {{detailed_execution_sequence}}
+          ```
+
+      - id: business-operations-catalog
+        title: Business Operations Catalog
+        instruction: |
+          Identify and document distinct business operations by analyzing paragraph patterns.
+
+          Group related paragraphs (e.g., all HANDLE-* paragraphs are operations).
+
+          For each operation:
+          - Purpose (what business function)
+          - Paragraphs involved (from ctags)
+          - Data used (from ctags data items)
+          - External programs called (from superbol_cfg.calls)
+          - Success/error flows
+
+          This creates a catalog of what this program CAN DO.
+        repeatable: true
+        template: |
+          ### {{operation_name}}
+
+          **Business Purpose**: {{business_purpose}}
+
+          **Implementation**:
+          - Primary Paragraph: {{primary_paragraph}} (Line {{line}})
+          - Supporting Paragraphs: {{supporting_paragraphs}}
+
+          **Data Requirements**:
+          {{required_data_items}}
+
+          **External Dependencies**:
+          {{external_programs_called}}
+
+          **Process Flow**:
+          {{step_by_step_flow}}
+
+          **Error Handling**:
+          {{error_handling_approach}}
+
+  - id: error-handling
+    title: Error Handling Strategy
+    instruction: |
+      Document error handling approach:
+      1. Identify error codes (WS-RETURN-CODE, etc.)
+      2. Find error handling paragraphs
+      3. Document ERRHANDL program calls
+      4. Identify validation points
+    template: |
+      **Error Code Variables**: {{error_variables}}
+
+      **Error Handling Approach**:
+      {{error_handling_description}}
+
+      **Validation Points**:
+      {{validation_points}}
+
+      **Error Handler Invocations**:
+      {{error_handler_calls}}
+
+  - id: technical-details
+    title: Technical Details
+    instruction: |
+      Document technical implementation details for developers.
+    sections:
+      - id: code-metrics
+        title: Code Metrics
+        type: table
+        columns: [Metric, Value]
+        instruction: |
+          Calculate from metadata:
+          - Total lines (from superbol location ranges)
+          - Number of paragraphs (from ctags)
+          - Number of data items (from ctags)
+          - Number of external calls (from gnucobol)
+          - Cyclomatic complexity (estimate from CFG edges)
+        template: |
+          | {{metric_name}} | {{metric_value}} |
+
+      - id: dependencies-matrix
+        title: Dependencies Matrix
+        type: table
+        columns: [Dependency Type, Name, Count, Lines]
+        instruction: |
+          List all dependencies:
+          - External programs called
+          - Data structures used
+          - Files accessed (if any)
+        template: |
+          | {{dependency_type}} | {{dependency_name}} | {{usage_count}} | {{line_numbers}} |
+
+  - id: code-references
+    title: Code References
+    instruction: |
+      Provide easy navigation references to source code locations.
+      All line numbers should link back to source file.
+    template: |
+      ### Quick Reference Links
+
+      {{code_reference_links}}
+
+  - id: metadata-appendix
+    title: Appendix - Metadata Summary
+    instruction: |
+      Include summary of metadata used for documentation generation.
+      This provides transparency and debugging capability.
+    sections:
+      - id: superbol-summary
+        title: SuperBol Metadata
+        template: |
+          **Symbols Found**: {{symbol_count}}
+          **CFG Nodes**: {{cfg_node_count}}
+          **CFG Edges**: {{cfg_edge_count}}
+          **External Calls**: {{external_call_count}}
+
+      - id: gnucobol-summary
+        title: GnuCOBOL Analyzer Metadata
+        template: |
+          **Program ID**: {{gnucobol_program_id}}
+          **Total Calls**: {{gnucobol_call_count}}
+          **Unique Programs Called**: {{gnucobol_unique_programs}}
+          **Analysis Success**: {{gnucobol_success}}
+
+      - id: ctags-summary
+        title: Universal-Ctags Metadata
+        template: |
+          **Total Symbols**: {{ctags_symbol_count}}
+          **Divisions**: {{ctags_division_count}}
+          **Paragraphs**: {{ctags_paragraph_count}}
+          **Data Items**: {{ctags_data_count}}

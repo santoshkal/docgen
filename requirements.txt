@@ -1,0 +1,22 @@
+# COBOL Documentation Agent Dependencies
+
+# Core LangGraph and LangChain
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+
+# Alternative LLM providers (optional)
+langchain-anthropic>=0.2.0  # For Claude Sonnet support with 200k context
+# langchain-google-genai>=2.0.0
+
+# Data handling
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# MCP integration
+mcp-use>=0.1.0
+
+# Optional: for advanced features
+# tiktoken>=0.7.0  # Token counting
+# jinja2>=3.1.0    # Alternative templating
+ipython>=9.0.0     # For inline workflow visualization in Jupyter notebooks
