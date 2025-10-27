@@ -185,3 +185,39 @@ class TestDeduplication:
         assert 'PARA-004' in names
         assert 'PARA-003' not in names  # Duplicate removed
         assert 'PARA-005' not in names  # Duplicate removed
+
+    def test_deduplicate_empty_list(self):
+        """Test deduplication with empty list"""
+        result = deduplicate_source_extracts([])
+        assert result == []
+
+    def test_deduplicate_empty_source(self):
+        """Test deduplication with empty source strings"""
+        extracts = [
+            {'name': 'PARA-001', 'source': ''},
+            {'name': 'PARA-002', 'source': ''},
+            {'name': 'PARA-003', 'source': 'MOVE A TO B.\n'},
+        ]
+
+        result = deduplicate_source_extracts(extracts)
+
+        # Empty sources have same hash, only first should be kept
+        assert len(result) == 2
+        names = [e['name'] for e in result]
+        assert 'PARA-001' in names
+        assert 'PARA-003' in names
+        assert 'PARA-002' not in names
+
+    def test_deduplicate_all_identical(self):
+        """Test deduplication when all sources are identical"""
+        extracts = [
+            {'name': 'PARA-001', 'source': 'MOVE A TO B.\n'},
+            {'name': 'PARA-002', 'source': 'MOVE A TO B.\n'},
+            {'name': 'PARA-003', 'source': 'MOVE A TO B.\n'},
+        ]
+
+        result = deduplicate_source_extracts(extracts)
+
+        # Should keep only the first one
+        assert len(result) == 1
+        assert result[0]['name'] == 'PARA-001'

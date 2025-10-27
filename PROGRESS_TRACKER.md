@@ -117,11 +117,11 @@
 - [x] 📝 Commit: "feat: add source deduplication"
 
 **TDD Cycle 3: Deduplication Edge Cases**
-- [ ] ✍️ Write tests for edge cases (empty source, identical hashes)
-- [ ] 🔴 Run tests → Should FAIL
-- [ ] 💻 Handle edge cases
-- [ ] 🟢 Run tests → Should PASS
-- [ ] 📝 Commit: "fix: handle deduplication edge cases"
+- [x] ✍️ Write tests for edge cases (empty source, identical hashes)
+- [x] 🔴 Run tests → Should FAIL
+- [x] 💻 Handle edge cases
+- [x] 🟢 Run tests → Should PASS
+- [x] 📝 Commit: "test: add deduplication edge case tests"
 
 #### Afternoon (4 hours): Division Extractors
 
