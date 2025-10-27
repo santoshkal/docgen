@@ -1,72 +1,12 @@
 metadata:
-  generated_at: '2025-10-24T16:29:21.192979'
-  workspace_path: ../cobol-source
+  generated_at: '2025-10-27T16:07:06.430306'
+  workspace_path: /home/santosh/test-cobol-phase3/src
   algorithm: sha256
-  file_count: 16
+  file_count: 1
   agent_version: 1.0.0
 source_files:
-  ACCTOPER.COB: c9aaf59094036eae3448b54822c9d89b37d93986e8c99b493c2d0a079b530c84
-  AUDITLOG.COB: 6f159c698383f745e46de1c0ab3e98b8f97566957f5bdf6170662f89102d0260
-  CUSTMGMT.COB: a4c4110f54df4c17612be0f7502b8ffe58e94e1246001d83d9e445549c7e659a
-  DBCLOSE.COB: d8ad2d1d69f3957a565cbea7117eaba492d1aa5a4d3976419f98725cab4d7d75
-  DBCONNECT.COB: c1aed201f3a61a6e373001632175ab5a643454ac36d223274e9e6f9fb5824b6e
-  DBDELETE.COB: a5067eb905bd17e5d1f6070394d45c6391e851fb5bab1220fe360cdac15856c8
-  DBINSERT.COB: 4317683c5bfdbd949b8071dfcfe3218db6bff6b258208e7fe8aea935f28fb62e
-  DBSELECT.COB: 63a9f5f878118337cbbb9d413c642913053f981c0c07a0dead862e1c7a6537cf
-  DBUPDATE.COB: d6d54eb152b41327a235817a9cbb29f442251dcdabb5b8b1399d7f0c7860c49a
-  ERRHANDL.COB: b2bc35f7dd458e19b6cf4f83e7b7df5f30c9f44e779a569c3f42d98369c7c7ea
-  LOGGER.COB: 4b1273bc570a640325bd59dd02db9964baee5e7754f0dcfa160f4fd063112206
-  MAINPROG.COB: 8a8f584a7b4c05e3f7f8528b2012cca30554f8f0843b7fd3979b1f565d0c8bb0
-  NOTIFIER.COB: 2692b6242659582b008e5937807c2c3b147b90b9764c89e76e8ae7d72dfb5f7c
-  REPTGEN.COB: ef49a3bac5b564d5eff1ef60f6162fa3fbf411aca38a158551b9ba2634af8bc5
-  TRANPROC.COB: 254d7d069f440837e76ecaeb1d63354d4ac0492baa5e93289456898e0efdfbcb
-  VALIDATE.COB: bef7074de1fe9f326e88bbc2790d7a704ed1e538e6b3432da24e0efa17334e42
+  BANK-TRANSACTION.cbl: ac8059f8d575268a7b5319dedb36d591190c9ed1decee9b636f6972c7b582536
 file_details:
-  ACCTOPER.COB:
-    size_bytes: 5205
-    modified_at: '2025-10-14T16:32:40.224476'
-  AUDITLOG.COB:
-    size_bytes: 1772
-    modified_at: '2025-10-14T16:32:40.224476'
-  CUSTMGMT.COB:
-    size_bytes: 4576
-    modified_at: '2025-10-14T16:32:40.224476'
-  DBCLOSE.COB:
-    size_bytes: 1303
-    modified_at: '2025-10-14T16:32:40.224476'
-  DBCONNECT.COB:
-    size_bytes: 1572
-    modified_at: '2025-10-14T16:32:40.224476'
-  DBDELETE.COB:
-    size_bytes: 1695
-    modified_at: '2025-10-14T16:32:40.224476'
-  DBINSERT.COB:
-    size_bytes: 1694
-    modified_at: '2025-10-14T16:32:40.224476'
-  DBSELECT.COB:
-    size_bytes: 1255
-    modified_at: '2025-10-14T16:32:40.224476'
-  DBUPDATE.COB:
-    size_bytes: 1852
-    modified_at: '2025-10-14T16:32:40.224476'
-  ERRHANDL.COB:
-    size_bytes: 2014
-    modified_at: '2025-10-14T16:32:40.224476'
-  LOGGER.COB:
-    size_bytes: 1343
-    modified_at: '2025-10-14T16:32:40.224476'
-  MAINPROG.COB:
-    size_bytes: 4163
-    modified_at: '2025-10-14T16:32:40.224476'
-  NOTIFIER.COB:
-    size_bytes: 2011
-    modified_at: '2025-10-14T16:32:40.224476'
-  REPTGEN.COB:
-    size_bytes: 2470
-    modified_at: '2025-10-14T16:32:40.224476'
-  TRANPROC.COB:
-    size_bytes: 2372
-    modified_at: '2025-10-14T16:32:40.224476'
-  VALIDATE.COB:
-    size_bytes: 1848
-    modified_at: '2025-10-14T16:32:40.224476'
+  BANK-TRANSACTION.cbl:
+    size_bytes: 11344
+    modified_at: '2025-10-27T15:21:15.503762'

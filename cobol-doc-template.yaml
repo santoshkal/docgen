@@ -20,10 +20,14 @@ workflow:
 
 sections:
   - id: document-header
-    title: "{{program_name}} Documentation"
+    title: "Document Header"
     instruction: |
       Extract program name from metadata and create document header.
       Include generation timestamp and metadata sources used.
+
+      **IMPORTANT:** Replace ALL template variables with actual values:
+      - {{program_name}} must be replaced with the actual program ID
+      - Do NOT leave any {{placeholder}} text in the output
     sections:
       - id: metadata-info
         title: Document Information
@@ -106,15 +110,39 @@ sections:
         instruction: |
           Generate enhanced Mermaid flowchart from SuperBol CFG showing BOTH internal flow AND external calls:
 
+          **CRITICAL - Mermaid Syntax Sanitization:**
+          COBOL paragraph names may contain special characters that break Mermaid syntax.
+          You MUST sanitize ALL paragraph names before using them in Mermaid diagrams:
+
+          Sanitization Rules:
+          1. Node IDs (before brackets): Use only alphanumeric and underscores [A-Za-z0-9_]
+             - Remove or replace: * / " ' \ - and other special chars
+             - Example: "L\"S\"/\"GENL\"" becomes LSGENL
+          2. Node Labels (inside brackets): Use backtick syntax for any text with special chars
+             - Replace " with ' (single quotes)
+             - Replace / with - (hyphen)
+             - Replace * with - (hyphen)
+             - Wrap in backticks: ["`label here`"]
+             - Example: L"S"/"GENL" becomes ["`L'S'-'GENL'`"]
+
+          Sanitization Examples:
+          - Original: L"S"/"GENL"/"PRINTER-PR"
+            Node ID: LSGENLPRINTERPR
+            Full syntax: LSGENLPRINTERPR["`L'S'-'GENL'-'PRINTER-PR'`"]
+
+          - Original: 000026*REMARKS
+            Node ID: REMARKS_000026
+            Full syntax: REMARKS_000026["`000026-REMARKS`"]
+
           From superbol_cfg.calls[], create a diagram showing:
-          1. Each paragraph as a node
+          1. Each paragraph as a node (SANITIZED node ID, original name in backtick label)
           2. PERFORM relationships as solid arrows
           3. CALL relationships as dashed arrows WITH line numbers as labels
           4. Group related paragraphs (e.g., INITIALIZE-SYSTEM with its calls)
 
-          Example structure:
+          Example structure with sanitization:
           ```
-          PARAGRAPH1[Paragraph Name]
+          PARAGRAPH1["`PARAGRAPH-1`"]
           PARAGRAPH1 -->|perform| PARAGRAPH2
           PARAGRAPH1 -.->|"call line 33"| EXTERNALPRG1
           PARAGRAPH1 -.->|"call line 38"| EXTERNALPRG2
@@ -183,6 +211,11 @@ sections:
           - Data sources (input)
           - Processing steps (paragraphs that modify data)
           - Data sinks (output/external calls)
+
+          **CRITICAL:** Apply Mermaid sanitization rules (see cfg-with-calls-diagram section):
+          - Node IDs: alphanumeric and underscores only
+          - Labels: use backtick syntax ["`label`"] for special characters
+          - Replace " with ', / with -, * with -
         template: |
           ```mermaid
           graph LR
@@ -240,9 +273,14 @@ sections:
         instruction: |
           Create Mermaid diagram showing this program's dependencies.
 
+          **CRITICAL:** Apply Mermaid sanitization rules:
+          - Program names must be sanitized for use as node IDs
+          - Use backtick syntax for labels with special characters
+          - Replace " with ', / with -, * with -
+
           From gnucobol_analysis.program_calls[program_name]:
-          1. Current program as central node (styled prominently)
-          2. All programs it calls as connected nodes
+          1. Current program as central node (styled prominently, sanitized ID)
+          2. All programs it calls as connected nodes (sanitized IDs)
           3. Use superbol_cfg.calls[] to add line number labels
           4. Color-code by call frequency
 
@@ -274,11 +312,16 @@ sections:
         instruction: |
           From gnucobol_analysis.program_calls (ALL programs), create a system architecture view.
 
+          **CRITICAL:** Apply Mermaid sanitization rules:
+          - All program names must be sanitized for node IDs
+          - Subgraph IDs must be valid alphanumeric identifiers (no spaces, special chars)
+          - Use backtick syntax for labels with special characters
+
           Show:
-          1. Current program highlighted
-          2. Programs it calls (1 level deep)
-          3. Programs those call (2 levels deep if not too complex)
-          4. Identify architectural layers
+          1. Current program highlighted (sanitized ID)
+          2. Programs it calls (1 level deep, sanitized IDs)
+          3. Programs those call (2 levels deep if not too complex, sanitized IDs)
+          4. Identify architectural layers (valid subgraph IDs)
 
           This gives context of where this program fits in the system.
         template: |
@@ -365,30 +408,42 @@ sections:
         instruction: |
           Create detailed sequence diagram from metadata showing REALISTIC execution flow.
 
+          **CRITICAL - Mermaid Sequence Diagram Sanitization:**
+          Participant names in sequence diagrams must be sanitized:
+          1. Replace spaces with underscores or remove them
+          2. Remove or replace special characters: " ' / \ * -
+          3. Use only alphanumeric and underscores
+          4. Keep names short (under 20 chars if possible)
+
+          Sanitization Examples for Sequence Diagrams:
+          - Original: L"S"/"GENL" → Sanitized: LSGENL
+          - Original: INIT-SYSTEM → Sanitized: INITSYSTEM
+          - Original: 000026*REMARKS → Sanitized: REMARKS_000026
+
           Use superbol_cfg to build sequence:
-          1. Start with MAIN-PROGRAM or entry paragraph
-          2. Follow performs[] to show internal paragraph calls
-          3. Integrate calls[] to show external program interactions
+          1. Start with MAIN-PROGRAM or entry paragraph (sanitized name)
+          2. Follow performs[] to show internal paragraph calls (sanitized names)
+          3. Integrate calls[] to show external program interactions (sanitized names)
           4. Include line numbers as notes
           5. Show loops, conditionals, and error paths
 
-          Example structure:
+          Example structure with sanitization:
           ```
           User->>MAINPROG: Start
-          MAINPROG->>INITIALIZE-SYSTEM: PERFORM (line 21)
-          INITIALIZE-SYSTEM->>DBCONNECT: CALL (line 33)
+          MAINPROG->>INITSYSTEM: PERFORM (line 21)
+          INITSYSTEM->>DBCONNECT: CALL (line 33)
           Note over DBCONNECT: Establishes DB connection
-          DBCONNECT-->>INITIALIZE-SYSTEM: Return
-          INITIALIZE-SYSTEM->>LOGGER: CALL (line 38)
-          LOGGER-->>INITIALIZE-SYSTEM: Return
+          DBCONNECT-->>INITSYSTEM: Return
+          INITSYSTEM->>LOGGER: CALL (line 38)
+          LOGGER-->>INITSYSTEM: Return
           loop User Operations
-              MAINPROG->>PROCESS-USER-SELECTION: PERFORM
+              MAINPROG->>PROCESSSELECTION: PERFORM
               alt Customer Operations
-                  PROCESS-USER-SELECTION->>CUSTMGMT: CALL (line 71)
+                  PROCESSSELECTION->>CUSTMGMT: CALL (line 71)
               alt Account Operations
-                  PROCESS-USER-SELECTION->>ACCTOPER: CALL (line 82)
+                  PROCESSSELECTION->>ACCTOPER: CALL (line 82)
               alt Transactions
-                  PROCESS-USER-SELECTION->>TRANPROC: CALL (line 96)
+                  PROCESSSELECTION->>TRANPROC: CALL (line 96)
               end
           end
           ```

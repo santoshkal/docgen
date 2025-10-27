@@ -5,6 +5,7 @@ High-level functions to integrate source extraction with documentation generatio
 This module ties together:
 - source_extractor.py (extraction functions)
 - section_requirements.py (configuration)
+- multi_file_resolver.py (Phase 3 - copybooks and called programs)
 """
 
 from typing import Dict, List, Any, Optional
@@ -22,6 +23,13 @@ from section_requirements import (
     should_extract_source,
     get_divisions_for_section
 )
+
+# Phase 3: Multi-file support imports
+try:
+    from multi_file_resolver import CopybookResolver, CalledProgramResolver
+    MULTI_FILE_AVAILABLE = True
+except ImportError:
+    MULTI_FILE_AVAILABLE = False
 
 
 def extract_source_for_section(
@@ -207,3 +215,160 @@ def build_section_context_with_source(
         context_parts.append(source)
 
     return '\n'.join(context_parts)
+
+
+# ==================================================
+# Phase 3: Multi-File Support Functions (Day 9)
+# ==================================================
+
+def extract_source_with_copybooks(
+    section_id: str,
+    cobol_file_path: str,
+    copybook_resolver: Optional['CopybookResolver'] = None,
+    compress: bool = True
+) -> Optional[str]:
+    """
+    Extract source code including referenced copybooks.
+
+    Args:
+        section_id: Section identifier (e.g., '2_data_structures')
+        cobol_file_path: Path to main COBOL file
+        copybook_resolver: CopybookResolver instance
+        compress: Whether to compress source
+
+    Returns:
+        Source code with copybook content included
+    """
+    if not MULTI_FILE_AVAILABLE or copybook_resolver is None:
+        # Fallback to regular extraction
+        return extract_source_for_section(section_id, cobol_file_path, compress=compress)
+
+    # First, extract main file source
+    main_source = extract_source_for_section(section_id, cobol_file_path, compress=compress)
+
+    if main_source is None:
+        return None
+
+    # Resolve copybooks
+    try:
+        copybooks = copybook_resolver.resolve_all_copybooks(cobol_file_path)
+
+        if not copybooks:
+            return main_source
+
+        # Build combined source with copybook content
+        parts = [main_source]
+        parts.append("\n\n### Referenced Copybooks:\n")
+
+        for copybook_name, copybook_content in copybooks.items():
+            parts.append(f"\n**{copybook_name}:**\n")
+            parts.append("```cobol\n")
+            if compress:
+                copybook_content = compress_source_code(copybook_content)
+            parts.append(copybook_content)
+            parts.append("\n```\n")
+
+        return ''.join(parts)
+
+    except Exception as e:
+        # Log error but return main source
+        print(f"Warning: Failed to resolve copybooks: {e}")
+        return main_source
+
+
+def extract_source_with_called_programs(
+    section_id: str,
+    cobol_file_path: str,
+    called_program_resolver: Optional['CalledProgramResolver'] = None,
+    compress: bool = True
+) -> Optional[str]:
+    """
+    Extract source code including information about called programs.
+
+    Args:
+        section_id: Section identifier (e.g., '3_business_logic')
+        cobol_file_path: Path to main COBOL file
+        called_program_resolver: CalledProgramResolver instance
+        compress: Whether to compress source
+
+    Returns:
+        Source code with called program information
+    """
+    if not MULTI_FILE_AVAILABLE or called_program_resolver is None:
+        # Fallback to regular extraction
+        return extract_source_for_section(section_id, cobol_file_path, compress=compress)
+
+    # First, extract main file source
+    main_source = extract_source_for_section(section_id, cobol_file_path, compress=compress)
+
+    if main_source is None:
+        return None
+
+    # Resolve called programs
+    try:
+        called_programs = called_program_resolver.resolve_all_calls(cobol_file_path)
+
+        if not called_programs:
+            return main_source
+
+        # Add called program information
+        parts = [main_source]
+        parts.append("\n\n### Called Programs:\n")
+
+        for prog_name, info in called_programs.items():
+            parts.append(f"\n**{prog_name}:**\n")
+            if info.get('path'):
+                parts.append(f"- Location: `{info['path']}`\n")
+                if info.get('purpose'):
+                    parts.append(f"- Purpose: {info['purpose']}\n")
+            else:
+                parts.append(f"- Status: Not found in codebase\n")
+
+        return ''.join(parts)
+
+    except Exception as e:
+        # Log error but return main source
+        print(f"Warning: Failed to resolve called programs: {e}")
+        return main_source
+
+
+def extract_source_multi_file(
+    section_id: str,
+    cobol_file_path: str,
+    copybook_resolver: Optional['CopybookResolver'] = None,
+    called_program_resolver: Optional['CalledProgramResolver'] = None,
+    compress: bool = True
+) -> Optional[str]:
+    """
+    Extract source code with full multi-file support (copybooks + called programs).
+
+    This is the complete Phase 3 integration combining copybooks and called programs.
+
+    Args:
+        section_id: Section identifier
+        cobol_file_path: Path to main COBOL file
+        copybook_resolver: CopybookResolver instance
+        called_program_resolver: CalledProgramResolver instance
+        compress: Whether to compress source
+
+    Returns:
+        Comprehensive source code with all multi-file context
+    """
+    if not MULTI_FILE_AVAILABLE:
+        return extract_source_for_section(section_id, cobol_file_path, compress=compress)
+
+    # Start with copybooks (for data sections)
+    if section_id.startswith('2_') or 'data' in section_id.lower():
+        source = extract_source_with_copybooks(
+            section_id, cobol_file_path, copybook_resolver, compress
+        )
+    # For logic sections, include called programs
+    elif section_id.startswith('3_') or 'logic' in section_id.lower():
+        source = extract_source_with_called_programs(
+            section_id, cobol_file_path, called_program_resolver, compress
+        )
+    else:
+        # Default: regular extraction
+        source = extract_source_for_section(section_id, cobol_file_path, compress=compress)
+
+    return source
