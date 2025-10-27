@@ -7,7 +7,7 @@ Following TDD approach: Tests written FIRST, then implementation.
 import pytest
 import os
 import tempfile
-from source_extractor import extract_lines, extract_lines_by_ranges
+from source_extractor import extract_lines, extract_lines_by_ranges, extract_lines_with_context
 
 
 class TestBasicExtraction:
@@ -66,6 +66,24 @@ class TestBasicExtraction:
 
             # Should extract lines 1-2, 5-6, 9-10
             expected = "Line 1\nLine 2\nLine 5\nLine 6\nLine 9\nLine 10\n"
+            assert result == expected
+        finally:
+            os.unlink(test_file)
+
+    def test_extract_lines_with_context(self):
+        """Test line extraction with surrounding context"""
+        # Create test file
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cbl') as f:
+            test_file = f.name
+            for i in range(1, 11):
+                f.write(f"Line {i}\n")
+
+        try:
+            # Test extraction of line 5 with 2 lines of context before and after
+            result = extract_lines_with_context(test_file, 5, 5, context_before=2, context_after=2)
+
+            # Should extract lines 3-7 (line 5 with 2 lines before and after)
+            expected = "Line 3\nLine 4\nLine 5\nLine 6\nLine 7\n"
             assert result == expected
         finally:
             os.unlink(test_file)

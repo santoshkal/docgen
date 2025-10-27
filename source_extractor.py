@@ -66,3 +66,43 @@ def extract_lines_by_ranges(file_path: str, ranges: List[Tuple[int, int]]) -> st
     for start, end in ranges:
         result.append(extract_lines(file_path, start, end))
     return ''.join(result)
+
+
+def extract_lines_with_context(
+    file_path: str,
+    start: int,
+    end: int,
+    context_before: int = 0,
+    context_after: int = 0
+) -> str:
+    """
+    Extract lines from a file with surrounding context.
+
+    Args:
+        file_path: Path to the source file
+        start: Starting line number (1-indexed)
+        end: Ending line number (1-indexed, inclusive)
+        context_before: Number of lines to include before start (default: 0)
+        context_after: Number of lines to include after end (default: 0)
+
+    Returns:
+        Extracted lines with context as a string with newlines preserved
+
+    Raises:
+        ValueError: If line numbers are invalid
+        FileNotFoundError: If the file doesn't exist
+
+    Examples:
+        >>> extract_lines_with_context("program.cbl", 10, 15, context_before=2, context_after=2)
+        'Lines 8-17 (lines 10-15 with 2 lines of context before and after)'
+    """
+    # Calculate actual range with context
+    actual_start = max(1, start - context_before)
+
+    # For end calculation, we need to read the file to know total line count
+    with open(file_path, 'r', encoding='utf-8') as f:
+        total_lines = sum(1 for _ in f)
+
+    actual_end = min(total_lines, end + context_after)
+
+    return extract_lines(file_path, actual_start, actual_end)

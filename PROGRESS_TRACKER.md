@@ -81,15 +81,15 @@
 - [x] 📝 Commit: "feat: add multi-range extraction"
 
 **TDD Cycle 5: Context Extraction**
-- [ ] ✍️ Write test: `test_extract_lines_with_context()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `extract_lines_with_context()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add context extraction"
+- [x] ✍️ Write test: `test_extract_lines_with_context()`
+- [x] 🔴 Run test → Should FAIL
+- [x] 💻 Implement `extract_lines_with_context()`
+- [x] 🟢 Run test → Should PASS
+- [x] ♻️ Refactor
+- [x] 📝 Commit: "feat: add context extraction"
 
 #### End of Day 1 Checklist
-- [ ] All Day 1 tests pass
+- [x] All Day 1 tests pass
 - [ ] Code coverage ≥ 80%
 - [ ] All commits pushed
 - [ ] No failing tests
