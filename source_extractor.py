@@ -294,3 +294,92 @@ def extract_paragraphs_by_names(
                 'source': source
             })
     return extracts
+
+
+def compress_source_code(source: str) -> str:
+    """
+    Compress COBOL source code by removing comments and blank lines.
+
+    COBOL comments start with '*' in column 7 (or after leading spaces).
+
+    Args:
+        source: COBOL source code
+
+    Returns:
+        Compressed source code without comments and blank lines
+
+    Examples:
+        >>> source = "      * Comment\\n       MOVE A TO B.\\n"
+        >>> compressed = compress_source_code(source)
+        >>> "* Comment" not in compressed
+        True
+    """
+    lines = source.split('\n')
+    compressed_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+        # Skip blank lines
+        if not stripped:
+            continue
+        # Skip comment lines (COBOL comments start with * in column 7)
+        if stripped.startswith('*'):
+            continue
+        compressed_lines.append(line)
+
+    return '\n'.join(compressed_lines)
+
+
+def estimate_token_count(source: str) -> int:
+    """
+    Estimate token count for source code.
+
+    Uses a simple heuristic: approximately 1 token per 4 characters.
+    This is a rough estimate for Claude's tokenizer.
+
+    Args:
+        source: Source code string
+
+    Returns:
+        Estimated token count
+
+    Examples:
+        >>> estimate_token_count("MOVE A TO B.")
+        3
+    """
+    # Simple heuristic: ~1 token per 4 characters
+    # This is approximate for Claude tokenizer
+    return len(source) // 4
+
+
+def add_section_markers(sections: List[Dict[str, Any]]) -> str:
+    """
+    Add markdown section markers to source code sections.
+
+    Args:
+        sections: List of dicts with 'name' and 'source' keys
+
+    Returns:
+        Markdown-formatted string with headers and code blocks
+
+    Examples:
+        >>> sections = [{'name': 'DATA DIVISION', 'source': '01 VAR PIC X.'}]
+        >>> marked = add_section_markers(sections)
+        >>> '### DATA DIVISION' in marked
+        True
+    """
+    if not sections:
+        return ""
+
+    result = []
+    for section in sections:
+        # Add markdown header
+        result.append(f"### {section['name']}")
+        result.append("")
+        # Add code block
+        result.append("```cobol")
+        result.append(section['source'].rstrip())
+        result.append("```")
+        result.append("")
+
+    return '\n'.join(result)

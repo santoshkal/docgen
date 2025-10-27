@@ -187,41 +187,22 @@ This is more maintainable and follows DRY principles.
 
 #### Afternoon (3 hours): Optimization Functions
 
-**TDD Cycle 4: Source Compression**
-- [ ] ✍️ Write test: `test_compress_source_code()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `compress_source_code()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add source compression"
-
-**TDD Cycle 5: Token Estimation**
-- [ ] ✍️ Write test: `test_estimate_token_count()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `estimate_token_count()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] 📝 Commit: "feat: add token estimation"
-
-**TDD Cycle 6: Section Markers**
-- [ ] ✍️ Write test: `test_add_section_markers()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `add_section_markers()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] 📝 Commit: "feat: add section markers"
-
-**TDD Cycle 7: Helper Functions**
-- [ ] ✍️ Write tests for all helper functions
-- [ ] 🔴 Run tests → Should FAIL
-- [ ] 💻 Implement helpers
-- [ ] 🟢 Run tests → Should PASS
-- [ ] 📝 Commit: "feat: add helper functions"
+**TDD Cycles 4-7: Optimization Functions (Combined)**
+- [x] ✍️ Write tests for all optimization functions
+- [x] 🔴 Run tests → Should FAIL
+- [x] 💻 Implement `compress_source_code()` - Remove comments & blank lines
+- [x] 💻 Implement `estimate_token_count()` - Simple heuristic (1 token per 4 chars)
+- [x] 💻 Implement `add_section_markers()` - Markdown formatting
+- [x] 🟢 Run tests → Should PASS (5/5)
+- [x] ♻️ Refactor
+- [x] 📝 Commit: "feat: add optimization functions"
 
 #### End of Day 3 Checklist
-- [ ] All Day 3 tests pass
-- [ ] Paragraph extraction working
-- [ ] Optimization functions working
+- [x] All Day 3 tests pass (29/29)
+- [x] Paragraph extraction working
+- [x] Optimization functions working
 - [ ] Code coverage ≥ 90%
-- [ ] All commits pushed
+- [x] All commits pushed
 
 ---
 

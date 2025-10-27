@@ -16,7 +16,10 @@ from source_extractor import (
     find_division_boundaries,
     extract_division,
     extract_paragraph,
-    extract_paragraphs_by_names
+    extract_paragraphs_by_names,
+    compress_source_code,
+    estimate_token_count,
+    add_section_markers
 )
 
 
@@ -395,3 +398,76 @@ class TestParagraphExtraction:
         assert 'MAIN-PARA' in names
         assert 'SUB-PARA' in names
         assert 'NONEXISTENT-PARA' not in names
+
+
+class TestOptimizationFunctions:
+    """Test source code optimization and helper functions"""
+
+    def test_compress_source_code(self):
+        """Test source code compression (remove comments and blank lines)"""
+        source = """      * This is a comment
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. TEST.
+      * Another comment
+
+       DATA DIVISION.
+
+       WORKING-STORAGE SECTION.
+       01 WS-VAR PIC X(10).
+"""
+        compressed = compress_source_code(source)
+
+        # Should remove comment lines and blank lines
+        assert '* This is a comment' not in compressed
+        assert '* Another comment' not in compressed
+        # Should keep actual code
+        assert 'IDENTIFICATION DIVISION' in compressed
+        assert 'DATA DIVISION' in compressed
+        assert 'WS-VAR' in compressed
+        # Should have fewer lines
+        assert compressed.count('\n') < source.count('\n')
+
+    def test_compress_preserves_code(self):
+        """Test that compression doesn't remove actual code"""
+        source = """       MOVE A TO B.
+       DISPLAY "Hello".
+       STOP RUN."""
+        compressed = compress_source_code(source)
+
+        # All code should be preserved
+        assert 'MOVE A TO B' in compressed
+        assert 'DISPLAY "Hello"' in compressed
+        assert 'STOP RUN' in compressed
+
+    def test_estimate_token_count(self):
+        """Test token count estimation"""
+        source = "       MOVE A TO B.\n       DISPLAY 'Hello World'.\n"
+
+        count = estimate_token_count(source)
+
+        # Should return reasonable estimate (roughly 1 token per 4 chars)
+        assert count > 0
+        assert count < len(source)  # Should be less than character count
+        assert isinstance(count, int)
+
+    def test_add_section_markers(self):
+        """Test adding markdown section markers"""
+        sections = [
+            {'name': 'DATA DIVISION', 'source': '01 WS-VAR PIC X.'},
+            {'name': 'PROCEDURE DIVISION', 'source': 'MOVE A TO B.'}
+        ]
+
+        marked = add_section_markers(sections)
+
+        # Should have markdown headers
+        assert '### DATA DIVISION' in marked
+        assert '### PROCEDURE DIVISION' in marked
+        # Should have code blocks
+        assert '```cobol' in marked
+        assert '01 WS-VAR PIC X.' in marked
+        assert 'MOVE A TO B.' in marked
+
+    def test_add_section_markers_empty(self):
+        """Test adding markers to empty list"""
+        marked = add_section_markers([])
+        assert marked == ""
