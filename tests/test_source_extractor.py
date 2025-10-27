@@ -16,6 +16,50 @@ from source_extractor import (
 )
 
 
+# Test Fixtures for Division Extraction
+@pytest.fixture
+def test_cobol_file():
+    """Create a test COBOL file with all divisions"""
+    content = """       IDENTIFICATION DIVISION.
+       PROGRAM-ID. TEST-PROGRAM.
+       AUTHOR. TEST.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-PC.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01 WS-COUNTER PIC 9(3) VALUE 0.
+       01 WS-NAME    PIC X(20).
+
+       PROCEDURE DIVISION.
+       MAIN-PARA.
+           MOVE 100 TO WS-COUNTER.
+           DISPLAY "Hello World".
+           STOP RUN.
+"""
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cbl') as f:
+        f.write(content)
+        file_path = f.name
+
+    yield file_path
+
+    # Cleanup
+    os.unlink(file_path)
+
+
+@pytest.fixture
+def test_division_metadata():
+    """Metadata for test COBOL file divisions"""
+    return {
+        'IDENTIFICATION DIVISION': {'start': 1, 'end': 3},
+        'ENVIRONMENT DIVISION': {'start': 5, 'end': 7},
+        'DATA DIVISION': {'start': 9, 'end': 12},
+        'PROCEDURE DIVISION': {'start': 14, 'end': 18}
+    }
+
+
 class TestBasicExtraction:
     """Test basic line extraction functionality"""
 

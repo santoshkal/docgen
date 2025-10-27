@@ -126,9 +126,9 @@
 #### Afternoon (4 hours): Division Extractors
 
 **Setup Test Fixtures**
-- [ ] ✍️ Create `@pytest.fixture` for test metadata
-- [ ] ✍️ Create test COBOL file fixture
-- [ ] 📝 Commit: "test: add test fixtures"
+- [x] ✍️ Create `@pytest.fixture` for test metadata
+- [x] ✍️ Create test COBOL file fixture
+- [x] 📝 Commit: "test: add test fixtures"
 
 **TDD Cycle 4: Division Boundaries**
 - [ ] ✍️ Write test: `test_find_division_boundaries()`
