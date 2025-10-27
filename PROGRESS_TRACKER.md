@@ -68,17 +68,17 @@
 - [x] 💻 Add validation to `extract_lines()`
 - [x] 🟢 Run tests → Should PASS
 - [x] ♻️ Refactor: Clean up validation logic
-- [ ] 📝 Commit: "feat: add validation to extract_lines"
+- [x] 📝 Commit: "feat: add validation to extract_lines"
 
 **TDD Cycle 4: Range Extraction**
-- [ ] ✍️ Write tests:
-  - [ ] `test_extract_lines_by_ranges_single_range()`
-  - [ ] `test_extract_lines_by_ranges_multiple_ranges()`
-- [ ] 🔴 Run tests → Should FAIL
-- [ ] 💻 Implement `extract_lines_by_ranges()`
-- [ ] 🟢 Run tests → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add multi-range extraction"
+- [x] ✍️ Write tests:
+  - [x] `test_extract_lines_by_ranges_single_range()`
+  - [x] `test_extract_lines_by_ranges_multiple_ranges()`
+- [x] 🔴 Run tests → Should FAIL
+- [x] 💻 Implement `extract_lines_by_ranges()`
+- [x] 🟢 Run tests → Should PASS
+- [x] ♻️ Refactor
+- [x] 📝 Commit: "feat: add multi-range extraction"
 
 **TDD Cycle 5: Context Extraction**
 - [ ] ✍️ Write test: `test_extract_lines_with_context()`

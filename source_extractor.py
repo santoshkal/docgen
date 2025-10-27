@@ -7,7 +7,7 @@ using metadata (line numbers from ctags, superbol, gnucobol).
 Implements Tier 1 of the four-tier extraction strategy: Metadata-based structured extraction.
 """
 
-from typing import Optional
+from typing import Optional, List, Tuple
 
 
 def extract_lines(file_path: str, start: int, end: int) -> str:
@@ -41,3 +41,28 @@ def extract_lines(file_path: str, start: int, end: int) -> str:
         lines = f.readlines()
         # Convert 1-indexed to 0-indexed
         return ''.join(lines[start-1:end])
+
+
+def extract_lines_by_ranges(file_path: str, ranges: List[Tuple[int, int]]) -> str:
+    """
+    Extract multiple line ranges from a file.
+
+    Args:
+        file_path: Path to the source file
+        ranges: List of (start, end) tuples, each with 1-indexed line numbers (inclusive)
+
+    Returns:
+        Concatenated extracted lines as a string with newlines preserved
+
+    Raises:
+        ValueError: If any range has invalid line numbers
+        FileNotFoundError: If the file doesn't exist
+
+    Examples:
+        >>> extract_lines_by_ranges("program.cbl", [(1, 5), (10, 15)])
+        'Lines 1-5 concatenated with lines 10-15'
+    """
+    result = []
+    for start, end in ranges:
+        result.append(extract_lines(file_path, start, end))
+    return ''.join(result)

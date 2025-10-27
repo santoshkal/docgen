@@ -7,7 +7,7 @@ Following TDD approach: Tests written FIRST, then implementation.
 import pytest
 import os
 import tempfile
-from source_extractor import extract_lines
+from source_extractor import extract_lines, extract_lines_by_ranges
 
 
 class TestBasicExtraction:
@@ -32,6 +32,41 @@ class TestBasicExtraction:
 
             # Should extract lines 1-2
             assert result == "Line 1\nLine 2\n"
+        finally:
+            os.unlink(test_file)
+
+    def test_extract_lines_by_ranges_single_range(self):
+        """Test range extraction with single range"""
+        # Create test file
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cbl') as f:
+            test_file = f.name
+            for i in range(1, 11):
+                f.write(f"Line {i}\n")
+
+        try:
+            # Test single range
+            result = extract_lines_by_ranges(test_file, [(3, 5)])
+
+            # Should extract lines 3-5
+            assert result == "Line 3\nLine 4\nLine 5\n"
+        finally:
+            os.unlink(test_file)
+
+    def test_extract_lines_by_ranges_multiple_ranges(self):
+        """Test range extraction with multiple ranges"""
+        # Create test file
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cbl') as f:
+            test_file = f.name
+            for i in range(1, 11):
+                f.write(f"Line {i}\n")
+
+        try:
+            # Test multiple ranges
+            result = extract_lines_by_ranges(test_file, [(1, 2), (5, 6), (9, 10)])
+
+            # Should extract lines 1-2, 5-6, 9-10
+            expected = "Line 1\nLine 2\nLine 5\nLine 6\nLine 9\nLine 10\n"
+            assert result == expected
         finally:
             os.unlink(test_file)
 
