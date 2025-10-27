@@ -210,22 +210,16 @@ This is more maintainable and follows DRY principles.
 
 #### Morning (3 hours): Section Requirements
 
-**Create Section Requirements**
-- [ ] ✍️ Write tests: `test_section_requirements.py`
-- [ ] 🔴 Run tests → Should FAIL
-- [ ] 💻 Create `section_requirements.py`
-- [ ] 💻 Define all 11 section requirements
-- [ ] 🟢 Run tests → Should PASS
-- [ ] 📝 Commit: "feat: add section requirements"
-
-**TDD Cycle: Helper Functions**
-- [ ] ✍️ Write tests for helper functions
-- [ ] 🔴 Run tests → Should FAIL
-- [ ] 💻 Implement `get_section_requirements()`
-- [ ] 💻 Implement `should_extract_source()`
-- [ ] 💻 Implement other helpers
-- [ ] 🟢 Run tests → Should PASS
-- [ ] 📝 Commit: "feat: add section requirement helpers"
+**Create Section Requirements (Combined with Helper Functions)**
+- [x] ✍️ Write tests: `test_section_requirements.py`
+- [x] 🔴 Run tests → Should FAIL
+- [x] 💻 Create `section_requirements.py`
+- [x] 💻 Define all 11 section requirements
+- [x] 💻 Implement `get_section_requirements()`
+- [x] 💻 Implement `should_extract_source()`
+- [x] 💻 Implement `get_divisions_for_section()`
+- [x] 🟢 Run tests → Should PASS (10/10)
+- [x] 📝 Commit: "feat: add section requirements"
 
 #### Afternoon (3 hours): Agent Integration
 
