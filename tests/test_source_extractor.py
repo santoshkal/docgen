@@ -15,7 +15,8 @@ from source_extractor import (
     deduplicate_source_extracts,
     find_division_boundaries,
     extract_division,
-    extract_paragraph
+    extract_paragraph,
+    extract_paragraphs_by_names
 )
 
 
@@ -67,7 +68,9 @@ def test_division_metadata():
 def test_paragraph_metadata():
     """Metadata for paragraphs in test COBOL file"""
     return {
-        'MAIN-PARA': {'start': 15, 'end': 18}
+        'MAIN-PARA': {'start': 15, 'end': 18},
+        'SUB-PARA': {'start': 16, 'end': 17},  # Subset of MAIN-PARA for testing
+        'ANOTHER-PARA': {'start': 18, 'end': 18}
     }
 
 
@@ -363,3 +366,32 @@ class TestParagraphExtraction:
         )
 
         assert source is None
+
+    def test_extract_paragraphs_by_names(self, test_cobol_file, test_paragraph_metadata):
+        """Test extracting multiple paragraphs by names"""
+        extracts = extract_paragraphs_by_names(
+            test_cobol_file,
+            ['MAIN-PARA', 'SUB-PARA'],
+            test_paragraph_metadata
+        )
+
+        assert len(extracts) == 2
+        assert extracts[0]['name'] == 'MAIN-PARA'
+        assert extracts[1]['name'] == 'SUB-PARA'
+        assert 'MAIN-PARA' in extracts[0]['source']
+        assert 'MOVE 100' in extracts[1]['source']
+
+    def test_extract_paragraphs_with_missing(self, test_cobol_file, test_paragraph_metadata):
+        """Test extracting paragraphs when some don't exist"""
+        extracts = extract_paragraphs_by_names(
+            test_cobol_file,
+            ['MAIN-PARA', 'NONEXISTENT-PARA', 'SUB-PARA'],
+            test_paragraph_metadata
+        )
+
+        # Should only return the found paragraphs
+        assert len(extracts) == 2
+        names = [e['name'] for e in extracts]
+        assert 'MAIN-PARA' in names
+        assert 'SUB-PARA' in names
+        assert 'NONEXISTENT-PARA' not in names

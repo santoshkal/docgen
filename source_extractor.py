@@ -261,3 +261,36 @@ def extract_paragraph(
     end = metadata[paragraph_name]['end']
 
     return extract_lines(file_path, start, end)
+
+
+def extract_paragraphs_by_names(
+    file_path: str,
+    paragraph_names: List[str],
+    metadata: Dict[str, Dict[str, int]]
+) -> List[Dict[str, Any]]:
+    """
+    Extract multiple COBOL paragraphs by names.
+
+    Args:
+        file_path: Path to the COBOL source file
+        paragraph_names: List of paragraph names to extract
+        metadata: Dictionary mapping paragraph names to {'start': line, 'end': line}
+
+    Returns:
+        List of dictionaries with 'name' and 'source' keys (skips missing paragraphs)
+
+    Examples:
+        >>> metadata = {'PARA-1': {'start': 10, 'end': 15}, 'PARA-2': {'start': 20, 'end': 25}}
+        >>> extracts = extract_paragraphs_by_names("program.cbl", ['PARA-1', 'PARA-2'], metadata)
+        >>> len(extracts)
+        2
+    """
+    extracts = []
+    for name in paragraph_names:
+        source = extract_paragraph(file_path, name, metadata)
+        if source is not None:
+            extracts.append({
+                'name': name,
+                'source': source
+            })
+    return extracts

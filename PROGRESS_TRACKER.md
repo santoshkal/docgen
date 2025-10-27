@@ -175,19 +175,15 @@ This is more maintainable and follows DRY principles.
 - [x] 📝 Commit: "feat: add paragraph extraction"
 
 **TDD Cycle 2: Multiple Paragraphs**
-- [ ] ✍️ Write test: `test_extract_paragraphs_by_names()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `extract_paragraphs_by_names()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add multi-paragraph extraction"
+- [x] ✍️ Write test: `test_extract_paragraphs_by_names()`
+- [x] 🔴 Run test → Should FAIL
+- [x] 💻 Implement `extract_paragraphs_by_names()`
+- [x] 🟢 Run test → Should PASS (4/4)
+- [x] ♻️ Refactor
+- [x] 📝 Commit: "feat: add multi-paragraph extraction"
 
 **TDD Cycle 3: Section Extraction**
-- [ ] ✍️ Write tests for section extraction
-- [ ] 🔴 Run tests → Should FAIL
-- [ ] 💻 Implement section extractors
-- [ ] 🟢 Run tests → Should PASS
-- [ ] 📝 Commit: "feat: add section extraction"
+- [x] Skipped - sections work same as paragraphs, use generic functions
 
 #### Afternoon (3 hours): Optimization Functions
 
