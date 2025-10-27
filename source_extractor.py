@@ -7,6 +7,7 @@ using metadata (line numbers from ctags, superbol, gnucobol).
 Implements Tier 1 of the four-tier extraction strategy: Metadata-based structured extraction.
 """
 
+import hashlib
 from typing import Optional, List, Tuple
 
 
@@ -106,3 +107,20 @@ def extract_lines_with_context(
     actual_end = min(total_lines, end + context_after)
 
     return extract_lines(file_path, actual_start, actual_end)
+
+
+def compute_source_hash(source_code: str) -> str:
+    """
+    Compute SHA256 hash of source code for deduplication.
+
+    Args:
+        source_code: Source code string to hash
+
+    Returns:
+        Lowercase hexadecimal SHA256 hash (64 characters)
+
+    Examples:
+        >>> compute_source_hash("MOVE A TO B.")
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+    """
+    return hashlib.sha256(source_code.encode('utf-8')).hexdigest()

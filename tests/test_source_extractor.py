@@ -7,7 +7,12 @@ Following TDD approach: Tests written FIRST, then implementation.
 import pytest
 import os
 import tempfile
-from source_extractor import extract_lines, extract_lines_by_ranges, extract_lines_with_context
+from source_extractor import (
+    extract_lines,
+    extract_lines_by_ranges,
+    extract_lines_with_context,
+    compute_source_hash
+)
 
 
 class TestBasicExtraction:
@@ -133,3 +138,26 @@ class TestValidation:
                 extract_lines(test_file, 10, 5)
         finally:
             os.unlink(test_file)
+
+
+class TestDeduplication:
+    """Test source code deduplication functionality"""
+
+    def test_compute_source_hash(self):
+        """Test that source code hashing is deterministic"""
+        source1 = "Line 1\nLine 2\nLine 3\n"
+        source2 = "Line 1\nLine 2\nLine 3\n"
+        source3 = "Different content\n"
+
+        # Same content should produce same hash
+        hash1 = compute_source_hash(source1)
+        hash2 = compute_source_hash(source2)
+        assert hash1 == hash2
+
+        # Different content should produce different hash
+        hash3 = compute_source_hash(source3)
+        assert hash1 != hash3
+
+        # Hash should be SHA256 format (64 hex characters)
+        assert len(hash1) == 64
+        assert all(c in '0123456789abcdef' for c in hash1)

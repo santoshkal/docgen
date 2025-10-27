@@ -101,12 +101,12 @@
 #### Morning (3 hours): Deduplication System
 
 **TDD Cycle 1: Hashing**
-- [ ] ✍️ Write test: `test_compute_source_hash()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `compute_source_hash()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add source code hashing"
+- [x] ✍️ Write test: `test_compute_source_hash()`
+- [x] 🔴 Run test → Should FAIL
+- [x] 💻 Implement `compute_source_hash()`
+- [x] 🟢 Run test → Should PASS
+- [x] ♻️ Refactor
+- [x] 📝 Commit: "feat: add source code hashing"
 
 **TDD Cycle 2: Deduplication**
 - [ ] ✍️ Write test: `test_deduplicate_source_extracts()`
