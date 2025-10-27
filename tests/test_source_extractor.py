@@ -14,7 +14,8 @@ from source_extractor import (
     compute_source_hash,
     deduplicate_source_extracts,
     find_division_boundaries,
-    extract_division
+    extract_division,
+    extract_paragraph
 )
 
 
@@ -333,5 +334,32 @@ class TestDivisionExtraction:
     def test_extract_division_not_found(self, test_cobol_file):
         """Test extracting a non-existent division"""
         source = extract_division(test_cobol_file, 'NONEXISTENT DIVISION')
+
+        assert source is None
+
+
+class TestParagraphExtraction:
+    """Test COBOL paragraph extraction functionality"""
+
+    def test_extract_paragraph_by_name(self, test_cobol_file, test_paragraph_metadata):
+        """Test extracting a single paragraph by name"""
+        source = extract_paragraph(
+            test_cobol_file,
+            'MAIN-PARA',
+            test_paragraph_metadata
+        )
+
+        assert source is not None
+        assert 'MAIN-PARA' in source
+        assert 'MOVE 100' in source
+        assert 'STOP RUN' in source
+
+    def test_extract_paragraph_not_found(self, test_cobol_file, test_paragraph_metadata):
+        """Test extracting a non-existent paragraph"""
+        source = extract_paragraph(
+            test_cobol_file,
+            'NONEXISTENT-PARA',
+            test_paragraph_metadata
+        )
 
         assert source is None

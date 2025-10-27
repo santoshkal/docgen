@@ -167,12 +167,12 @@ This is more maintainable and follows DRY principles.
 - [x] 📝 Commit: "test: add paragraph fixtures"
 
 **TDD Cycle 1: Single Paragraph**
-- [ ] ✍️ Write test: `test_extract_paragraph_by_name()`
-- [ ] 🔴 Run test → Should FAIL
-- [ ] 💻 Implement `extract_paragraph()`
-- [ ] 🟢 Run test → Should PASS
-- [ ] ♻️ Refactor
-- [ ] 📝 Commit: "feat: add paragraph extraction"
+- [x] ✍️ Write test: `test_extract_paragraph_by_name()`
+- [x] 🔴 Run test → Should FAIL
+- [x] 💻 Implement `extract_paragraph()`
+- [x] 🟢 Run test → Should PASS (2/2)
+- [x] ♻️ Refactor
+- [x] 📝 Commit: "feat: add paragraph extraction"
 
 **TDD Cycle 2: Multiple Paragraphs**
 - [ ] ✍️ Write test: `test_extract_paragraphs_by_names()`

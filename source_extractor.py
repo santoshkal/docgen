@@ -230,3 +230,34 @@ def extract_division(file_path: str, division_name: str) -> Optional[str]:
     end = boundaries[division_name]['end']
 
     return extract_lines(file_path, start, end)
+
+
+def extract_paragraph(
+    file_path: str,
+    paragraph_name: str,
+    metadata: Dict[str, Dict[str, int]]
+) -> Optional[str]:
+    """
+    Extract a specific COBOL paragraph using metadata.
+
+    Args:
+        file_path: Path to the COBOL source file
+        paragraph_name: Name of the paragraph
+        metadata: Dictionary mapping paragraph names to {'start': line, 'end': line}
+
+    Returns:
+        Source code of the paragraph, or None if not found
+
+    Examples:
+        >>> metadata = {'MAIN-PARA': {'start': 10, 'end': 15}}
+        >>> source = extract_paragraph("program.cbl", "MAIN-PARA", metadata)
+        >>> "MAIN-PARA" in source
+        True
+    """
+    if paragraph_name not in metadata:
+        return None
+
+    start = metadata[paragraph_name]['start']
+    end = metadata[paragraph_name]['end']
+
+    return extract_lines(file_path, start, end)
