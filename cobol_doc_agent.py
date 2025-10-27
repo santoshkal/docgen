@@ -27,14 +27,20 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
     print("⚠ Warning: langchain-anthropic not installed. Run: pip install langchain-anthropic")
 
-# Import Source Extraction (Phase 1)
+# Import Source Extraction (Phase 1-3)
 try:
-    from source_integration import extract_source_for_section
+    from source_integration import (
+        extract_source_for_section,
+        extract_source_multi_file  # Phase 3: Multi-file support
+    )
     from section_requirements import should_extract_source
+    from multi_file_resolver import CopybookResolver, CalledProgramResolver  # Phase 3
     SOURCE_EXTRACTION_AVAILABLE = True
-except ImportError:
+    MULTI_FILE_AVAILABLE = True
+except ImportError as e:
     SOURCE_EXTRACTION_AVAILABLE = False
-    print("⚠ Warning: Source extraction modules not found. Run without source extraction.")
+    MULTI_FILE_AVAILABLE = False
+    print(f"⚠ Warning: Source extraction modules not found: {e}")
 
 # ============================================================================
 # STATE DEFINITION
@@ -82,6 +88,14 @@ class AgentState(TypedDict):
     enable_source_extraction: bool  # Whether to extract source code for sections (default: False)
     compress_source: bool  # Whether to compress source (remove comments/blanks) (default: True)
     cobol_file_path: Optional[str]  # Path to COBOL source file for extraction
+
+    # Multi-File Support (Phase 3 Integration)
+    resolve_copybooks: bool  # Whether to resolve and include copybook content (default: False)
+    resolve_called_programs: bool  # Whether to resolve called programs (default: False)
+    copybook_search_paths: Optional[List[str]]  # Paths to search for copybooks
+    program_search_paths: Optional[List[str]]  # Paths to search for called programs
+    copybook_resolver: Optional[Any]  # CopybookResolver instance (initialized at runtime)
+    called_program_resolver: Optional[Any]  # CalledProgramResolver instance (initialized at runtime)
 
     # Processing State
     current_section: str
@@ -1033,22 +1047,46 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
         filtered_context = filter_metadata_for_section_enhanced(section, full_metadata)
         print(f"  → Using single-pass mode (aggressive filtering)")
 
-    # Phase 1: Source Code Extraction Integration
+    # Phase 1-3: Source Code Extraction Integration (with multi-file support)
     if state.get("enable_source_extraction", False) and SOURCE_EXTRACTION_AVAILABLE:
         section_id = section.get("id", "")
         cobol_file_path = state.get("cobol_file_path")
 
         if cobol_file_path and should_extract_source(section_id):
             compress = state.get("compress_source", True)
-            print(f"  → Extracting source code (compress={compress})")
+
+            # Check if Phase 3 multi-file support is enabled
+            resolve_copybooks = state.get("resolve_copybooks", False)
+            resolve_called_programs = state.get("resolve_called_programs", False)
+            use_multi_file = (resolve_copybooks or resolve_called_programs) and MULTI_FILE_AVAILABLE
+
+            if use_multi_file:
+                print(f"  → Extracting source code with multi-file support (compress={compress})")
+                print(f"     Copybooks: {resolve_copybooks}, Called programs: {resolve_called_programs}")
+            else:
+                print(f"  → Extracting source code (compress={compress})")
 
             try:
-                source_code = extract_source_for_section(
-                    section_id,
-                    cobol_file_path,
-                    paragraph_metadata=None,  # Could be enhanced to use ctags paragraphs
-                    compress=compress
-                )
+                if use_multi_file:
+                    # Phase 3: Use multi-file extraction
+                    copybook_resolver = state.get("copybook_resolver") if resolve_copybooks else None
+                    called_program_resolver = state.get("called_program_resolver") if resolve_called_programs else None
+
+                    source_code = extract_source_multi_file(
+                        section_id,
+                        cobol_file_path,
+                        copybook_resolver=copybook_resolver,
+                        called_program_resolver=called_program_resolver,
+                        compress=compress
+                    )
+                else:
+                    # Phase 1: Regular extraction (no multi-file)
+                    source_code = extract_source_for_section(
+                        section_id,
+                        cobol_file_path,
+                        paragraph_metadata=None,  # Could be enhanced to use ctags paragraphs
+                        compress=compress
+                    )
 
                 if source_code:
                     filtered_context["source_code"] = source_code
@@ -1330,7 +1368,12 @@ def generate_documentation(
     use_two_pass_mode: bool = True,  # NEW: Enable two-pass generation by default
     enable_source_extraction: bool = False,  # Phase 1: Enable source code extraction
     compress_source: bool = True,  # Phase 1: Compress extracted source (remove comments/blanks)
-    cobol_file_path: Optional[str] = None  # Phase 1: Path to COBOL source file
+    cobol_file_path: Optional[str] = None,  # Phase 1: Path to COBOL source file
+    # Phase 3: Multi-file support parameters
+    resolve_copybooks: bool = False,  # Phase 3: Resolve and include copybook content
+    resolve_called_programs: bool = False,  # Phase 3: Resolve called program information
+    copybook_search_paths: Optional[List[str]] = None,  # Phase 3: Directories to search for copybooks
+    program_search_paths: Optional[List[str]] = None  # Phase 3: Directories to search for called programs
 ) -> str:
     """
     Main entry point for documentation generation.
@@ -1352,6 +1395,10 @@ def generate_documentation(
         enable_source_extraction: Enable Phase 1 source code extraction (default: False)
         compress_source: Compress extracted source by removing comments/blanks (default: True)
         cobol_file_path: Path to COBOL source file for extraction (auto-determined if None)
+        resolve_copybooks: Enable Phase 3 copybook resolution (default: False)
+        resolve_called_programs: Enable Phase 3 called program resolution (default: False)
+        copybook_search_paths: Directories to search for copybook files (default: None)
+        program_search_paths: Directories to search for called program files (default: None)
 
     Returns:
         Path to generated documentation file
@@ -1370,6 +1417,13 @@ def generate_documentation(
         print(f"Strategy: Single-pass generation (aggressive filtering)")
     if enable_source_extraction:
         print(f"Phase 1: Source extraction ENABLED (compress={compress_source})")
+    if resolve_copybooks or resolve_called_programs:
+        features = []
+        if resolve_copybooks:
+            features.append("copybooks")
+        if resolve_called_programs:
+            features.append("called programs")
+        print(f"Phase 3: Multi-file support ENABLED ({', '.join(features)})")
     print(f"{'='*70}\n")
 
     # Auto-determine COBOL file path if not provided
@@ -1384,6 +1438,41 @@ def generate_documentation(
                 cobol_file_path = str(candidate)
                 print(f"  → Auto-detected COBOL file: {cobol_file_path}")
                 break
+
+    # Phase 3: Initialize multi-file resolvers if enabled
+    copybook_resolver = None
+    called_program_resolver = None
+
+    if enable_source_extraction and MULTI_FILE_AVAILABLE:
+        if resolve_copybooks:
+            # Initialize CopybookResolver with search paths
+            from pathlib import Path as PathLib
+            codebase_root = workspace_path
+            search_paths = copybook_search_paths or []
+
+            try:
+                copybook_resolver = CopybookResolver(
+                    codebase_root=codebase_root,
+                    search_paths=search_paths
+                )
+                print(f"  → Initialized CopybookResolver with {len(search_paths)} search paths")
+            except Exception as e:
+                print(f"  ⚠ Warning: Failed to initialize CopybookResolver: {e}")
+
+        if resolve_called_programs:
+            # Initialize CalledProgramResolver with search paths
+            from pathlib import Path as PathLib
+            codebase_root = workspace_path
+            search_paths = program_search_paths or []
+
+            try:
+                called_program_resolver = CalledProgramResolver(
+                    codebase_root=codebase_root,
+                    search_paths=search_paths
+                )
+                print(f"  → Initialized CalledProgramResolver with {len(search_paths)} search paths")
+            except Exception as e:
+                print(f"  ⚠ Warning: Failed to initialize CalledProgramResolver: {e}")
 
     # Initialize state
     initial_state = AgentState(
@@ -1412,6 +1501,13 @@ def generate_documentation(
         enable_source_extraction=enable_source_extraction,  # Phase 1: Source extraction flag
         compress_source=compress_source,  # Phase 1: Compression flag
         cobol_file_path=cobol_file_path,  # Phase 1: Path to COBOL source
+        # Phase 3: Multi-file support
+        resolve_copybooks=resolve_copybooks,  # Phase 3: Resolve copybooks flag
+        resolve_called_programs=resolve_called_programs,  # Phase 3: Resolve called programs flag
+        copybook_search_paths=copybook_search_paths,  # Phase 3: Copybook search paths
+        program_search_paths=program_search_paths,  # Phase 3: Program search paths
+        copybook_resolver=copybook_resolver,  # Phase 3: CopybookResolver instance
+        called_program_resolver=called_program_resolver,  # Phase 3: CalledProgramResolver instance
         current_section="",
         section_ids=[],  # Initialize section IDs list
         current_section_index=0,  # Initialize index
@@ -1573,6 +1669,12 @@ Examples:
         compress_source = source_extraction_config.get('compress', True)
         # cobol_file_path will be auto-detected based on source_files_arg
 
+        # Phase 3: Multi-file support configuration
+        resolve_copybooks = source_extraction_config.get('resolve_copybooks', False)
+        resolve_called_programs = source_extraction_config.get('resolve_called_programs', False)
+        copybook_search_paths = source_extraction_config.get('copybook_search_paths', [])
+        program_search_paths = source_extraction_config.get('program_search_paths', [])
+
     else:
         # Use CLI arguments only (backward compatibility)
         program_name = args.program_name
@@ -1591,6 +1693,12 @@ Examples:
         # Phase 1: Source extraction defaults (disabled by default)
         enable_source_extraction = False
         compress_source = True
+
+        # Phase 3: Multi-file support defaults (disabled by default)
+        resolve_copybooks = False
+        resolve_called_programs = False
+        copybook_search_paths = []
+        program_search_paths = []
 
     # Validation: either program_name or source_files must be provided
     if not program_name and not source_files_arg:
@@ -1659,7 +1767,12 @@ Examples:
                     llm_config=llm_config,
                     enable_source_extraction=enable_source_extraction,
                     compress_source=compress_source,
-                    cobol_file_path=full_filename  # Use the actual file being processed
+                    cobol_file_path=full_filename,  # Use the actual file being processed
+                    # Phase 3: Multi-file support
+                    resolve_copybooks=resolve_copybooks,
+                    resolve_called_programs=resolve_called_programs,
+                    copybook_search_paths=copybook_search_paths,
+                    program_search_paths=program_search_paths
                 )
                 successful.append((prog_name, output_path))
                 print(f"✓ Successfully generated documentation for {prog_name}")
@@ -1702,7 +1815,12 @@ Examples:
             llm_config=llm_config,
             enable_source_extraction=enable_source_extraction,
             compress_source=compress_source,
-            cobol_file_path=None  # Will be auto-detected
+            cobol_file_path=None,  # Will be auto-detected
+            # Phase 3: Multi-file support
+            resolve_copybooks=resolve_copybooks,
+            resolve_called_programs=resolve_called_programs,
+            copybook_search_paths=copybook_search_paths,
+            program_search_paths=program_search_paths
         )
 
         print(f"\n{'='*70}")
