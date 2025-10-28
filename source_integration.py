@@ -8,25 +8,16 @@ This module ties together:
 - multi_file_resolver.py (Phase 3 - copybooks and called programs)
 """
 
-from typing import Dict, List, Any, Optional
-from source_extractor import (
-    extract_division,
-    find_division_boundaries,
-    extract_paragraph,
-    extract_paragraphs_by_names,
-    deduplicate_source_extracts,
-    compress_source_code,
-    add_section_markers,
-    estimate_token_count
-)
-from section_requirements import (
-    should_extract_source,
-    get_divisions_for_section
-)
+from typing import Any, Dict, Optional
+
+from section_requirements import (get_divisions_for_section,
+                                  should_extract_source)
+from source_extractor import (add_section_markers, compress_source_code,
+                              estimate_token_count, extract_division)
 
 # Phase 3: Multi-file support imports
 try:
-    from multi_file_resolver import CopybookResolver, CalledProgramResolver
+    from multi_file_resolver import CalledProgramResolver, CopybookResolver
     MULTI_FILE_AVAILABLE = True
 except ImportError:
     MULTI_FILE_AVAILABLE = False

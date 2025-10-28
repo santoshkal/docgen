@@ -9,15 +9,14 @@ showing all nodes and their connections/transitions.
 import sys
 from pathlib import Path
 
-# Import the agent
-from cobol_doc_agent import create_documentation_agent
-
+# Import the agent (will be done lazily in visualize_workflow if needed)
 try:
     from IPython.display import Image, display
     IPYTHON_AVAILABLE = True
 except ImportError:
     IPYTHON_AVAILABLE = False
-    print("IPython not available. Will save image to file instead.")
+    # Only print if we're actually trying to visualize
+    # print("IPython not available. Will save image to file instead.")
 
 
 def visualize_workflow(save_to_file: bool = True, display_inline: bool = True):
@@ -29,6 +28,14 @@ def visualize_workflow(save_to_file: bool = True, display_inline: bool = True):
         display_inline: Display the image inline (requires IPython/Jupyter)
     """
     print("Creating COBOL Documentation Agent workflow graph...")
+
+    # Import the agent (lazy import to avoid dependency issues in summary-only mode)
+    try:
+        from cobol_doc_agent import create_documentation_agent
+    except ImportError as e:
+        print(f"✗ Error importing agent: {e}")
+        print("Make sure langchain dependencies are installed: pip install langchain-core langgraph")
+        raise
 
     # Create the agent (compiled graph)
     agent = create_documentation_agent()
@@ -80,22 +87,30 @@ def print_workflow_summary():
     print("""
 Nodes:
   1. START (entry point)
-  2. generate_metadata - Generate metadata via MCP servers (conditional)
-  3. load_metadata - Load metadata from disk
-  4. load_template - Load YAML documentation template
-  5. extract_structure - Parse template structure
-  6. process_section - Generate content for each section (loops)
-  7. assemble_document - Combine all sections
-  8. save_document - Write final markdown file
-  9. END (exit point)
+  2. should_generate_metadata - Checksum-based intelligent routing (conditional)
+  3. generate_metadata - Generate metadata via MCP servers (if needed)
+  4. load_metadata - Load metadata from disk
+  5. load_template - Load YAML documentation template
+  6. extract_structure - Parse template structure (creates passes for two-pass mode)
+  7. process_section - Generate content for each section (loops with source extraction)
+  8. check_completion - Determine if more sections/passes needed
+  9. assemble_document - Combine all sections into final markdown
+  10. save_document - Write final markdown file to disk
+  11. END (exit point)
 
 Edges:
-  START → [checksum-based routing] → generate_metadata OR load_metadata
-  generate_metadata → [saves checksums] → load_metadata
+  START → should_generate_metadata
+  should_generate_metadata → [conditional]
+    ├─ generate_via_checksum → generate_metadata (source changed or missing metadata)
+    └─ skip_checksums_valid → load_metadata (all checksums valid)
+  generate_metadata → load_metadata
   load_metadata → load_template
   load_template → extract_structure
   extract_structure → process_section
-  process_section → [conditional] → process_section OR assemble_document
+  process_section → check_completion
+  check_completion → [conditional]
+    ├─ continue → process_section (more sections/passes to process)
+    └─ assemble → assemble_document (all sections complete)
   assemble_document → save_document
   save_document → END
 
@@ -115,7 +130,55 @@ Intelligent Checksum-Based Routing:
     │         └─ All checksums valid → SKIP (use existing metadata)  │
     └─────────────────────────────────────────────────────────────────┘
 
-  • check_completion(): Determines if more sections need processing
+  • check_completion(): Determines if more sections/passes need processing
+    - Two-pass mode: Processes sections in multiple passes with different filtering
+    - Single-pass mode: Processes all sections once with aggressive filtering
+
+Two-Pass Mode:
+  Pass 1: Conservative filtering (Executive Summary, Program Structure, Appendix)
+    - Keeps more metadata for high-level overview sections
+    - Reduces risk of missing critical information
+
+  Pass 2: Balanced filtering (Control Flow, Data Flow, Inter-Program Communication)
+    - Optimized metadata filtering for detailed analysis
+    - Includes source code extraction when enabled
+
+  Pass 3: Aggressive filtering (Error Handling, Technical Details)
+    - Maximum token reduction for final sections
+    - Focuses on specific patterns and structures
+
+Phase 1-3 Integration:
+
+  Phase 1: Source Code Extraction (Option A)
+    • extract_source_for_section(): Extracts COBOL source divisions
+    • Configurable compression (removes comments/blank lines)
+    • Section-specific extraction (DATA vs PROCEDURE DIVISION)
+    • Integrated into build_section_context() node function
+
+  Phase 2: RipGrep Pattern Extraction
+    • extract_with_ripgrep(): Pattern-based extraction for specific constructs
+    • Supports: SQL statements, EXEC blocks, error handlers, comments
+    • Fallback to basic extraction when ripgrep unavailable
+    • Reduces token usage by extracting only relevant code patterns
+
+  Phase 3: Multi-File Support
+    • CopybookResolver: Resolves COPY statements, includes copybook content
+    • CalledProgramResolver: Identifies CALL statements, resolves programs
+    • extract_source_multi_file(): Combines main program + dependencies
+    • Initialized in generate_documentation() before workflow starts
+    • Graceful degradation: Falls back to single-file when unavailable
+
+build_section_context Node (Enhanced):
+  1. Filters metadata based on pass mode (aggressive/conservative/balanced)
+  2. Checks section_requirements.py for source extraction needs
+  3. If Phase 3 enabled:
+     - Routes to extract_source_multi_file() with resolvers
+     - Includes copybook content for data sections
+     - Includes called program info for logic sections
+  4. If Phase 1 enabled (Phase 3 disabled):
+     - Routes to extract_source_for_section() (basic extraction)
+  5. Adds source code to section context for LLM
+  6. Handles errors gracefully (continues without source if extraction fails)
 
 Checksum Files:
   • source-checksum.yaml: SHA256 hashes of all COBOL source files
@@ -133,15 +196,84 @@ Benefits:
   🔒 Automatic validation - detects corrupted or incomplete metadata
   📊 Audit trail - checksum files track all changes with timestamps
   🔄 Incremental updates - only regenerates what changed
+  📝 Source-aware - includes actual COBOL code in documentation context
+  🔗 Multi-file support - resolves copybooks and called programs
+  🎯 Smart filtering - two-pass mode balances quality vs token usage
 
 State Flow:
   All nodes receive and return AgentState (TypedDict) containing:
-  - Input parameters (program_name, paths, flags, servers_config)
-  - Checksum management (source/metadata checksum paths, generation reason)
-  - Loaded metadata (superbol, gnucobol, ctags)
-  - Processing state (current_section, section_ids, etc.)
-  - Generated content and final document
-  - Error tracking
+
+  Core Parameters:
+    - program_name, workspace_path, metadata_dir, template_path, output_dir
+    - servers_config, llm_config (provider, model, api_key, temperature)
+    - generate_metadata, skip_existing_metadata, cobol_files
+
+  Checksum Management:
+    - source_checksum_path, metadata_checksum_path
+    - metadata_generation_reason (why regeneration was needed)
+
+  Loaded Metadata:
+    - superbol_symbols, superbol_cfg (control flow graph with calls[] and copybooks[])
+    - gnucobol_analysis, ctags_outline
+
+  Two-Pass Mode:
+    - use_two_pass_mode (bool), current_pass (pass number)
+    - passes (list of pass configurations), current_pass_index
+
+  Phase 1-3: Source Code Extraction:
+    - enable_source_extraction (bool), compress_source (bool)
+    - cobol_file_path (path to main COBOL file)
+    - resolve_copybooks (bool), resolve_called_programs (bool)
+    - copybook_search_paths, program_search_paths
+    - copybook_resolver (CopybookResolver instance)
+    - called_program_resolver (CalledProgramResolver instance)
+
+  Processing State:
+    - template (parsed YAML), current_section, section_ids
+    - current_section_index, generated_content
+
+  Output:
+    - final_document (assembled markdown), errors (list of error messages)
+
+Recent Enhancements & Bug Fixes:
+
+  ✓ Template Updates (cobol-doc-template.yaml):
+    - Added emphatic CRITICAL instructions for extracting calls[] and copybooks[]
+    - New "Referenced Copybooks" section for documenting COPY statements
+    - Strengthened 10+ sections with explicit extraction guidance
+    - Fixed: External calls and copybooks now properly documented
+
+  ✓ Metadata Filtering Fix (cobol_doc_agent.py):
+    - Preserved calls[] and copybooks[] arrays in all filtering functions
+    - Pass 1 filtering: Lines 673-674 (Executive Summary)
+    - Pass 2 filtering: Lines 708-710 (Control Flow Analysis)
+    - Aggressive filtering: Lines 885-886, 901-902 (all passes)
+    - Fixed: LLM now receives call/copybook data for documentation
+
+  ✓ Section Requirements Update (section_requirements.py):
+    - Added all new template section IDs (28 sections total)
+    - Configured data-transformations section: extract_source=True
+    - Fixed: MOVE/COMPUTE/STRING/UNSTRING operations now documented
+    - Supports both legacy and new template section naming
+
+  ✓ Batch Mode File Path Fix (cobol_doc_agent.py):
+    - Line 1715: Changed from source_path.name to str(source_path)
+    - Line 1723: Changed from f.name to str(f) for directory processing
+    - Fixed: Source extraction now receives full paths, not just filenames
+    - Impact: All sections requiring source code now work correctly
+
+  ✓ Phase 3 Integration Complete:
+    - Multi-file resolvers initialized before workflow starts
+    - CopybookResolver: Searches 2+ paths, resolves all COPY statements
+    - CalledProgramResolver: Searches 2+ paths, identifies CALL targets
+    - build_section_context: Routes correctly based on section type
+    - Graceful degradation: Falls back when resolvers unavailable
+
+Known Issues & Limitations:
+  • GnuCOBOL metadata may fail if copybooks not found (success=false)
+  • SuperBol CFG is primary source for calls[] and copybooks[] arrays
+  • RipGrep Phase 2 not yet fully integrated (prepared but not active)
+  • Large programs (>100K lines) may exceed LLM token limits
     """)
 
     print("="*70 + "\n")

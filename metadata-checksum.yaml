@@ -1,14 +1,14 @@
 metadata:
-  generated_at: '2025-10-27T16:07:17.186852'
+  generated_at: '2025-10-27T20:22:55.160557'
   algorithm: sha256
 ctags:
-  ctags-BANK-TRANSACTION-outline.json: b45f74a2e0d7c0e98919cd1773ccb601c5facd9dc82d7e2cbe4ae687dc8c729b
-  cobol-project.tags: 8332d167f521d55b0925ca65256477de8dbfbfcb25a0ac41dc494a8f80c41f5f
+  ctags-TDAS-MINDISTCALC-outline.json: 3b9c5dc76dd46a6c9691c7ddfa345bccc6f020c5a459c7dfa25f2fd95bed3a9f
+  cobol-project.tags: 2a8a832dd8e7e8632c7f48d8c1c623b3bcfc5293f2854d24c8c936e41bff7979
 gnucobol:
-  gnucobol-BANK-TRANSACTION-analysis.json: e2ac39966e2922f4a54cf53b7095ed4c03795db0a4f28040bd1a07db89e300ff
+  gnucobol-TDAS-MINDISTCALC-analysis.json: 59620b3a7383612ce0cd0d642e64bbf664794233575be24555d15d9444ad027c
 superbol:
-  superbol-BANK-TRANSACTION-doc-symbols.json: a91ab9269953ee558c98c2cd35cf3b441338d8e0fd1b3ef51789391076781829
-  superbol-cfg/BANK-TRANSACTION.json: ffb4528b8ce58c4e217025c620629b67786efe898760e8bd01bfe05e9cd8c23d
+  superbol-TDAS-MINDISTCALC-doc-symbols.json: 6ec6acc28120c4777bce6140240f32e33411bc2888eb92504520bf7631e784cd
+  superbol-cfg/TDAS-MINDISTCALC.json: 955da9d1c762808f909bbba00e0b0b83665bfbf4864f342b75362210f94d779b
 statistics:
   total_files: 5
-  total_size_bytes: 70027
+  total_size_bytes: 6718978

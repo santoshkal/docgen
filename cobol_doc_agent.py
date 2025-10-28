@@ -1711,16 +1711,16 @@ Examples:
 
         # Determine list of COBOL files to process
         if source_path.is_file():
-            # Single file - store both stem (for program_name) and full name (for cobol_files)
-            cobol_files_to_process = [(source_path.stem, source_path.name)]
+            # Single file - store both stem (for program_name) and full path (for source extraction)
+            cobol_files_to_process = [(source_path.stem, str(source_path))]
             workspace_path = str(source_path.parent)
             print(f"\nProcessing single file: {source_path.name}")
         elif source_path.is_dir():
             # Directory - find all COBOL files recursively
             from checksum_manager import get_source_files
             cobol_file_paths = get_source_files(source_path)
-            # Store tuples of (stem, full_name)
-            cobol_files_to_process = sorted([(f.stem, f.name) for f in cobol_file_paths])
+            # Store tuples of (stem, full_path)
+            cobol_files_to_process = sorted([(f.stem, str(f)) for f in cobol_file_paths])
             workspace_path = str(source_path)
             print(f"\nProcessing directory: {source_path}")
             print(f"Found {len(cobol_files_to_process)} COBOL files")

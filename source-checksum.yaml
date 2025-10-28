@@ -1,12 +1,12 @@
 metadata:
-  generated_at: '2025-10-27T16:07:06.430306'
-  workspace_path: /home/santosh/test-cobol-phase3/src
+  generated_at: '2025-10-27T20:22:46.042299'
+  workspace_path: /home/santosh/test-cobol-phase3
   algorithm: sha256
   file_count: 1
   agent_version: 1.0.0
 source_files:
-  BANK-TRANSACTION.cbl: ac8059f8d575268a7b5319dedb36d591190c9ed1decee9b636f6972c7b582536
+  TDAS-MINDISTCALC.c74: 87b6c1cda5e0463f8dd32489ecb0b3c3d7a326525d0481ef675594d33a000593
 file_details:
-  BANK-TRANSACTION.cbl:
-    size_bytes: 11344
-    modified_at: '2025-10-27T15:21:15.503762'
+  TDAS-MINDISTCALC.c74:
+    size_bytes: 1541695
+    modified_at: '2025-10-27T20:20:44.284227'
