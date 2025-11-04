@@ -1129,6 +1129,28 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
     elif state.get("enable_source_extraction", False) and not SOURCE_EXTRACTION_AVAILABLE:
         print(f"  ⚠ Warning: Source extraction enabled but modules not available")
 
+    # Generate COBOL Program Map for code context (repo-map inspired approach)
+    # This provides lightweight, token-efficient context showing program structure
+    try:
+        from cobol_program_map import generate_cobol_program_map, generate_detailed_program_map
+
+        # Generate program map based on token budget
+        # For GPT-4.1 with 1M context, we can afford a detailed map
+        program_map = generate_detailed_program_map(
+            program_name=state["program_name"],
+            metadata=full_metadata,
+            token_budget=10000  # Generous for 1M context models
+        )
+
+        filtered_context["program_map"] = program_map
+        print(f"  ✓ Program map generated (~{len(program_map)//4} tokens)")
+
+    except ImportError:
+        print(f"  ⚠ Warning: cobol_program_map module not available")
+    except Exception as e:
+        print(f"  ⚠ Warning: Program map generation failed: {e}")
+        # Continue without program map - graceful degradation
+
     return filtered_context
 
 
@@ -1293,8 +1315,14 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         chunk_num = chunk_info['chunk_number']
         print(f"\n  → Processing chunk {chunk_num}/{total_chunks} (lines {chunk_info['start_line']}-{chunk_info['end_line']})")
 
-        # Format chunk with metadata
-        chunk_content = format_chunk_for_llm(chunk_info, total_chunks, file_name)
+        # Format chunk with metadata and program map (for whole-file context)
+        program_map = context.get('program_map')  # Get program map from context
+        chunk_content = format_chunk_for_llm(
+            chunk_info,
+            total_chunks,
+            file_name,
+            program_map=program_map  # Include program map in each chunk
+        )
 
         # Update context with this chunk's source code
         chunk_context = context.copy()

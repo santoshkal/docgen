@@ -432,16 +432,22 @@ def chunk_large_cobol_file(
     return chunks, verification
 
 
-def format_chunk_for_llm(chunk: Dict[str, Any], total_chunks: int, file_name: str) -> str:
+def format_chunk_for_llm(
+    chunk: Dict[str, Any],
+    total_chunks: int,
+    file_name: str,
+    program_map: Optional[str] = None
+) -> str:
     """
     Format a chunk with metadata for LLM processing.
 
-    Adds context about chunk position in file.
+    Adds context about chunk position in file and optional program map.
 
     Args:
         chunk: Chunk dictionary
         total_chunks: Total number of chunks
         file_name: Name of source file
+        program_map: Optional program map providing whole-file context
 
     Returns:
         Formatted string with metadata + content
@@ -460,6 +466,20 @@ IMPORTANT INSTRUCTIONS:
 - If this is chunk 2+, continue from where the previous chunk ended
 - Parse EVERY line in this chunk - do not skip content
 - Group paragraphs only when they implement a single functionality
+=============================================================================
+
+"""
+
+    # Add program map if provided (gives whole-file context for this chunk)
+    if program_map:
+        header += f"""
+{program_map}
+
+NOTE: The above program map shows the ENTIRE program structure for context.
+      The source code below is only CHUNK {chunk['chunk_number']} of {total_chunks}.
+
+=============================================================================
+CHUNK {chunk['chunk_number']} SOURCE CODE
 =============================================================================
 
 """

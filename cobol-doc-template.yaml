@@ -191,6 +191,11 @@ sections:
     instruction: |
       Use SuperBol CFG JSON to create detailed control flow documentation with external call context.
 
+      **PROGRAM MAP CONTEXT:**
+      A program_map is provided showing the entire program structure with ranked paragraphs.
+      Use this to understand the overall control flow and identify the most important paragraphs.
+      The map shows which paragraphs are most frequently called (highest importance scores).
+
       **CRITICAL - MUST EXTRACT EXTERNAL CALLS:**
       The superbol_cfg JSON has a "calls" array that you MUST extract:
 
@@ -337,6 +342,10 @@ sections:
       2. Track data transformations (MOVE, COMPUTE)
       3. Identify output data (DISPLAY, output files)
       4. Document data passing to external programs
+
+      **PROGRAM MAP CONTEXT:**
+      A program_map is provided showing the most frequently used data items (ranked by reference count).
+      Focus on these high-importance data items when analyzing data flow, as they are central to the program's operation.
     sections:
       - id: dfa-diagram
         title: Data Flow Diagram
