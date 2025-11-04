@@ -3,7 +3,7 @@ COBOL Documentation Agent using LangGraph
 BMAD-METHOD Inspired: Template-driven, metadata-based documentation generation
 
 This agent ensures consistent documentation across COBOL projects by:
-1. Loading metadata from SuperBol, GnuCOBOL, and ctags
+1. Loading metadata from static analysis, semantic analysis, and symbol parsing
 2. Processing YAML template to understand structure
 3. Using LLM to intelligently fill templates with metadata
 4. Generating consistent Markdown documentation
@@ -316,10 +316,10 @@ def load_metadata_node(state: AgentState) -> AgentState:
     Node 1: Load all metadata files for the specified program.
 
     Loads:
-    - SuperBol document symbols
-    - SuperBol CFG (control flow graph)
-    - GnuCOBOL batch analysis
-    - Universal-ctags outline
+    - Document symbols from static analyzer
+    - Control flow graph (CFG)
+    - Semantic analysis results
+    - Symbol outline from parser
     """
     program_name = state["program_name"]
     metadata_dir = Path(state["metadata_dir"])

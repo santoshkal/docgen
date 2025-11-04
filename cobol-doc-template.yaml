@@ -35,7 +35,7 @@ sections:
           **Generated**: {{generation_timestamp}}
           **Program ID**: {{program_name}}
           **Source File**: {{source_file_path}}
-          **Metadata Sources**: SuperBol LSP, GnuCOBOL Analyzer, Universal-Ctags
+          **Metadata Sources**: Static code analysis, semantic analysis, and symbol parsing
 
   - id: executive-summary
     title: Executive Summary
@@ -675,7 +675,7 @@ sections:
       This provides transparency and debugging capability.
     sections:
       - id: superbol-summary
-        title: SuperBol Metadata
+        title: Control Flow Analysis Metadata
         template: |
           **Symbols Found**: {{symbol_count}}
           **CFG Nodes**: {{cfg_node_count}}
@@ -683,7 +683,7 @@ sections:
           **External Calls**: {{external_call_count}}
 
       - id: gnucobol-summary
-        title: GnuCOBOL Analyzer Metadata
+        title: Semantic Analysis Metadata
         template: |
           **Program ID**: {{gnucobol_program_id}}
           **Total Calls**: {{gnucobol_call_count}}
@@ -691,7 +691,7 @@ sections:
           **Analysis Success**: {{gnucobol_success}}
 
       - id: ctags-summary
-        title: Universal-Ctags Metadata
+        title: Symbol Parser Metadata
         template: |
           **Total Symbols**: {{ctags_symbol_count}}
           **Divisions**: {{ctags_division_count}}
