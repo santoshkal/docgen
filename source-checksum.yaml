@@ -1,12 +1,8 @@
 metadata:
-  generated_at: '2025-10-27T20:22:46.042299'
-  workspace_path: /home/santosh/test-cobol-phase3
+  generated_at: '2025-11-04T15:25:24.151333'
+  workspace_path: ..
   algorithm: sha256
-  file_count: 1
+  file_count: 0
   agent_version: 1.0.0
-source_files:
-  TDAS-MINDISTCALC.c74: 87b6c1cda5e0463f8dd32489ecb0b3c3d7a326525d0481ef675594d33a000593
-file_details:
-  TDAS-MINDISTCALC.c74:
-    size_bytes: 1541695
-    modified_at: '2025-10-27T20:20:44.284227'
+source_files: {}
+file_details: {}

@@ -50,6 +50,46 @@ def extract_source_for_section(
     if not should_extract_source(section_name):
         return None
 
+    # Special case: "detailed-code-explanation" needs the ENTIRE file from line 1 to EOF
+    # This includes compiler directives, comments, and all divisions sequentially
+    if section_name == 'detailed-code-explanation':
+        try:
+            # First, check file size
+            with open(cobol_file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            total_lines = len(lines)
+
+            # Token limit safety check
+            # Conservative: 1 line ≈ 15 tokens (avg 70 chars/line ÷ 4.5 chars/token)
+            # Safe threshold for 128K context: 8,000 lines ≈ 120K tokens (leaves room for prompt)
+            MAX_LINES_SINGLE_PASS = 8000
+
+            if total_lines <= MAX_LINES_SINGLE_PASS:
+                # File is small enough - extract entire file
+                full_source = ''.join(lines)
+
+                if compress:
+                    full_source = compress_source_code(full_source)
+
+                return full_source
+            else:
+                # File is TOO LARGE - needs chunked processing
+                # Return a special JSON marker that the agent can detect
+                import json
+
+                return json.dumps({
+                    'type': 'CHUNKED_FILE',
+                    'file_path': str(cobol_file_path),
+                    'total_lines': total_lines,
+                    'max_lines_per_chunk': MAX_LINES_SINGLE_PASS,
+                    'message': f'File is too large ({total_lines:,} lines) for single-pass processing. Use chunked processing.'
+                }, indent=2)
+
+        except Exception as e:
+            # Return None on error (graceful degradation)
+            return None
+
     # Get divisions to extract
     divisions = get_divisions_for_section(section_name)
     if not divisions:
@@ -346,6 +386,11 @@ def extract_source_multi_file(
         Comprehensive source code with all multi-file context
     """
     if not MULTI_FILE_AVAILABLE:
+        return extract_source_for_section(section_id, cobol_file_path, compress=compress)
+
+    # Special case: "detailed-code-explanation" always extracts entire file
+    # Delegate to extract_source_for_section which has special handling
+    if section_id == 'detailed-code-explanation':
         return extract_source_for_section(section_id, cobol_file_path, compress=compress)
 
     # Start with copybooks (for data sections)

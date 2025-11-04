@@ -537,15 +537,30 @@ def process_section_recursive(state: AgentState, section: Dict[str, Any]) -> str
         return parent_content
     else:
         # Leaf section - generate content directly
-        content = generate_section_content(
-            section_id=section_id,
-            section_title=section_title,
-            instruction=instruction,
-            template=section_template,
-            context=context,
-            section_config=section,
-            llm_config=state.get("llm_config")
-        )
+
+        # Check if this is a large file that needs chunked processing
+        if 'chunked_file_info' in context:
+            print(f"  → Detected large file - using chunked processing")
+            content = process_large_file_in_chunks(
+                section_id=section_id,
+                section_title=section_title,
+                instruction=instruction,
+                template=section_template,
+                context=context,
+                chunked_file_info=context['chunked_file_info'],
+                llm_config=state.get("llm_config")
+            )
+        else:
+            # Normal processing
+            content = generate_section_content(
+                section_id=section_id,
+                section_title=section_title,
+                instruction=instruction,
+                template=section_template,
+                context=context,
+                section_config=section,
+                llm_config=state.get("llm_config")
+            )
         return content
 
 
@@ -1089,8 +1104,23 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
                     )
 
                 if source_code:
-                    filtered_context["source_code"] = source_code
-                    print(f"  → Source code extracted successfully")
+                    # Check if source_code is a CHUNKED_FILE marker (for large files)
+                    import json
+                    try:
+                        parsed = json.loads(source_code)
+                        if isinstance(parsed, dict) and parsed.get('type') == 'CHUNKED_FILE':
+                            # Large file detected - store chunking info in context
+                            filtered_context["chunked_file_info"] = parsed
+                            print(f"  ⚠ Large file detected ({parsed['total_lines']:,} lines)")
+                            print(f"     Chunked processing required (max {parsed['max_lines_per_chunk']:,} lines/chunk)")
+                        else:
+                            # Normal JSON content (shouldn't happen, but handle it)
+                            filtered_context["source_code"] = source_code
+                            print(f"  → Source code extracted successfully")
+                    except (json.JSONDecodeError, TypeError):
+                        # Not JSON - normal source code
+                        filtered_context["source_code"] = source_code
+                        print(f"  → Source code extracted successfully")
                 else:
                     print(f"  → No source code extracted for this section")
             except Exception as e:
@@ -1187,6 +1217,114 @@ Remember:
     print(f"  ✓ Generated {len(content)} characters for {section_id}")
 
     return content
+
+
+def process_large_file_in_chunks(
+    section_id: str,
+    section_title: str,
+    instruction: str,
+    template: str,
+    context: Dict[str, Any],
+    chunked_file_info: Dict[str, Any],
+    llm_config: Optional[Dict[str, Any]] = None
+) -> str:
+    """
+    Process a large COBOL file in chunks for detailed code-block explanation.
+
+    This function:
+    1. Uses source_chunker to split file into manageable pieces
+    2. Processes each chunk with the LLM
+    3. Combines results maintaining sequential numbering
+    4. Verifies complete coverage
+
+    Args:
+        section_id: Section identifier
+        section_title: Section title
+        instruction: Processing instructions
+        template: Output template
+        context: Context dict (metadata)
+        chunked_file_info: Info about chunked file
+        llm_config: LLM configuration
+
+    Returns:
+        Combined documentation for all chunks
+    """
+    from source_chunker import chunk_large_cobol_file, format_chunk_for_llm
+    from pathlib import Path
+
+    file_path = chunked_file_info['file_path']
+    total_lines = chunked_file_info['total_lines']
+    max_lines = chunked_file_info['max_lines_per_chunk']
+
+    print(f"\n  → Processing large file in chunks...")
+    print(f"     File: {file_path}")
+    print(f"     Total lines: {total_lines:,}")
+
+    # Get CTags metadata if available for better boundary detection
+    ctags_metadata = context.get('ctags_outline')
+
+    # Create chunks
+    try:
+        chunks, verification = chunk_large_cobol_file(
+            file_path,
+            max_tokens_per_chunk=100000,  # 100K tokens per chunk
+            ctags_metadata=ctags_metadata
+        )
+    except Exception as e:
+        print(f"  ✗ Chunking failed: {e}")
+        print(f"  → Falling back to explanation without source code")
+        return f"""
+## {section_title}
+
+**Note**: This file is too large ({total_lines:,} lines) to process completely.
+Chunking failed with error: {e}
+
+Please process this file using paragraph-by-paragraph extraction or manually review the source code.
+"""
+
+    total_chunks = len(chunks)
+    file_name = Path(file_path).name
+
+    print(f"  → Processing {total_chunks} chunks...")
+
+    all_results = []
+
+    for chunk_info in chunks:
+        chunk_num = chunk_info['chunk_number']
+        print(f"\n  → Processing chunk {chunk_num}/{total_chunks} (lines {chunk_info['start_line']}-{chunk_info['end_line']})")
+
+        # Format chunk with metadata
+        chunk_content = format_chunk_for_llm(chunk_info, total_chunks, file_name)
+
+        # Update context with this chunk's source code
+        chunk_context = context.copy()
+        chunk_context['source_code'] = chunk_content
+        chunk_context['chunk_number'] = chunk_num
+        chunk_context['total_chunks'] = total_chunks
+
+        # Generate content for this chunk
+        try:
+            chunk_result = generate_section_content(
+                section_id,
+                f"{section_title} - Chunk {chunk_num}/{total_chunks}",
+                instruction + f"\n\n**CHUNK {chunk_num} of {total_chunks}**: Continue numbering from previous chunks.",
+                template,
+                chunk_context,
+                {},  # section_config
+                llm_config
+            )
+            all_results.append(chunk_result)
+        except Exception as e:
+            print(f"  ✗ Chunk {chunk_num} failed: {e}")
+            all_results.append(f"\n\n**[Chunk {chunk_num} processing failed: {e}]**\n\n")
+
+    # Combine all results
+    combined_result = "\n\n".join(all_results)
+
+    print(f"\n  ✓ All {total_chunks} chunks processed successfully")
+    print(f"  ✓ Verification: {verification['coverage']} coverage")
+
+    return combined_result
 
 
 def check_completion_node(state: AgentState) -> str:

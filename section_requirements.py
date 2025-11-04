@@ -190,6 +190,12 @@ SECTION_REQUIREMENTS: Dict[str, SectionRequirement] = {
         'divisions': ['IDENTIFICATION DIVISION', 'ENVIRONMENT DIVISION', 'DATA DIVISION', 'PROCEDURE DIVISION']
     },
 
+    # Detailed Code Explanation - Full source file analysis
+    'detailed-code-explanation': {
+        'extract_source': True,
+        'divisions': ['IDENTIFICATION DIVISION', 'ENVIRONMENT DIVISION', 'DATA DIVISION', 'PROCEDURE DIVISION']
+    },
+
     # Metadata Appendix sections
     'metadata-appendix': {
         'extract_source': False,

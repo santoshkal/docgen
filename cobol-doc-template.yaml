@@ -127,6 +127,65 @@ sections:
           **Purpose**: {{inferred_purpose}}
           **Used In**: {{usage_locations}}
 
+  - id: detailed-code-explanation
+    title: Detailed Code-Block Explanation
+    instruction: |
+      Parse the COBOL source file from the first line to the last, extracting each COBOL paragraph in order.
+
+      **CRITICAL REQUIREMENTS:**
+      1. Process the ENTIRE source file sequentially from line 1 to EOF
+      2. Extract each COBOL paragraph/section in the order it appears
+      3. Group adjacent paragraphs ONLY when they jointly implement a single, clearly defined piece of functionality
+      4. Preserve source-file sequence throughout - do NOT skip any content
+      5. Do NOT reorder paragraphs - maintain original file order
+
+      **OUTPUT FORMAT:**
+      Create a numbered list where EACH item contains:
+
+      1. A Markdown fenced code block (```cobol ... ```) showing the captured paragraph or combined paragraphs exactly as they appear in the source file
+      2. A detailed explanation covering:
+         - What the code does (functional purpose)
+         - Why it's structured that way (design rationale)
+         - How control flows through it (execution path)
+         - Important variables used
+         - Conditional logic and branches
+         - Data divisions referenced
+         - Side effects (file operations, database calls, external program calls)
+         - Error handling within the code
+
+      **GROUPING RULES:**
+      - Keep paragraphs SEPARATE unless they jointly implement ONE clear functionality
+      - Example of GROUPING: Error handler paragraph + its cleanup paragraph
+      - Example of NOT GROUPING: Main processing paragraph + unrelated validation paragraph
+      - When in doubt, keep paragraphs separate for clarity
+
+      **COVERAGE:**
+      - Start with IDENTIFICATION DIVISION
+      - Cover ENVIRONMENT DIVISION (if present)
+      - Cover DATA DIVISION (WORKING-STORAGE, FILE SECTION, LINKAGE SECTION, etc.)
+      - Cover PROCEDURE DIVISION paragraphs/sections in sequential order
+      - Continue until the end of the source file
+      - DO NOT skip any sections or paragraphs
+
+      **EXPLANATION DEPTH:**
+      For each code block, provide:
+      - 2-4 sentences on WHAT it does (functional purpose)
+      - 1-2 sentences on WHY it's structured this way (design decisions)
+      - 2-3 sentences on HOW control flows (execution path, branches)
+      - Bullet list of key variables/data items involved
+      - Bullet list of important conditionals or branches
+      - Note any external dependencies (CALLs, PERFORM, file I/O, database operations)
+
+      **SOURCE CODE:**
+      You will receive the complete COBOL source code for this program.
+      Parse it line by line and create comprehensive explanations.
+
+    template: |
+      The following analysis covers the entire source code sequentially, from the first line to the last.
+      Each numbered item represents a paragraph or logically grouped set of paragraphs that implement a single functionality.
+
+      {{comprehensive_code_explanations}}
+
   - id: control-flow-analysis
     title: Control Flow Analysis
     instruction: |
