@@ -523,6 +523,9 @@ def process_section_recursive(state: AgentState, section: Dict[str, Any]) -> str
     # Build context for LLM
     context = build_section_context(state, section)
 
+    # Get pass number if in two-pass mode
+    pass_number = state.get("current_pass") if state.get("use_two_pass_mode", False) else None
+
     # If this section has nested subsections, process them
     if subsections:
         # Process parent section with instruction about subsections
@@ -548,7 +551,8 @@ def process_section_recursive(state: AgentState, section: Dict[str, Any]) -> str
                 template=section_template,
                 context=context,
                 chunked_file_info=context['chunked_file_info'],
-                llm_config=state.get("llm_config")
+                llm_config=state.get("llm_config"),
+                pass_number=pass_number
             )
         else:
             # Normal processing
@@ -559,7 +563,8 @@ def process_section_recursive(state: AgentState, section: Dict[str, Any]) -> str
                 template=section_template,
                 context=context,
                 section_config=section,
-                llm_config=state.get("llm_config")
+                llm_config=state.get("llm_config"),
+                pass_number=pass_number
             )
         return content
 
@@ -1161,7 +1166,9 @@ def generate_section_content(
     template: str,
     context: Dict[str, Any],
     section_config: Dict[str, Any],
-    llm_config: Optional[Dict[str, Any]] = None
+    llm_config: Optional[Dict[str, Any]] = None,
+    pass_number: Optional[int] = None,
+    chunk_number: Optional[int] = None
 ) -> str:
     """
     Use LLM to generate section content based on template and metadata.
@@ -1175,14 +1182,18 @@ def generate_section_content(
 
     Args:
         llm_config: LLM configuration dict (provider, model, api_key, temperature)
+        pass_number: Optional pass number (for two-pass mode)
+        chunk_number: Optional chunk number (for large file processing)
     """
 
     # Initialize LLM from configuration
     if llm_config:
         llm = create_llm(llm_config)
+        model_name = llm_config.get('model', 'unknown')
     else:
         # Fallback to OpenAI gpt-4o if no config
         llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
+        model_name = "gpt-4o"
 
     # Build system prompt
     system_prompt = f"""You are a technical documentation agent specializing in COBOL code analysis.
@@ -1233,8 +1244,28 @@ Remember:
         HumanMessage(content=user_prompt)
     ]
 
+    # Start LLM call tracking
+    from llm_tracer import get_tracer
+    tracer = get_tracer()
+    if tracer:
+        tracer.start_call(
+            section_id=section_id,
+            section_title=section_title,
+            pass_number=pass_number,
+            chunk_number=chunk_number,
+            model=model_name
+        )
+
     response = llm.invoke(messages)
     content = response.content
+
+    # End LLM call tracking
+    if tracer:
+        tracer.end_call(
+            response=response,
+            input_messages=messages,
+            input_text=system_prompt + "\n\n" + user_prompt
+        )
 
     print(f"  ✓ Generated {len(content)} characters for {section_id}")
 
@@ -1248,7 +1279,8 @@ def process_large_file_in_chunks(
     template: str,
     context: Dict[str, Any],
     chunked_file_info: Dict[str, Any],
-    llm_config: Optional[Dict[str, Any]] = None
+    llm_config: Optional[Dict[str, Any]] = None,
+    pass_number: Optional[int] = None
 ) -> str:
     """
     Process a large COBOL file in chunks for detailed code-block explanation.
@@ -1267,6 +1299,7 @@ def process_large_file_in_chunks(
         context: Context dict (metadata)
         chunked_file_info: Info about chunked file
         llm_config: LLM configuration
+        pass_number: Optional pass number (for two-pass mode)
 
     Returns:
         Combined documentation for all chunks
@@ -1339,7 +1372,9 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
                 template,
                 chunk_context,
                 {},  # section_config
-                llm_config
+                llm_config,
+                pass_number=pass_number,
+                chunk_number=chunk_num
             )
             all_results.append(chunk_result)
         except Exception as e:
@@ -1592,6 +1627,12 @@ def generate_documentation(
         print(f"Phase 3: Multi-file support ENABLED ({', '.join(features)})")
     print(f"{'='*70}\n")
 
+    # Initialize LLM call tracer
+    from llm_tracer import init_tracer, finalize_tracer
+    log_file = f"llm_trace_{program_name}.jsonl"
+    tracer = init_tracer(log_file)
+    print(f"✓ LLM call tracer initialized: {log_file}\n")
+
     # Auto-determine COBOL file path if not provided
     if enable_source_extraction and not cobol_file_path:
         # Try to find the COBOL file in workspace
@@ -1682,18 +1723,26 @@ def generate_documentation(
         errors=[]
     )
 
-    # Create and run agent
-    agent = create_documentation_agent()
-    final_state = agent.invoke(initial_state)
+    try:
+        # Create and run agent
+        agent = create_documentation_agent()
+        final_state = agent.invoke(initial_state)
 
-    # Check for errors
-    if final_state.get("errors"):
-        print("\n⚠ Errors occurred during generation:")
-        for error in final_state["errors"]:
-            print(f"  - {error}")
+        # Check for errors
+        if final_state.get("errors"):
+            print("\n⚠ Errors occurred during generation:")
+            for error in final_state["errors"]:
+                print(f"  - {error}")
 
-    output_path = Path(output_dir) / f"{program_name}-documentation.md"
-    return str(output_path)
+        output_path = Path(output_dir) / f"{program_name}-documentation.md"
+        return str(output_path)
+
+    finally:
+        # Finalize LLM call tracer (print summary and write reports)
+        print("\n" + "="*70)
+        print("Finalizing LLM Call Trace")
+        print("="*70)
+        finalize_tracer()
 
 
 if __name__ == "__main__":
