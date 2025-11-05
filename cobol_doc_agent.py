@@ -582,12 +582,8 @@ def generate_section_with_subsections(
     parts.append(f"## {section_title}")
     parts.append("")
 
-    # Add instruction/context if provided
-    if instruction:
-        # Generate brief intro based on instruction
-        intro = f"*{instruction.split('.')[0]}.*"
-        parts.append(intro)
-        parts.append("")
+    # Note: instruction is for LLM guidance only, NOT included in final output
+    # to avoid exposing internal tool names (SuperBol, CTags, GnuCOBOL, etc.)
 
     # Process each subsection recursively
     for subsection in subsections:
