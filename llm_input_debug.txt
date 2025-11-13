@@ -1,0 +1,151 @@
+================================================================================
+LLM INPUT DEBUG - What Gets Sent to the LLM?
+================================================================================
+  → CTags metadata keys: ['success', 'outline', 'symbol_count']
+  → Using CTags: Found 2,598 paragraphs from metadata
+  → Pattern matching: Added 432 additional boundaries
+  → File: 26,755 lines
+  → Found 3,031 paragraph/section boundaries
+  → Created 4 chunks
+     Chunk 1: Lines 1-5863 (5,863 lines, ~99,949 tokens)
+     Chunk 2: Lines 5864-11086 (5,223 lines, ~95,301 tokens)
+     Chunk 3: Lines 11087-19050 (7,964 lines, ~99,998 tokens)
+     Chunk 4: Lines 19051-26755 (7,705 lines, ~82,411 tokens)
+  ✓ Verification passed: 100% coverage
+
+Created 4 chunks
+Verification: 100%
+
+================================================================================
+ANALYZING LLM INPUT FOR EACH CHUNK
+================================================================================
+
+================================================================================
+CHUNK 1 - LLM INPUT ANALYSIS
+================================================================================
+Source lines in chunk: 5,863
+
+Formatted for LLM:
+  Total formatted lines: 5,910
+  COBOL code lines in formatted: 0
+  Header/instruction lines: 5,910
+  Total characters: 402,233
+  Estimated tokens: ~100,558
+
+Coverage check:
+  ⚠ MISMATCH: Expected 5,863, got 0
+  ⚠ Missing 5,863 lines!
+
+First 5 lines of formatted content:
+  Estimated Tokens: ~99,949
+  ⚠️  MANDATORY ACCOUNTABILITY REQUIREMENTS:
+  1. Document EVERY paragraph within lines 1-5863 sequentially
+  2. Start each entry with: "Block N: PARAGRAPH-NAME (Line X)"
+  3. Process blocks in strict sequential order by line number
+
+Last 5 lines of formatted content:
+  011726     05  FILLER                   PIC X(23).                      
+  011728     05  WS-FM-AMT                PIC S9(15)V99.                  
+  011730 01  WS-FM-LEF-X.                                                 
+  011732     05  FILLER                   PIC X(37).                      
+  011734     05  WS-FM-LEF                PIC 99V9.                       
+
+================================================================================
+CHUNK 2 - LLM INPUT ANALYSIS
+================================================================================
+Source lines in chunk: 5,223
+
+Formatted for LLM:
+  Total formatted lines: 5,270
+  COBOL code lines in formatted: 0
+  Header/instruction lines: 5,270
+  Total characters: 383,141
+  Estimated tokens: ~95,785
+
+Coverage check:
+  ⚠ MISMATCH: Expected 5,223, got 0
+  ⚠ Missing 5,223 lines!
+
+First 5 lines of formatted content:
+  Estimated Tokens: ~95,301
+  ⚠️  MANDATORY ACCOUNTABILITY REQUIREMENTS:
+  1. Document EVERY paragraph within lines 5864-11086 sequentially
+  2. Start each entry with: "Block N: PARAGRAPH-NAME (Line X)"
+  3. Process blocks in strict sequential order by line number
+
+Last 5 lines of formatted content:
+  022172         10  TDB-TDAPC-BP-LAST-RUN-X.                             
+  022174             15  TDB-TDAPC-BP-LAST-RUN    PIC 9(16).              
+  022176         10  TDB-TDAPC-PUB-ID             PIC X(08).              
+  022178         10  TDB-TDAPC-BANK-SPECS         PIC X(300).             
+  022180         10  TDB-TDAPC-BANK-SPECS-R REDEFINES                     
+
+================================================================================
+CHUNK 3 - LLM INPUT ANALYSIS
+================================================================================
+Source lines in chunk: 7,964
+
+Formatted for LLM:
+  Total formatted lines: 8,011
+  COBOL code lines in formatted: 0
+  Header/instruction lines: 8,011
+  Total characters: 403,017
+  Estimated tokens: ~100,754
+
+Coverage check:
+  ⚠ MISMATCH: Expected 7,964, got 0
+  ⚠ Missing 7,964 lines!
+
+First 5 lines of formatted content:
+  Estimated Tokens: ~99,998
+  ⚠️  MANDATORY ACCOUNTABILITY REQUIREMENTS:
+  1. Document EVERY paragraph within lines 11087-19050 sequentially
+  2. Start each entry with: "Block N: PARAGRAPH-NAME (Line X)"
+  3. Process blocks in strict sequential order by line number
+
+Last 5 lines of formatted content:
+  038100     MOVE TDAA-SPECIAL-STMT OF TDAACCT TO TDB-TDAA-SPECIAL-STMT   
+  038102         OF TDB-TDAACCT.
+  038104     MOVE TDAA-CLS-THIS-MTH OF TDAACCT TO TDB-TDAA-CLS-THIS-MTH   
+  038106         OF TDB-TDAACCT.
+  038108     MOVE TDAA-RC-MAT-ONLY OF TDAACCT TO TDB-TDAA-RC-MAT-ONLY OF  
+
+================================================================================
+CHUNK 4 - LLM INPUT ANALYSIS
+================================================================================
+Source lines in chunk: 7,705
+
+Formatted for LLM:
+  Total formatted lines: 7,752
+  COBOL code lines in formatted: 0
+  Header/instruction lines: 7,752
+  Total characters: 333,993
+  Estimated tokens: ~83,498
+
+Coverage check:
+  ⚠ MISMATCH: Expected 7,705, got 0
+  ⚠ Missing 7,705 lines!
+
+First 5 lines of formatted content:
+  Estimated Tokens: ~82,411
+  ⚠️  MANDATORY ACCOUNTABILITY REQUIREMENTS:
+  1. Document EVERY paragraph within lines 19051-26755 sequentially
+  2. Start each entry with: "Block N: PARAGRAPH-NAME (Line X)"
+  3. Process blocks in strict sequential order by line number
+
+Last 5 lines of formatted content:
+  053510     IF Z-EDIT-ERROR
+  053512         GO TO Z-35-XIT.
+  053514 Z-35-SKIP.
+  053516 Z-35-XIT.
+  053518     EXIT.
+
+================================================================================
+SUMMARY
+================================================================================
+Total source lines across all chunks: 26,755
+Expected: 26,755 lines
+✓ All source lines are being formatted for LLM
+
+Next step: The LLM receives complete code but may be choosing to
+only document portions. This is a PROMPT/INSTRUCTION issue, not chunking!

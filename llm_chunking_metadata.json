@@ -1,0 +1,214 @@
+{
+  "file": "TDAS-MINDISTCALC.c74",
+  "total_lines": 26755,
+  "semantic_blocks": [
+    {
+      "block_id": 1,
+      "type": "division",
+      "name": "IDENTIFICATION DIVISION",
+      "start_line": 14,
+      "end_line": 44,
+      "symbols": [
+        "MINDISTCALC"
+      ],
+      "performs": [],
+      "called_by": [],
+      "semantic_group": "metadata",
+      "description": "Program identification, author, and documentation."
+    },
+    {
+      "block_id": 2,
+      "type": "division",
+      "name": "ENVIRONMENT DIVISION",
+      "start_line": 408,
+      "end_line": 520,
+      "symbols": [
+        "BK-SPEC-FILE",
+        "PROC-FILE",
+        "DST-FILE-MAINT",
+        "CST-FILE-MAINT",
+        "LISTING",
+        "FICHE"
+      ],
+      "performs": [],
+      "called_by": [],
+      "semantic_group": "environment",
+      "description": "Defines system environment, file assignments, and special names."
+    },
+    {
+      "block_id": 3,
+      "type": "division",
+      "name": "DATA DIVISION",
+      "start_line": 522,
+      "end_line": 26560,
+      "symbols": [
+        "BK-SPEC-FILE",
+        "PROC-FILE",
+        "DST-FILE-MAINT",
+        "CST-FILE-MAINT",
+        "LISTING",
+        "FICHE",
+        "LDBSPCDB",
+        "LDBTDADB",
+        "TDACUST",
+        "TDAACCT",
+        "TDAIRA",
+        "TDADISTR",
+        "TDAACTV",
+        "TDAPCR",
+        "TDAREPORTS"
+      ],
+      "performs": [],
+      "called_by": [],
+      "semantic_group": "data-definitions",
+      "description": "Defines all file, database, working-storage, and linkage data structures."
+    },
+    {
+      "block_id": 4,
+      "type": "division",
+      "name": "PROCEDURE DIVISION",
+      "start_line": 26570,
+      "end_line": 26755,
+      "symbols": [
+        "Z-INITIALIZATION",
+        "Z-MAIN-CONTROL",
+        "Z-WRAP-UP",
+        "Z-SUPPORT",
+        "Z-USERS-DECLARATIONS",
+        "Z-USERS-ROUTINES",
+        "Z-3-PROCESS",
+        "Z-4-PROCEDURE",
+        "Z-5-PROCEDURE",
+        "Z-6-PROCEDURE",
+        "Z-7-PROCEDURE",
+        "Z-8-PROCEDURE",
+        "Z-9-PROCEDURE",
+        "Z-10-PROCEDURE",
+        "Z-11-PROCEDURE",
+        "Z-12-PROCEDURE",
+        "Z-13-PROCEDURE",
+        "Z-14-PROCEDURE",
+        "Z-15-PROCEDURE",
+        "Z-16-PROCEDURE",
+        "Z-17-PROCEDURE",
+        "Z-18-PROCEDURE",
+        "Z-19-PROCEDURE",
+        "Z-20-PROCEDURE",
+        "Z-21-PROCEDURE",
+        "Z-22-PROCEDURE",
+        "Z-23-PROCEDURE",
+        "Z-24-PROCEDURE",
+        "Z-25-PROCEDURE",
+        "Z-26-PROCEDURE",
+        "Z-27-PROCEDURE",
+        "Z-28-PROCEDURE",
+        "Z-29-PROCEDURE",
+        "Z-30-PROCEDURE",
+        "Z-31-PROCEDURE",
+        "Z-32-PROCEDURE",
+        "Z-33-PROCEDURE",
+        "Z-34-PROCEDURE",
+        "Z-35-PROCEDURE"
+      ],
+      "performs": [
+        "Z-PROCESS-INIT",
+        "Z-OPEN-DB-1",
+        "Z-OPEN-DB-2",
+        "Z-DMS2-BEGIN-TRANS",
+        "Z-DMS2-END-TRANS",
+        "Z-DMS2-ABORT",
+        "Z-CLOSE-DB-1",
+        "Z-CLOSE-DB-2",
+        "Z-FL-EXCEPTION",
+        "Z-DMS-EXCEPTION",
+        "Z-DISP-COMPRESS",
+        "Z-3-PROCESS",
+        "Z-4-PROCEDURE",
+        "Z-5-PROCEDURE",
+        "Z-6-PROCEDURE",
+        "Z-7-PROCEDURE",
+        "Z-8-PROCEDURE",
+        "Z-9-PROCEDURE",
+        "Z-10-PROCEDURE",
+        "Z-11-PROCEDURE",
+        "Z-12-PROCEDURE",
+        "Z-13-PROCEDURE",
+        "Z-14-PROCEDURE",
+        "Z-15-PROCEDURE",
+        "Z-16-PROCEDURE",
+        "Z-17-PROCEDURE",
+        "Z-18-PROCEDURE",
+        "Z-19-PROCEDURE",
+        "Z-20-PROCEDURE",
+        "Z-21-PROCEDURE",
+        "Z-22-PROCEDURE",
+        "Z-23-PROCEDURE",
+        "Z-24-PROCEDURE",
+        "Z-25-PROCEDURE",
+        "Z-26-PROCEDURE",
+        "Z-27-PROCEDURE",
+        "Z-28-PROCEDURE",
+        "Z-29-PROCEDURE",
+        "Z-30-PROCEDURE",
+        "Z-31-PROCEDURE",
+        "Z-32-PROCEDURE",
+        "Z-33-PROCEDURE",
+        "Z-34-PROCEDURE",
+        "Z-35-PROCEDURE"
+      ],
+      "called_by": [],
+      "semantic_group": "main-logic",
+      "description": "Main program logic, including initialization, main control, wrap-up, support, user routines, and all business logic."
+    }
+  ],
+  "semantic_relationships": [
+    {
+      "from_block": 4,
+      "to_block": 1,
+      "relationship": "depends-on",
+      "description": "Procedure logic references program metadata and documentation."
+    },
+    {
+      "from_block": 4,
+      "to_block": 2,
+      "relationship": "depends-on",
+      "description": "Procedure logic depends on file/environment configuration."
+    },
+    {
+      "from_block": 4,
+      "to_block": 3,
+      "relationship": "depends-on",
+      "description": "Procedure logic depends on data definitions and working-storage."
+    },
+    {
+      "from_block": 4,
+      "to_block": 4,
+      "relationship": "performs",
+      "description": "Procedure division is composed of many paragraphs and sections that PERFORM each other."
+    }
+  ],
+  "suggested_chunks": [
+    {
+      "chunk_id": 1,
+      "block_ids": [
+        1,
+        2,
+        3
+      ],
+      "start_line": 14,
+      "end_line": 26560,
+      "purpose": "All program metadata, environment, and data definitions must be kept together for context and symbol resolution.",
+      "estimated_tokens": 95000
+    },
+    {
+      "chunk_id": 2,
+      "block_ids": [
+        4
+      ],
+      "start_line": 26570,
+      "end_line": 26755,
+      "purpose": "All procedural logic, including all paragraphs and sections, must be kept together to preserve control flow and business logic.",
+      "estimated_tokens": 90000
+    }
+  ]
+}

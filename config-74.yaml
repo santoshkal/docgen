@@ -4,19 +4,19 @@
 # Source files
 source:
   mode: single
-  source_files: /home/santosh/cobol-74/TDAS-MINDISTCALC.c74
+  source_files: /home/santosh/cobol-work/TDAS-MINDISTCALC.c74
   program_name: TDAS-MINDISTCALC
 
 # Validate checksums for source files (required), and metadata files, if present.
 validate_checksums:
-  source_checksum_file_path: /home/santosh/cobol-74/source-checksum.yaml
-  metadata_checksum_file_path: /home/santosh/cobol-74/metadata-checksum.yaml
+  source_checksum_file_path: /home/santosh/cobol-work/source-checksum.yaml
+  metadata_checksum_file_path: /home/santosh/cobol-work/metadata-checksum.yaml
 
 # Output paths
 output:
   create_dirs: true
-  metadata_dir: /home/santosh/cobol-74/metadata
-  docs_path: /home/santosh/cobol-74/option-a-docs
+  metadata_dir: /home/santosh/cobol-work/metadata
+  docs_path: /home/santosh/cobol-work/docs
 
 # Metadata generation (enabled with checksum-based intelligence)
 metadata:

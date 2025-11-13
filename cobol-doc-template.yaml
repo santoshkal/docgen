@@ -138,6 +138,39 @@ sections:
       3. Group adjacent paragraphs ONLY when they jointly implement a single, clearly defined piece of functionality
       4. Preserve source-file sequence throughout - do NOT skip any content
       5. Do NOT reorder paragraphs - maintain original file order
+      6. **ABSOLUTELY NO SUMMARIZATION** - Every code block MUST have full explanation with actual COBOL code shown
+      7. **NEVER use phrases like** "Omitted for Brevity", "Similar to above", "Continues with similar pattern", etc.
+      8. **If code is repetitive**, still show it and explain it - do NOT skip or summarize
+
+      **MANDATORY SOURCE CODE INCLUSION:**
+      9. **You MUST include the COMPLETE source code for lines {{start_line}} to {{end_line}}**
+      10. **Include ALL lines verbatim** - do NOT skip data tables, FILLER definitions, comments, or any content
+      11. **Data Division tables with repetitive FILLER/VALUE clauses MUST be included in full** - no abbreviation
+      12. **Comment blocks MUST be included completely** - they provide critical context
+      13. **Every line from {{start_line}} to {{end_line}} must appear in your code blocks**
+      14. **VALIDATION WILL VERIFY:** All {{line_count}} lines from the chunk are present in your output
+      15. **If any lines are missing, validation will FAIL and you will be asked to retry**
+
+      ### COMMENT-PRESERVATION RULES (NON-NEGOTIABLE)
+      - Treat **comments as first-class source lines**; they are **part of the code** and must appear **verbatim** in the exact 
+        positions encountered.
+      - **Include ALL comment styles** relevant to COBOL74:
+      - Lines with `*` in **column 7** (fixed-format comment line).
+      - Comment indicator variants in column 7 such as `*`, `/` (page eject), and `-` (continuation) when present in the original.
+      - Inline/comment markers used in the provided source (if any).
+      - **Preserve whitespace and columns**: keep columns 1–6 (sequence numbers), column 7 indicator, columns 8–72 (code area), 
+        and columns 73–80 (identification) exactly as-is.
+      - **Do not trim or normalize** leading/trailing spaces, tabs, blank lines, or page breaks (including form-feed characters).
+      - **Do not syntax-filter**: comments must not be removed by language highlighting or preprocessing.
+      - **If you are unsure whether a line is a comment or code, include it verbatim** — never drop it.
+
+      **BLOCK-BY-BLOCK ACCOUNTABILITY (MANDATORY):**
+      16. **Document EVERY paragraph/section within the provided line range sequentially**
+      17. **Start each entry with paragraph name and line number** in format: "Block N: PARAGRAPH-NAME (Line X)"
+      18. **At the end, provide a completion checklist** listing all paragraphs documented in this chunk
+      19. **If you skip any content, it will be immediately obvious from missing line numbers**
+      20. **Process blocks in strict sequential order** - no jumping around
+      21. **If a chunk has 50 paragraphs, you MUST create 50 numbered entries** (or grouped as appropriate)
 
       **OUTPUT FORMAT:**
       Create a numbered list where EACH item contains:
@@ -166,6 +199,8 @@ sections:
       - Cover PROCEDURE DIVISION paragraphs/sections in sequential order
       - Continue until the end of the source file
       - DO NOT skip any sections or paragraphs
+      - **EVERY paragraph must have its own numbered entry with code and explanation**
+      - **NO EXCEPTIONS** - even if paragraphs look similar, document each one separately
 
       **EXPLANATION DEPTH:**
       For each code block, provide:
@@ -176,15 +211,35 @@ sections:
       - Bullet list of important conditionals or branches
       - Note any external dependencies (CALLs, PERFORM, file I/O, database operations)
 
+      **MANDATORY:** You MUST provide this level of detail for EVERY code block.
+      Do NOT abbreviate, summarize, or reference "similar patterns" from previous blocks.
+      Each block stands alone with complete documentation.
+
       **SOURCE CODE:**
       You will receive the complete COBOL source code for this program.
       Parse it line by line and create comprehensive explanations.
+
+      **COMPLETION CHECKLIST (MANDATORY):**
+      After documenting all code blocks, you MUST generate a completion checklist.
+      For the {{paragraph_checklist}} variable, provide a bulleted list in format:
+      - ✓ PARAGRAPH-NAME (Line X-Y) - Brief purpose
+
+      This checklist serves as proof that you processed every paragraph in the chunk.
+      Missing paragraphs will be immediately obvious from gaps in line numbers.
 
     template: |
       The following analysis covers the entire source code sequentially, from the first line to the last.
       Each numbered item represents a paragraph or logically grouped set of paragraphs that implement a single functionality.
 
       {{comprehensive_code_explanations}}
+
+      ---
+
+      ## Chunk Completion Checklist
+
+      The following paragraphs were documented in this chunk:
+
+      {{paragraph_checklist}}
 
   - id: control-flow-analysis
     title: Control Flow Analysis

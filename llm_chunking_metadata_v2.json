@@ -1,0 +1,716 @@
+{
+  "analysis_method": "line-by-line scan of 26755 lines",
+  "procedure_division_start": 25670,
+  "procedure_division_end": 53183,
+  "sections": [
+    {
+      "name": "Z-INITIALIZATION",
+      "line": 25678,
+      "paragraphs_in_section": [
+        "Z-INITIALIZATION-PARAGRAPH"
+      ]
+    },
+    {
+      "name": "Z-MAIN-CONTROL",
+      "line": 25760,
+      "paragraphs_in_section": [
+        "Z-MAIN-CONTROL-PARAGRAPH",
+        "Z-BEGIN-PROCESS-BLOCK",
+        "Z-RESTART-PROCESS-3",
+        "Z-PROCESS-DONE"
+      ]
+    },
+    {
+      "name": "Z-WRAP-UP",
+      "line": 25802,
+      "paragraphs_in_section": [
+        "Z-WRAP-UP-PARAGRAPH"
+      ]
+    },
+    {
+      "name": "Z-SUPPORT",
+      "line": 25942,
+      "paragraphs_in_section": [
+        "Z-SUPPORT-PARAGRAPH",
+        "Z-PROCESS-INIT",
+        "Z-PROCESS-INIT-XIT",
+        "Z-OPEN-DB-1",
+        "Z-OPEN-DB-2",
+        "Z-CLOSE-DB-1",
+        "Z-CLOSE-DB-2",
+        "Z-FL-EXCEPTION",
+        "Z-FL-EXCEPTION-XIT",
+        "Z-DMS-EXCEPTION",
+        "Z-DMS-EXCEPTION-XIT",
+        "Z-DMS1-RELOCK",
+        "Z-DMS1-RELOCK-XIT",
+        "Z-DMS1-CLEAR-MODIFY-FLAGS",
+        "Z-DMS1-CLEAR-MODIFY-FLAGS-XIT",
+        "Z-DMS1-FREE",
+        "Z-DMS1-FREE-XIT",
+        "Z-DMS2-RELOCK",
+        "Z-DMS2-RELOCK-XIT",
+        "Z-DMS2-CLEAR-MODIFY-FLAGS",
+        "Z-DMS2-CLEAR-MODIFY-FLAGS-XIT",
+        "Z-DMS2-FREE",
+        "Z-DMS2-FREE-XIT",
+        "Z-DMS2-BEGIN-TRANS",
+        "Z-DMS2-CHECK-BT-EXCEPTION",
+        "Z-DMS2-BEGIN-TRANS-XIT",
+        "Z-DMS2-END-TRANS",
+        "Z-DMS2-END-TRANS-SYNC",
+        "Z-DMS2-END-TRANS-NO-AUDIT",
+        "Z-DMS2-ABORT-TRANS",
+        "Z-DMS2-CHECK-ET-EXCEPTION",
+        "Z-DMS2-END-TRANS-XIT",
+        "Z-DMS2-RESTART-CREATE",
+        "Z-DMS2-RESTART-CREATE-XIT",
+        "Z-CHECK-RESTART",
+        "Z-CHECK-RESTART-XIT",
+        "Z-DISP-COMPRESS",
+        "Z-DISP-COMPRESS-XIT",
+        "Z-DATE-CALC-T",
+        "Z-DATE-CALC-T-EXIT",
+        "Z-DATE-CALC-S",
+        "Z-DATE-CALC-S-EXIT",
+        "Z-DATE-CALC-U",
+        "Z-DATE-CALC-U-EXIT",
+        "Z-DATE-CALC-Z",
+        "Z-DATE-CALC-Z-EXIT",
+        "Z-DATE-CNVRT-WEEKS-TO-DD",
+        "Z-DATE-CNVRT-WEEKS-TO-DD-EXIT",
+        "Z-DATE-CALC-D",
+        "Z-DATE-CALC-D-EXIT",
+        "Z-DATE-ADD-1ST-YR",
+        "Z-DATE-ADD-1ST-YR-EXIT",
+        "Z-DATE-SUBTRACT-1ST-YR",
+        "Z-DATE-SUBTRACT-1ST-YR-EXIT",
+        "Z-DATE-ADD-D",
+        "Z-DATE-ADD-D-EXIT",
+        "Z-DATE-INCREMENT-YY-CC",
+        "Z-DATE-INCREMENT-YY-CC-EXIT",
+        "Z-DATE-SUBTRACT-D",
+        "Z-DATE-SUBTRACT-D-EXIT",
+        "Z-DATE-DECREMENT-YY-CC",
+        "Z-DATE-DECREMENT-YY-CC-EXIT",
+        "Z-DATE-CALC-M",
+        "Z-DATE-CALC-M-EXIT",
+        "Z-DATE-ADD-M",
+        "Z-DATE-ADD-M-EXIT",
+        "Z-DATE-SUBTRACT-M",
+        "Z-DATE-SUBTRACT-M-EXIT",
+        "Z-DATE-CALC-Y",
+        "Z-DATE-CALC-Y-EXIT",
+        "Z-DATE-CALC-C",
+        "Z-DATE-CALC-C-EXIT",
+        "Z-DATE-CALC-LEAP-YEAR",
+        "Z-DATE-CALC-LEAP-YEAR-EXIT",
+        "Z-DATE-CALC-MONTH-DAYS",
+        "Z-DATE-CALC-MONTH-DAYS-EXIT",
+        "Z-DATE-MDY-TO-JUL-CTRL",
+        "Z-DATE-MDY-TO-JUL-CTRL-EXIT",
+        "Z-DATE-CONVERT-MDY-TO-JUL",
+        "Z-DATE-CONVERT-MDY-TO-JUL-EXIT",
+        "Z-DATE-CC-DIFF",
+        "Z-DATE-CC-DIFF-EXIT",
+        "Z-DATE-YY-DIFF",
+        "Z-DATE-YY-DIFF-EXIT",
+        "Z-DATE-INITIALIZE-REGS",
+        "Z-DATE-INITIALIZE-REGS-EXIT",
+        "Z-DATE-INITIALIZE-CTRL",
+        "Z-DATE-INITIALIZE-CTRL-EXIT",
+        "Z-DATE-INIT-DATE-1",
+        "Z-DATE-INIT-DATE-1-EXIT",
+        "Z-DATE-INIT-DATE-2",
+        "Z-DATE-INIT-DATE-2-EXIT",
+        "Z-DATE-INIT-DATE-3",
+        "Z-DATE-INIT-DATE-3-EXIT",
+        "Z-DATE-INIT-UNITS",
+        "Z-DATE-INIT-UNITS-EXIT",
+        "Z-DATE-INIT-MATH-WA",
+        "Z-DATE-INIT-MATH-WA-EXIT",
+        "Z-DATE-INIT-JUL-MDY",
+        "Z-DATE-INIT-JUL-MDY-EXIT",
+        "Z-DATE-INIT-LEAP-YR",
+        "Z-DATE-INIT-LEAP-YR-EXIT",
+        "Z-DATE-INIT-CVRT-STATUS",
+        "Z-DATE-INIT-CVRT-STATUS-EXIT"
+      ]
+    },
+    {
+      "name": "Z-USERS-DECLARATIONS",
+      "line": 27776,
+      "paragraphs_in_section": []
+    },
+    {
+      "name": "PRT SECTION 00",
+      "line": 29688,
+      "paragraphs_in_section": [
+        "99-PRT-LABEL-CHECK SECTION 51",
+        "99-PRT-REMOTE-LBL-CHK SECTION 51",
+        "99-PRT-EXCEPT-RTN SECTION 00",
+        "99-PRT-NEW-NAME-CHK SECTION 51",
+        "99-PRT-NEW-LABEL-CHG SECTION 51"
+      ]
+    }
+  ],
+  "paragraphs": [
+    {
+      "name": "Z-INITIALIZATION-PARAGRAPH",
+      "line": 25680,
+      "section": "Z-INITIALIZATION",
+      "performs": [
+        "Z-PROCESS-INIT",
+        "Z-OPEN-DB-1",
+        "Z-OPEN-DB-2"
+      ],
+      "performed_by": [],
+      "estimated_lines": 36
+    },
+    {
+      "name": "Z-MAIN-CONTROL-PARAGRAPH",
+      "line": 25764,
+      "section": "Z-MAIN-CONTROL",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 4
+    },
+    {
+      "name": "Z-BEGIN-PROCESS-BLOCK",
+      "line": 25772,
+      "section": "Z-MAIN-CONTROL",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 6
+    },
+    {
+      "name": "Z-RESTART-PROCESS-3",
+      "line": 25778,
+      "section": "Z-MAIN-CONTROL",
+      "performs": [
+        "Z-PROCESS-INIT",
+        "Z-3-PROCESS"
+      ],
+      "performed_by": [],
+      "estimated_lines": 10
+    },
+    {
+      "name": "Z-PROCESS-DONE",
+      "line": 25790,
+      "section": "Z-MAIN-CONTROL",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 4
+    },
+    {
+      "name": "Z-WRAP-UP-PARAGRAPH",
+      "line": 25806,
+      "section": "Z-WRAP-UP",
+      "performs": [
+        "Z-CLOSE-DB-1",
+        "Z-CLOSE-DB-2"
+      ],
+      "performed_by": [],
+      "estimated_lines": 26
+    },
+    {
+      "name": "Z-SUPPORT-PARAGRAPH",
+      "line": 25946,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-PROCESS-INIT",
+      "line": 25950,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-INITIALIZATION-PARAGRAPH",
+        "Z-RESTART-PROCESS-3"
+      ],
+      "estimated_lines": 4
+    },
+    {
+      "name": "Z-PROCESS-INIT-XIT",
+      "line": 25962,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-PROCESS-INIT"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-OPEN-DB-1",
+      "line": 25966,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS-EXCEPTION"
+      ],
+      "performed_by": [
+        "Z-INITIALIZATION-PARAGRAPH"
+      ],
+      "estimated_lines": 14
+    },
+    {
+      "name": "Z-OPEN-DB-2",
+      "line": 25994,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS-EXCEPTION"
+      ],
+      "performed_by": [
+        "Z-INITIALIZATION-PARAGRAPH"
+      ],
+      "estimated_lines": 14
+    },
+    {
+      "name": "Z-CLOSE-DB-1",
+      "line": 26020,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS-EXCEPTION"
+      ],
+      "performed_by": [
+        "Z-WRAP-UP-PARAGRAPH"
+      ],
+      "estimated_lines": 16
+    },
+    {
+      "name": "Z-CLOSE-DB-2",
+      "line": 26050,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-OPEN-DB-2",
+        "Z-DMS-EXCEPTION"
+      ],
+      "performed_by": [
+        "Z-WRAP-UP-PARAGRAPH"
+      ],
+      "estimated_lines": 18
+    },
+    {
+      "name": "Z-FL-EXCEPTION",
+      "line": 26088,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DISP-COMPRESS"
+      ],
+      "performed_by": [],
+      "estimated_lines": 32
+    },
+    {
+      "name": "Z-FL-EXCEPTION-XIT",
+      "line": 26148,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-FL-EXCEPTION"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS-EXCEPTION",
+      "line": 26156,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DISP-COMPRESS"
+      ],
+      "performed_by": [
+        "Z-OPEN-DB-1",
+        "Z-OPEN-DB-2",
+        "Z-CLOSE-DB-1",
+        "Z-CLOSE-DB-2"
+      ],
+      "estimated_lines": 54
+    },
+    {
+      "name": "Z-DMS-EXCEPTION-XIT",
+      "line": 26286,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS-EXCEPTION"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS1-RELOCK",
+      "line": 26294,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 4
+    },
+    {
+      "name": "Z-DMS1-RELOCK-XIT",
+      "line": 26302,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS1-RELOCK"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS1-CLEAR-MODIFY-FLAGS",
+      "line": 26310,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 4
+    },
+    {
+      "name": "Z-DMS1-CLEAR-MODIFY-FLAGS-XIT",
+      "line": 26316,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS1-CLEAR-MODIFY-FLAGS"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS1-FREE",
+      "line": 26324,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 4
+    },
+    {
+      "name": "Z-DMS1-FREE-XIT",
+      "line": 26332,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS1-FREE"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS2-RELOCK",
+      "line": 26340,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 10
+    },
+    {
+      "name": "Z-DMS2-RELOCK-XIT",
+      "line": 26358,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS2-RELOCK"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS2-CLEAR-MODIFY-FLAGS",
+      "line": 26366,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 4
+    },
+    {
+      "name": "Z-DMS2-CLEAR-MODIFY-FLAGS-XIT",
+      "line": 26372,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS2-CLEAR-MODIFY-FLAGS"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS2-FREE",
+      "line": 26382,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 4
+    },
+    {
+      "name": "Z-DMS2-FREE-XIT",
+      "line": 26388,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS2-FREE"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS2-BEGIN-TRANS",
+      "line": 26398,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS2-CHECK-BT-EXCEPTION"
+      ],
+      "performed_by": [],
+      "estimated_lines": 22
+    },
+    {
+      "name": "Z-DMS2-CHECK-BT-EXCEPTION",
+      "line": 26416,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS2-FREE",
+        "Z-DMS2-RELOCK",
+        "Z-DMS-EXCEPTION"
+      ],
+      "performed_by": [
+        "Z-DMS2-BEGIN-TRANS"
+      ],
+      "estimated_lines": 38
+    },
+    {
+      "name": "Z-DMS2-BEGIN-TRANS-XIT",
+      "line": 26456,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS2-BEGIN-TRANS"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS2-END-TRANS",
+      "line": 26464,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS2-END-TRANS-NO-AUDIT",
+        "Z-DMS2-END-TRANS-SYNC",
+        "Z-DMS2-ABORT-TRANS",
+        "Z-DMS2-CHECK-ET-EXCEPTION"
+      ],
+      "performed_by": [],
+      "estimated_lines": 24
+    },
+    {
+      "name": "Z-DMS2-END-TRANS-SYNC",
+      "line": 26498,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS2-CHECK-ET-EXCEPTION"
+      ],
+      "performed_by": [
+        "Z-DMS2-END-TRANS"
+      ],
+      "estimated_lines": 8
+    },
+    {
+      "name": "Z-DMS2-END-TRANS-NO-AUDIT",
+      "line": 26510,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS2-CHECK-ET-EXCEPTION"
+      ],
+      "performed_by": [
+        "Z-DMS2-END-TRANS"
+      ],
+      "estimated_lines": 8
+    },
+    {
+      "name": "Z-DMS2-ABORT-TRANS",
+      "line": 26524,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS2-END-TRANS"
+      ],
+      "estimated_lines": 8
+    },
+    {
+      "name": "Z-DMS2-CHECK-ET-EXCEPTION",
+      "line": 26536,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS2-FREE",
+        "Z-DMS2-RELOCK",
+        "Z-DMS2-BEGIN-TRANS",
+        "Z-DMS-EXCEPTION",
+        "Z-DMS2-CLEAR-MODIFY-FLAGS"
+      ],
+      "performed_by": [
+        "Z-DMS2-END-TRANS",
+        "Z-DMS2-END-TRANS-SYNC",
+        "Z-DMS2-END-TRANS-NO-AUDIT"
+      ],
+      "estimated_lines": 58
+    },
+    {
+      "name": "Z-DMS2-END-TRANS-XIT",
+      "line": 26594,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS2-END-TRANS",
+        "Z-DMS2-CHECK-ET-EXCEPTION"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DMS2-RESTART-CREATE",
+      "line": 26600,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-DMS-EXCEPTION"
+      ],
+      "performed_by": [],
+      "estimated_lines": 8
+    },
+    {
+      "name": "Z-DMS2-RESTART-CREATE-XIT",
+      "line": 26616,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DMS2-RESTART-CREATE"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-CHECK-RESTART",
+      "line": 26624,
+      "section": "Z-SUPPORT",
+      "performs": [
+        "Z-CLOSE-DB-1",
+        "Z-OPEN-DB-1",
+        "Z-CLOSE-DB-2",
+        "Z-OPEN-DB-2"
+      ],
+      "performed_by": [],
+      "estimated_lines": 88
+    },
+    {
+      "name": "Z-CHECK-RESTART-XIT",
+      "line": 26710,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-CHECK-RESTART"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "Z-DISP-COMPRESS",
+      "line": 26720,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-FL-EXCEPTION",
+        "Z-DMS-EXCEPTION"
+      ],
+      "estimated_lines": 8
+    },
+    {
+      "name": "Z-DISP-COMPRESS-XIT",
+      "line": 26736,
+      "section": "Z-SUPPORT",
+      "performs": [],
+      "performed_by": [
+        "Z-DISP-COMPRESS"
+      ],
+      "estimated_lines": 2
+    },
+    {
+      "name": "99-PRT-LABEL-CHECK SECTION 51",
+      "line": 29696,
+      "section": "PRT SECTION 00",
+      "performs": [
+        "99-PRT-NEW-NAME-CHK",
+        "99-PRT-REMOTE-LBL-CHK",
+        "Z-8-PROCEDURE"
+      ],
+      "performed_by": [],
+      "estimated_lines": 104
+    },
+    {
+      "name": "99-PRT-REMOTE-LBL-CHK SECTION 51",
+      "line": 30004,
+      "section": "PRT SECTION 00",
+      "performs": [],
+      "performed_by": [
+        "99-PRT-LABEL-CHECK SECTION 51"
+      ],
+      "estimated_lines": 4
+    },
+    {
+      "name": "99-PRT-EXCEPT-RTN SECTION 00",
+      "line": 30012,
+      "section": "PRT SECTION 00",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 16
+    },
+    {
+      "name": "99-PRT-NEW-NAME-CHK SECTION 51",
+      "line": 30042,
+      "section": "PRT SECTION 00",
+      "performs": [],
+      "performed_by": [
+        "99-PRT-LABEL-CHECK SECTION 51"
+      ],
+      "estimated_lines": 86
+    },
+    {
+      "name": "99-PRT-NEW-LABEL-CHG SECTION 51",
+      "line": 30436,
+      "section": "PRT SECTION 00",
+      "performs": [],
+      "performed_by": [],
+      "estimated_lines": 60
+    }
+  ],
+  "perform_graph": [
+    {
+      "from_line": 25680,
+      "from_paragraph": "Z-INITIALIZATION-PARAGRAPH",
+      "to_paragraph": "Z-PROCESS-INIT",
+      "statement": "PERFORM Z-PROCESS-INIT"
+    },
+    {
+      "from_line": 25680,
+      "from_paragraph": "Z-INITIALIZATION-PARAGRAPH",
+      "to_paragraph": "Z-OPEN-DB-1",
+      "statement": "PERFORM Z-OPEN-DB-1"
+    },
+    {
+      "from_line": 25680,
+      "from_paragraph": "Z-INITIALIZATION-PARAGRAPH",
+      "to_paragraph": "Z-OPEN-DB-2",
+      "statement": "PERFORM Z-OPEN-DB-2"
+    },
+    {
+      "from_line": 25778,
+      "from_paragraph": "Z-RESTART-PROCESS-3",
+      "to_paragraph": "Z-PROCESS-INIT",
+      "statement": "PERFORM Z-PROCESS-INIT"
+    },
+    {
+      "from_line": 25778,
+      "from_paragraph": "Z-RESTART-PROCESS-3",
+      "to_paragraph": "Z-3-PROCESS",
+      "statement": "PERFORM Z-3-PROCESS"
+    }
+  ],
+  "suggested_semantic_chunks": [
+    {
+      "chunk_id": 1,
+      "description": "Initialization and setup",
+      "paragraph_names": [
+        "Z-INITIALIZATION-PARAGRAPH",
+        "Z-PROCESS-INIT",
+        "Z-PROCESS-INIT-XIT"
+      ],
+      "start_line": 25680,
+      "end_line": 25962,
+      "rationale": "These paragraphs form initialization workflow"
+    }
+  ]
+}

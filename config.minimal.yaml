@@ -25,7 +25,7 @@ output:
 servers:
   ctags:
     enabled: true
-    docker_image: ctags-mcp-server:latest
+    docker_image: ctags-mcp:test
     # Optional extra args required for MCP Server
     extra_args: []
 

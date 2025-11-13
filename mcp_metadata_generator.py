@@ -43,10 +43,18 @@ class MCPMetadataGenerator:
         (self.output_base_dir / "superbol").mkdir(parents=True, exist_ok=True)
         (self.output_base_dir / "superbol" / "superbol-cfg").mkdir(parents=True, exist_ok=True)
 
-        # Get Docker image names from config or use defaults
-        ctags_image = self.servers_config.get('ctags', {}).get('docker_image', 'ctags-mcp:upstream')
-        gnucobol_image = self.servers_config.get('gnuCobol', {}).get('docker_image', 'gnucobol-mcp:upstream')
-        superbol_image = self.servers_config.get('superbol-lsp', {}).get('docker_image', 'superbol-lsp-mcp:upstream')
+        # Get Docker image names from config (required - no defaults)
+        ctags_image = self.servers_config.get('ctags', {}).get('docker_image')
+        gnucobol_image = self.servers_config.get('gnuCobol', {}).get('docker_image')
+        superbol_image = self.servers_config.get('superbol-lsp', {}).get('docker_image')
+
+        # Validate that all required docker images are configured
+        if not ctags_image:
+            raise ValueError("Missing required config: servers.ctags.docker_image")
+        if not gnucobol_image:
+            raise ValueError("Missing required config: servers.gnuCobol.docker_image")
+        if not superbol_image:
+            raise ValueError("Missing required config: servers.superbol-lsp.docker_image")
 
         config = {
             "mcpServers": {

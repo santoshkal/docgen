@@ -12,7 +12,7 @@ This agent ensures consistent documentation across COBOL projects by:
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -552,7 +552,8 @@ def process_section_recursive(state: AgentState, section: Dict[str, Any]) -> str
                 context=context,
                 chunked_file_info=context['chunked_file_info'],
                 llm_config=state.get("llm_config"),
-                pass_number=pass_number
+                pass_number=pass_number,
+                state=state  # Pass state for accessing full CTags data
             )
         else:
             # Normal processing
@@ -1155,6 +1156,152 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
     return filtered_context
 
 
+def _write_llm_request_debug_file(
+    section_id: str,
+    section_title: str,
+    system_prompt: str,
+    user_prompt: str,
+    context: Dict[str, Any],
+    chunk_number: Optional[int] = None,
+    pass_number: Optional[int] = None,
+    model: str = "unknown"
+) -> None:
+    """
+    Write LLM request data to a debug file for inspection.
+
+    Creates files in ./request/ directory with complete request details.
+    This helps debug what exactly is being sent to the LLM.
+
+    Args:
+        section_id: Section identifier
+        section_title: Section title
+        system_prompt: System message content
+        user_prompt: User message content
+        context: Context dict (metadata)
+        chunk_number: Optional chunk number
+        pass_number: Optional pass number
+        model: Model name
+    """
+    import os
+    from pathlib import Path
+
+    # Create request directory if it doesn't exist
+    request_dir = Path("./request")
+    request_dir.mkdir(exist_ok=True)
+
+    # Build filename
+    if chunk_number is not None:
+        # Chunk-based request (detailed-code-explanation)
+        base_filename = f"chunk-{chunk_number:02d}"
+        if pass_number:
+            base_filename += f"-pass{pass_number}"
+    else:
+        # Section-based request
+        base_filename = section_id
+        if pass_number:
+            base_filename += f"-pass{pass_number}"
+
+    # Check if file exists (for retry attempts)
+    # If it exists, append -attempt-N
+    filename = base_filename + ".md"
+    filepath = request_dir / filename
+    attempt = 1
+    while filepath.exists():
+        attempt += 1
+        filename = f"{base_filename}-attempt-{attempt}.md"
+        filepath = request_dir / filename
+
+    # Calculate token estimates
+    system_tokens = len(system_prompt) // 4
+    user_tokens = len(user_prompt) // 4
+    total_tokens = system_tokens + user_tokens
+
+    # Build debug content
+    debug_content = f"""# LLM Request Debug File
+Generated: {datetime.now().isoformat()}
+
+## Request Metadata
+- **Section ID**: {section_id}
+- **Section Title**: {section_title}
+- **Model**: {model}
+- **Chunk Number**: {chunk_number if chunk_number else 'N/A'}
+- **Pass Number**: {pass_number if pass_number else 'N/A'}
+- **Attempt Number**: {attempt if attempt > 1 else 1} {'(RETRY)' if attempt > 1 else '(INITIAL)'}
+
+## Token Estimates (4 chars/token)
+- **System Prompt**: ~{system_tokens:,} tokens
+- **User Prompt**: ~{user_tokens:,} tokens
+- **Total Input**: ~{total_tokens:,} tokens
+
+---
+
+## System Prompt
+
+```
+{system_prompt}
+```
+
+---
+
+## User Prompt
+
+```
+{user_prompt}
+```
+
+---
+
+## Context (Metadata)
+
+The following context was provided in the user prompt (embedded in JSON):
+
+### Source Code Present
+- Has source_code: {'Yes' if 'source_code' in context else 'No'}
+- Source code length: {len(context.get('source_code', '')) if 'source_code' in context else 0} characters
+
+### Program Map Present
+- Has program_map: {'Yes' if 'program_map' in context else 'No'}
+- Program map length: {len(context.get('program_map', '')) if 'program_map' in context else 0} characters
+
+### Other Context Keys
+{chr(10).join([f"- {key}: {type(value).__name__}" for key, value in context.items() if key not in ['source_code', 'program_map']])}
+
+---
+
+## Full Source Code (if present)
+
+"""
+
+    # Add source code if present
+    if 'source_code' in context:
+        debug_content += f"""
+```cobol
+{context['source_code']}
+```
+
+"""
+    else:
+        debug_content += "*(No source code in context)*\n\n"
+
+    # Add program map if present
+    debug_content += "---\n\n## Program Map (if present)\n\n"
+    if 'program_map' in context:
+        debug_content += f"""
+```
+{context['program_map']}
+```
+
+"""
+    else:
+        debug_content += "*(No program map in context)*\n\n"
+
+    # Write to file
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(debug_content)
+
+    print(f"  [DEBUG] Request saved to: {filepath}")
+
+
 def generate_section_content(
     section_id: str,
     section_title: str,
@@ -1240,6 +1387,18 @@ Remember:
         HumanMessage(content=user_prompt)
     ]
 
+    # Write request to debug file before LLM call
+    _write_llm_request_debug_file(
+        section_id=section_id,
+        section_title=section_title,
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        context=context,
+        chunk_number=chunk_number,
+        pass_number=pass_number,
+        model=model_name
+    )
+
     # Start LLM call tracking
     from llm_tracer import get_tracer
     tracer = get_tracer()
@@ -1276,7 +1435,8 @@ def process_large_file_in_chunks(
     context: Dict[str, Any],
     chunked_file_info: Dict[str, Any],
     llm_config: Optional[Dict[str, Any]] = None,
-    pass_number: Optional[int] = None
+    pass_number: Optional[int] = None,
+    state: Optional[Dict[str, Any]] = None
 ) -> str:
     """
     Process a large COBOL file in chunks for detailed code-block explanation.
@@ -1296,11 +1456,13 @@ def process_large_file_in_chunks(
         chunked_file_info: Info about chunked file
         llm_config: LLM configuration
         pass_number: Optional pass number (for two-pass mode)
+        state: Optional state dict for accessing full unfiltered CTags data
 
     Returns:
         Combined documentation for all chunks
     """
     from source_chunker import chunk_large_cobol_file, format_chunk_for_llm
+    from chunk_validation import ChunkDocumentationValidator
     from pathlib import Path
 
     file_path = chunked_file_info['file_path']
@@ -1312,14 +1474,32 @@ def process_large_file_in_chunks(
     print(f"     Total lines: {total_lines:,}")
 
     # Get CTags metadata if available for better boundary detection
-    ctags_metadata = context.get('ctags_outline')
+    # IMPORTANT: For chunking, we need FULL unfiltered CTags data (all paragraphs),
+    # not the filtered version in context that may have limited arrays.
+    # Get it directly from state to avoid polluting LLM context with massive data.
+    ctags_metadata = None
+    if state:
+        ctags_metadata = state.get('ctags_outline')
+        print(f"  → Using full unfiltered CTags from state for boundary detection")
 
-    # Create chunks
+    if not ctags_metadata:
+        # Fallback to context (may be filtered)
+        ctags_metadata = context.get('ctags_outline')
+        if ctags_metadata:
+            print(f"  ⚠ Using CTags from context (may be filtered)")
+
+    # Get program map from context to calculate overhead during chunking
+    program_map = context.get('program_map')
+
+    # Create chunks with smaller granularity for better LLM coverage
+    # Using 10K tokens per chunk for granular processing
+    # Program map overhead is calculated and reserved during chunking
     try:
         chunks, verification = chunk_large_cobol_file(
             file_path,
-            max_tokens_per_chunk=100000,  # 100K tokens per chunk
-            ctags_metadata=ctags_metadata
+            max_tokens_per_chunk=10000,  # 10K tokens per chunk (including overhead)
+            ctags_metadata=ctags_metadata,
+            program_map=program_map  # Pass program_map to calculate overhead
         )
     except Exception as e:
         print(f"  ✗ Chunking failed: {e}")
@@ -1339,6 +1519,13 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
     print(f"  → Processing {total_chunks} chunks...")
 
     all_results = []
+    all_chunk_gaps = []  # Collect gaps from all chunks for Pass 2
+    validation_stats = {
+        'total_chunks': total_chunks,
+        'validated': 0,
+        'incomplete': 0,
+        'total_coverage': 0.0
+    }
 
     for chunk_info in chunks:
         chunk_num = chunk_info['chunk_number']
@@ -1358,32 +1545,469 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         chunk_context['source_code'] = chunk_content
         chunk_context['chunk_number'] = chunk_num
         chunk_context['total_chunks'] = total_chunks
+        chunk_context['start_line'] = chunk_info['start_line']
+        chunk_context['end_line'] = chunk_info['end_line']
+        chunk_context['line_count'] = chunk_info['line_count']
 
-        # Generate content for this chunk
-        try:
-            chunk_result = generate_section_content(
-                section_id,
-                f"{section_title} - Chunk {chunk_num}/{total_chunks}",
-                instruction + f"\n\n**CHUNK {chunk_num} of {total_chunks}**: Continue numbering from previous chunks.",
-                template,
-                chunk_context,
-                {},  # section_config
-                llm_config,
-                pass_number=pass_number,
-                chunk_number=chunk_num
-            )
-            all_results.append(chunk_result)
-        except Exception as e:
-            print(f"  ✗ Chunk {chunk_num} failed: {e}")
-            all_results.append(f"\n\n**[Chunk {chunk_num} processing failed: {e}]**\n\n")
+        # Generate content for this chunk with SMART RETRY (limited)
+        chunk_result = None
+        max_retries = 1  # Only 1 retry (2 attempts total) - conservative!
 
-    # Combine all results
+        for attempt in range(1, max_retries + 2):  # 1 + 1 retry = 2 attempts max
+            try:
+                current_instruction = instruction + f"\n\n**CHUNK {chunk_num} of {total_chunks}**: Continue numbering from previous chunks."
+
+                # On retry, add specific feedback about missing lines
+                if attempt > 1:
+                    print(f"  ↻ Retry attempt {attempt}")
+                    # Add targeted retry feedback (only if coverage < 80%)
+                    if validation_result.coverage_percentage < 80.0:
+                        retry_feedback = f"""
+**RETRY REQUIRED - Previous attempt had {validation_result.coverage_percentage:.1f}% coverage**
+You missed {validation_result.missing_line_count} lines.
+
+🚨 CRITICAL: You are likely skipping COBOL-74 COMMENT LINES!
+
+COBOL-74 comments have "*" in column 7 (after sequence number):
+  Example: 000020* This is a comment
+           000026*REMARKS.
+
+YOU MUST INCLUDE ALL COMMENT LINES (lines with *) in your ```cobol code blocks!
+
+Comments are SOURCE CODE that must be preserved verbatim.
+Do NOT skip them thinking they're "already documented".
+
+Also include:
+- ALL data tables and FILLER definitions
+- ALL WORKING-STORAGE variables
+- Complete FILE SECTION layouts
+- EVERY line from the source code provided above
+"""
+                        current_instruction = retry_feedback + "\n" + current_instruction
+
+                chunk_result = generate_section_content(
+                    section_id,
+                    f"{section_title} - Chunk {chunk_num}/{total_chunks}",
+                    current_instruction,
+                    template,
+                    chunk_context,
+                    {},  # section_config
+                    llm_config,
+                    pass_number=pass_number,
+                    chunk_number=chunk_num
+                )
+
+                # Validate chunk result
+                validator = ChunkDocumentationValidator(chunk_info, chunk_result)
+                validation_result = validator.validate(min_coverage_percentage=100.0)
+
+                if validation_result.is_valid:
+                    print(f"  ✓ Complete: {validation_result.coverage_percentage:.1f}% coverage ({validation_result.found_lines}/{validation_result.expected_lines} lines)")
+                    validation_stats['validated'] += 1
+                    break  # Success!
+                else:
+                    print(f"  ⚠ Incomplete: {validation_result.coverage_percentage:.1f}% coverage ({validation_result.found_lines}/{validation_result.expected_lines} lines)")
+                    print(f"     Missing: {validation_result.missing_line_count} lines in {len(validation_result.missing_line_ranges)} gaps")
+
+                    # Only retry if coverage is REALLY bad (< 80%) and we have retries left
+                    if validation_result.coverage_percentage >= 80.0:
+                        print(f"     → Accepting (coverage ≥ 80%)")
+                        validation_stats['incomplete'] += 1
+                        break  # Good enough, don't retry
+                    elif attempt >= max_retries + 1:
+                        print(f"     → Max retries reached, accepting result")
+                        validation_stats['incomplete'] += 1
+                        break  # Out of retries
+                    else:
+                        # Retry (only for < 80% coverage)
+                        continue
+
+            except Exception as e:
+                print(f"  ✗ Attempt {attempt} failed: {e}")
+                if attempt >= max_retries + 1:
+                    chunk_result = f"\n\n**[Chunk {chunk_num} processing failed: {e}]**\n\n"
+                    validation_stats['incomplete'] += 1
+                    break
+
+        # Track coverage
+        if validation_result:
+            validation_stats['total_coverage'] += validation_result.coverage_percentage
+
+            # Store gap information (even with retries, for visibility)
+            if not validation_result.is_valid:
+                all_chunk_gaps.append({
+                    'chunk_number': chunk_num,
+                    'validation_result': validation_result,
+                    'chunk_info': chunk_info
+                })
+
+        all_results.append(chunk_result if chunk_result else f"\n\n**[Chunk {chunk_num} - no result]**\n\n")
+
+    # Combine all results from Pass 1
     combined_result = "\n\n".join(all_results)
 
-    print(f"\n  ✓ All {total_chunks} chunks processed successfully")
-    print(f"  ✓ Verification: {verification['coverage']} coverage")
+    # Show Pass 1 statistics
+    avg_coverage = validation_stats['total_coverage'] / total_chunks if total_chunks > 0 else 0
+    print(f"\n" + "="*80)
+    print(f"PASS 1 COMPLETE: Initial Documentation")
+    print(f"="*80)
+    print(f"  • Chunks processed: {total_chunks}")
+    print(f"  • Complete chunks (100%): {validation_stats['validated']}")
+    print(f"  • Incomplete chunks: {validation_stats['incomplete']}")
+    print(f"  • Average coverage: {avg_coverage:.1f}%")
+    print(f"  • Chunking verification: {verification['coverage']}")
 
-    return combined_result
+    # Decide if Pass 2 (gap-filling) is needed
+    # CHANGED: More conservative threshold - only if coverage is really poor
+    if avg_coverage >= 90.0:
+        print(f"\n  ✓ Good coverage ({avg_coverage:.1f}%) - Gap filling not needed")
+        print(f"     (Accepting 90%+ coverage as sufficient to avoid excessive API calls)")
+        return combined_result
+    elif len(all_chunk_gaps) == 0:
+        print(f"\n  ✓ All chunks complete - No gaps to fill")
+        return combined_result
+    else:
+        print(f"\n  ⚠ Low coverage ({avg_coverage:.1f}%) - Gap filling needed")
+        print(f"  → {len(all_chunk_gaps)} chunks with gaps")
+
+        # DISABLED: Gap-filling creates too many LLM calls
+        # For now, accept ~90% coverage instead of pursuing 100%
+        print(f"\n  ⚠ WARNING: Pass 2 gap-filling is DISABLED due to efficiency concerns")
+        print(f"     Current implementation creates excessive LLM calls (1000+)")
+        print(f"     Accepting {avg_coverage:.1f}% coverage from Pass 1")
+        print(f"     To enable gap-filling, set ENABLE_GAP_FILLING=True")
+
+        ENABLE_GAP_FILLING = False  # Feature flag
+
+        if ENABLE_GAP_FILLING:
+            # PASS 2: Gap-Filling (DISABLED by default)
+            gap_fill_result = perform_gap_filling_pass2(
+                all_chunk_gaps,
+                file_path,
+                context,
+                section_id,
+                section_title,
+                instruction,
+                template,
+                llm_config,
+                pass_number
+            )
+
+            # Merge gap-fill results into combined result
+            if gap_fill_result:
+                combined_result += "\n\n" + gap_fill_result
+
+        return combined_result
+
+
+def perform_gap_filling_pass2(
+    all_chunk_gaps: List[Dict],
+    file_path: str,
+    context: Dict[str, Any],
+    section_id: str,
+    section_title: str,
+    instruction: str,
+    template: str,
+    llm_config: Dict[str, Any],
+    pass_number: Optional[int]
+) -> str:
+    """
+    Pass 2: Fill gaps identified in Pass 1.
+
+    Strategy:
+    1. Collect all missing line ranges from all incomplete chunks
+    2. Merge overlapping/adjacent ranges
+    3. Create optimized gap-chunks (smaller, focused)
+    4. Use ultra-strict "include everything verbatim" prompts
+    5. Validate with retries (worthwhile now - targeted and small)
+
+    Args:
+        all_chunk_gaps: List of gap information from Pass 1
+        file_path: Source file path
+        context: Generation context
+        section_id: Section being generated
+        section_title: Section title
+        instruction: Base instruction
+        template: Template string
+        llm_config: LLM configuration
+        pass_number: Pass number
+
+    Returns:
+        Combined gap-fill documentation
+    """
+    from chunk_validation import ChunkDocumentationValidator
+    from pathlib import Path
+
+    print(f"\n" + "="*80)
+    print(f"PASS 2: GAP-FILLING")
+    print(f"="*80)
+
+    # Step 1: Collect all missing line ranges
+    print(f"\n[1] Analyzing gaps from {len(all_chunk_gaps)} incomplete chunks...")
+
+    all_missing_ranges = []
+    total_missing_lines = 0
+
+    for gap_info in all_chunk_gaps:
+        chunk_num = gap_info['chunk_number']
+        validation_result = gap_info['validation_result']
+
+        for start, end in validation_result.missing_line_ranges:
+            all_missing_ranges.append((start, end))
+            total_missing_lines += (end - start + 1)
+
+    print(f"  • Total gap ranges: {len(all_missing_ranges)}")
+    print(f"  • Total missing lines: {total_missing_lines:,}")
+
+    if total_missing_lines == 0:
+        print(f"  ✓ No gaps to fill")
+        return ""
+
+    # Step 2: Merge overlapping/adjacent ranges
+    print(f"\n[2] Merging overlapping/adjacent ranges...")
+    merged_ranges = merge_line_ranges(all_missing_ranges)
+    print(f"  • Merged into: {len(merged_ranges)} gap ranges")
+
+    # Show top 10 largest gaps
+    sorted_ranges = sorted(merged_ranges, key=lambda x: x[1] - x[0] + 1, reverse=True)
+    print(f"\n  Top 10 largest gaps:")
+    for i, (start, end) in enumerate(sorted_ranges[:10], 1):
+        gap_size = end - start + 1
+        print(f"    {i}. Lines {start:,}-{end:,} ({gap_size:,} lines)")
+
+    # Step 3: Create gap-chunks (smaller, focused)
+    print(f"\n[3] Creating gap-chunks...")
+
+    # Read source file
+    with open(file_path, 'r') as f:
+        source_lines = f.readlines()
+
+    gap_chunks = []
+    for i, (start, end) in enumerate(merged_ranges, 1):
+        gap_size = end - start + 1
+        gap_content = ''.join(source_lines[start-1:end])
+
+        # For very large gaps, split them further
+        if gap_size > 1000:  # If gap is > 1000 lines, split it
+            print(f"    ⚠ Gap {i} is large ({gap_size:,} lines) - splitting...")
+            sub_chunks = split_large_gap(source_lines, start, end, max_lines_per_chunk=500)
+            gap_chunks.extend(sub_chunks)
+        else:
+            gap_chunk = {
+                'chunk_number': len(gap_chunks) + 1,
+                'start_line': start,
+                'end_line': end,
+                'line_count': gap_size,
+                'content': gap_content,
+                'estimated_tokens': len(gap_content) // 4,
+                'is_gap_fill': True
+            }
+            gap_chunks.append(gap_chunk)
+
+    print(f"  • Created {len(gap_chunks)} gap-chunks")
+
+    # Step 4: Process gap-chunks with ultra-strict prompts
+    print(f"\n[4] Processing gap-chunks with strict validation...")
+
+    gap_results = []
+    gap_stats = {
+        'total': len(gap_chunks),
+        'validated': 0,
+        'retries': 0,
+        'incomplete': 0
+    }
+
+    ultra_strict_instruction = """
+**ULTRA-STRICT GAP-FILLING MODE:**
+
+You are filling GAPS in documentation. These are sections that were MISSED in the first pass.
+Most likely they are:
+- Large DATA DIVISION tables with repetitive FILLER definitions
+- Long comment blocks
+- Boring/repetitive code sections
+
+**MANDATORY REQUIREMENTS:**
+1. **Include EVERY SINGLE LINE verbatim** - No summarization whatsoever
+2. **Even if content is boring/repetitive, include it ALL**
+3. **Show complete FILLER definitions** - Do not abbreviate
+4. **Include all comment blocks completely**
+5. **Validation will check that 100% of lines are present**
+6. **If you skip ANY line, validation will FAIL and you will retry**
+
+**OUTPUT FORMAT:**
+Show the COMPLETE source code in a code block:
+```cobol
+[Include every line from {start_line} to {end_line} with sequence numbers]
+```
+
+Then provide a brief explanation of what this section contains.
+"""
+
+    for gap_chunk in gap_chunks:
+        chunk_num = gap_chunk['chunk_number']
+        print(f"\n  → Gap-chunk {chunk_num}/{len(gap_chunks)} (lines {gap_chunk['start_line']}-{gap_chunk['end_line']})")
+
+        # Format with ultra-strict instructions
+        file_name = Path(file_path).name
+        chunk_content = f"""
+=============================================================================
+GAP-FILL CHUNK {chunk_num} of {len(gap_chunks)} - {file_name}
+=============================================================================
+Lines: {gap_chunk['start_line']} to {gap_chunk['end_line']} ({gap_chunk['line_count']:,} lines)
+
+⚠️  THIS IS A GAP-FILLING CHUNK - MISSED IN FIRST PASS ⚠️
+
+You MUST include EVERY line from {gap_chunk['start_line']} to {gap_chunk['end_line']}.
+Validation will verify 100% coverage.
+=============================================================================
+
+{gap_chunk['content']}
+"""
+
+        # Update context
+        gap_context = context.copy()
+        gap_context['source_code'] = chunk_content
+        gap_context['start_line'] = gap_chunk['start_line']
+        gap_context['end_line'] = gap_chunk['end_line']
+        gap_context['line_count'] = gap_chunk['line_count']
+
+        # Retry loop (worthwhile for gap-chunks - small and targeted)
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                if attempt > 1:
+                    print(f"    ↻ Retry {attempt}/{max_retries}")
+                    gap_stats['retries'] += 1
+
+                # Generate with ultra-strict prompt
+                gap_result = generate_section_content(
+                    section_id,
+                    f"{section_title} - Gap Fill {chunk_num}",
+                    ultra_strict_instruction,
+                    template,
+                    gap_context,
+                    {},
+                    llm_config,
+                    pass_number=pass_number,
+                    chunk_number=chunk_num
+                )
+
+                # Validate
+                validator = ChunkDocumentationValidator(gap_chunk, gap_result)
+                validation_result = validator.validate(min_coverage_percentage=100.0)
+
+                if validation_result.is_valid:
+                    print(f"    ✓ Complete: 100% coverage")
+                    gap_stats['validated'] += 1
+                    gap_results.append(gap_result)
+                    break
+                else:
+                    print(f"    ⚠ Incomplete: {validation_result.coverage_percentage:.1f}% coverage")
+
+                    if attempt < max_retries:
+                        # Add retry feedback
+                        retry_prompt = validator.create_retry_prompt(validation_result)
+                        ultra_strict_instruction = retry_prompt + "\n\n" + ultra_strict_instruction
+                    else:
+                        print(f"    ✗ Max retries reached - accepting {validation_result.coverage_percentage:.1f}%")
+                        gap_stats['incomplete'] += 1
+                        gap_results.append(gap_result)
+
+            except Exception as e:
+                print(f"    ✗ Failed: {e}")
+                if attempt == max_retries:
+                    gap_stats['incomplete'] += 1
+                    gap_results.append(f"\n\n**[Gap-chunk {chunk_num} failed]**\n\n")
+                    break
+
+    # Show gap-fill statistics
+    print(f"\n" + "="*80)
+    print(f"PASS 2 COMPLETE: Gap-Filling")
+    print(f"="*80)
+    print(f"  • Gap-chunks processed: {gap_stats['total']}")
+    print(f"  • Complete (100%): {gap_stats['validated']}")
+    print(f"  • Incomplete: {gap_stats['incomplete']}")
+    print(f"  • Total retries: {gap_stats['retries']}")
+
+    combined_gap_result = "\n\n".join(gap_results)
+    return combined_gap_result
+
+
+def merge_line_ranges(ranges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """
+    Merge overlapping or adjacent line ranges.
+
+    Example:
+    [(1, 5), (3, 8), (10, 15), (16, 20)] → [(1, 8), (10, 20)]
+
+    Args:
+        ranges: List of (start, end) tuples
+
+    Returns:
+        Merged list of ranges
+    """
+    if not ranges:
+        return []
+
+    # Sort by start line
+    sorted_ranges = sorted(ranges, key=lambda x: x[0])
+
+    merged = [sorted_ranges[0]]
+
+    for current in sorted_ranges[1:]:
+        last = merged[-1]
+
+        # Check if overlapping or adjacent (within 5 lines)
+        if current[0] <= last[1] + 5:
+            # Merge: extend the last range
+            merged[-1] = (last[0], max(last[1], current[1]))
+        else:
+            # No overlap: add as new range
+            merged.append(current)
+
+    return merged
+
+
+def split_large_gap(
+    source_lines: List[str],
+    start: int,
+    end: int,
+    max_lines_per_chunk: int = 500
+) -> List[Dict[str, Any]]:
+    """
+    Split a large gap into smaller sub-chunks.
+
+    Args:
+        source_lines: All source file lines
+        start: Gap start line
+        end: Gap end line
+        max_lines_per_chunk: Maximum lines per sub-chunk
+
+    Returns:
+        List of sub-chunk dictionaries
+    """
+    sub_chunks = []
+    current_start = start
+
+    while current_start <= end:
+        current_end = min(current_start + max_lines_per_chunk - 1, end)
+        gap_size = current_end - current_start + 1
+        gap_content = ''.join(source_lines[current_start-1:current_end])
+
+        sub_chunk = {
+            'chunk_number': len(sub_chunks) + 1,
+            'start_line': current_start,
+            'end_line': current_end,
+            'line_count': gap_size,
+            'content': gap_content,
+            'estimated_tokens': len(gap_content) // 4,
+            'is_gap_fill': True
+        }
+        sub_chunks.append(sub_chunk)
+
+        current_start = current_end + 1
+
+    return sub_chunks
 
 
 def check_completion_node(state: AgentState) -> str:
@@ -1418,10 +2042,146 @@ def check_completion_node(state: AgentState) -> str:
             return "assemble"
 
 
+def perform_gap_filling(state: AgentState) -> None:
+    """
+    Two-pass gap filling: Verify documentation coverage and fill gaps.
+
+    This function:
+    1. Runs reconstruction verification on generated markdown
+    2. Identifies missing line ranges
+    3. Creates focused chunks from gaps only
+    4. Re-processes gaps with strict prompts
+    5. Merges gap-fill results into generated_content
+
+    Args:
+        state: Agent state with generated content and source file info
+
+    Returns:
+        None (modifies state in-place)
+    """
+    from verify_markdown_reconstruction import extract_cobol_lines_from_markdown, find_missing_ranges
+    from source_chunker import chunk_large_cobol_file
+    from pathlib import Path
+
+    print("\n" + "="*80)
+    print("TWO-PASS GAP FILLING")
+    print("="*80)
+
+    # Get source file path and generated markdown
+    source_file = state.get('source_file_path')
+    if not source_file or not Path(source_file).exists():
+        print("  ⚠ Source file not found - skipping gap filling")
+        return
+
+    # Get generated markdown from detailed-code-explanation section
+    generated_content = state.get('generated_content', {})
+    markdown_content = generated_content.get('detailed-code-explanation', '')
+
+    if not markdown_content:
+        print("  ⚠ No documentation generated yet - skipping gap filling")
+        return
+
+    print(f"\n[1] Loading source file: {source_file}")
+    with open(source_file, 'r') as f:
+        source_lines = f.readlines()
+
+    total_source_lines = len(source_lines)
+    print(f"  ✓ Total source lines: {total_source_lines:,}")
+
+    # Extract documented lines from markdown
+    print(f"\n[2] Analyzing markdown coverage...")
+    documented_sequences = extract_cobol_lines_from_markdown(markdown_content)
+    documented_lines = set()
+
+    for seq in documented_sequences:
+        line_num = (seq - 10) // 2 + 1
+        if 1 <= line_num <= total_source_lines:
+            documented_lines.add(line_num)
+
+    coverage_pct = (len(documented_lines) / total_source_lines * 100) if total_source_lines > 0 else 0
+    print(f"  ✓ Documented lines: {len(documented_lines):,}/{total_source_lines:,} ({coverage_pct:.2f}%)")
+
+    # Check if gap filling is needed
+    if coverage_pct >= 99.0:  # Allow 1% tolerance
+        print(f"  ✓ Coverage is excellent ({coverage_pct:.2f}%) - no gap filling needed")
+        return
+
+    # Find missing ranges
+    all_lines = set(range(1, total_source_lines + 1))
+    missing_lines = all_lines - documented_lines
+    missing_ranges = find_missing_ranges(missing_lines)
+
+    print(f"\n[3] Gap Analysis:")
+    print(f"  • Missing lines: {len(missing_lines):,} ({100 - coverage_pct:.2f}%)")
+    print(f"  • Gap ranges: {len(missing_ranges)}")
+
+    if len(missing_ranges) == 0:
+        print(f"  ✓ No gaps found - coverage complete")
+        return
+
+    # Show top 10 gaps
+    print(f"\n  Top 10 largest gaps:")
+    sorted_ranges = sorted(missing_ranges, key=lambda x: x[1] - x[0] + 1, reverse=True)
+    for i, (start, end) in enumerate(sorted_ranges[:10], 1):
+        gap_size = end - start + 1
+        seq_start = 10 + (start - 1) * 2
+        seq_end = 10 + (end - 1) * 2
+        print(f"    {i}. Lines {start:,}-{end:,} (Sequences {seq_start:06d}-{seq_end:06d}) - {gap_size:,} lines")
+
+    # Ask user if they want to proceed with gap filling
+    print(f"\n[4] Gap Filling Decision:")
+    print(f"  Found {len(missing_ranges)} gaps totaling {len(missing_lines):,} lines")
+    print(f"  Gap filling will process these missing lines with strict requirements")
+    print(f"  ⚠ This may incur significant API costs for large gaps")
+
+    # For now, proceed automatically (can add user confirmation later)
+    print(f"  → Proceeding with gap filling...")
+
+    # Create chunks from gap ranges only
+    # (Simplified: for now, treat each gap as a separate chunk)
+    print(f"\n[5] Creating gap chunks...")
+    gap_chunks = []
+    for i, (start, end) in enumerate(sorted_ranges, 1):
+        gap_size = end - start + 1
+        gap_content = ''.join(source_lines[start-1:end])
+
+        gap_chunk = {
+            'chunk_number': i,
+            'start_line': start,
+            'end_line': end,
+            'line_count': gap_size,
+            'content': gap_content,
+            'estimated_tokens': len(gap_content) // 4,
+            'is_gap_fill': True  # Mark as gap-fill chunk
+        }
+        gap_chunks.append(gap_chunk)
+
+    print(f"  ✓ Created {len(gap_chunks)} gap chunks")
+
+    # Process gap chunks with strict prompts
+    print(f"\n[6] Processing gap chunks...")
+    # (This part would integrate with the chunk processing loop)
+    # For now, just log what would happen
+    print(f"  → Would process {len(gap_chunks)} gap chunks with strict validation")
+    print(f"  → Each chunk would be validated and retried up to 3 times")
+    print(f"  → Gap-fill results would be merged into documentation")
+
+    print(f"\n  ⚠ GAP FILLING NOT YET FULLY IMPLEMENTED")
+    print(f"     This is a placeholder showing where gap filling would occur")
+
+
 def assemble_document_node(state: AgentState) -> AgentState:
     """
     Node 6: Assemble all generated sections into final document.
+
+    Before assembly, performs two-pass gap filling if enabled.
     """
+    # Check if two-pass gap filling is enabled
+    enable_gap_filling = state.get("enable_gap_filling", False)
+
+    if enable_gap_filling:
+        perform_gap_filling(state)
+
     print("\nAssembling final document...")
 
     template = state["template"]

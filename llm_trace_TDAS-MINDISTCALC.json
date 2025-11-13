@@ -1,0 +1,413 @@
+{
+  "session_info": {
+    "agent": "cobol_doc_agent",
+    "start_timestamp": "2025-11-12T19:45:41.375037",
+    "end_timestamp": "2025-11-12T19:57:17.965717"
+  },
+  "summary": {
+    "total_calls": 18,
+    "total_duration_seconds": 691.797,
+    "total_duration_minutes": 11.53,
+    "total_input_tokens": 6572848,
+    "total_output_tokens": 21318,
+    "total_tokens": 6594166,
+    "average_duration_seconds": 38.433,
+    "average_input_tokens": 365158.2,
+    "average_output_tokens": 1184.3
+  },
+  "section_stats": {
+    "executive-summary": {
+      "count": 1,
+      "duration": 62.280720233917236,
+      "input_tokens": 856117,
+      "output_tokens": 1031
+    },
+    "divisions-overview": {
+      "count": 1,
+      "duration": 54.10022711753845,
+      "input_tokens": 855946,
+      "output_tokens": 1067
+    },
+    "copybooks-referenced": {
+      "count": 1,
+      "duration": 37.23545432090759,
+      "input_tokens": 856087,
+      "output_tokens": 219
+    },
+    "data-structures": {
+      "count": 1,
+      "duration": 119.61740469932556,
+      "input_tokens": 855950,
+      "output_tokens": 3222
+    },
+    "superbol-summary": {
+      "count": 1,
+      "duration": 31.849079608917236,
+      "input_tokens": 855912,
+      "output_tokens": 41
+    },
+    "gnucobol-summary": {
+      "count": 1,
+      "duration": 31.613153219223022,
+      "input_tokens": 855926,
+      "output_tokens": 41
+    },
+    "ctags-summary": {
+      "count": 1,
+      "duration": 31.810330152511597,
+      "input_tokens": 855917,
+      "output_tokens": 40
+    },
+    "metadata-info": {
+      "count": 1,
+      "duration": 6.549137830734253,
+      "input_tokens": 57921,
+      "output_tokens": 64
+    },
+    "cfg-with-calls-diagram": {
+      "count": 1,
+      "duration": 17.47220468521118,
+      "input_tokens": 58531,
+      "output_tokens": 879
+    },
+    "external-call-context": {
+      "count": 1,
+      "duration": 39.928889751434326,
+      "input_tokens": 58040,
+      "output_tokens": 1718
+    },
+    "paragraph-complexity": {
+      "count": 1,
+      "duration": 14.883374452590942,
+      "input_tokens": 58039,
+      "output_tokens": 706
+    },
+    "dfa-diagram": {
+      "count": 1,
+      "duration": 60.84308362007141,
+      "input_tokens": 57984,
+      "output_tokens": 1002
+    },
+    "data-transformations": {
+      "count": 1,
+      "duration": 6.199606895446777,
+      "input_tokens": 57943,
+      "output_tokens": 52
+    },
+    "call-frequency-heatmap": {
+      "count": 1,
+      "duration": 25.667771339416504,
+      "input_tokens": 58072,
+      "output_tokens": 475
+    },
+    "program-call-diagram": {
+      "count": 1,
+      "duration": 29.338049173355103,
+      "input_tokens": 58226,
+      "output_tokens": 698
+    },
+    "system-wide-dependencies": {
+      "count": 1,
+      "duration": 99.14453911781311,
+      "input_tokens": 58104,
+      "output_tokens": 9283
+    },
+    "call-details-with-context": {
+      "count": 1,
+      "duration": 23.26364827156067,
+      "input_tokens": 58133,
+      "output_tokens": 780
+    }
+  },
+  "calls": [
+    {
+      "call_id": 1,
+      "section_id": "executive-summary",
+      "section_title": "Executive Summary",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:45:41.375037",
+      "end_timestamp": "2025-11-12T19:46:43.656015",
+      "duration_seconds": 62.281,
+      "tokens": {
+        "input": 856117,
+        "output": 1031,
+        "total": 857148,
+        "source": "actual_openai"
+      },
+      "output_length": 3662,
+      "pass_number": 1
+    },
+    {
+      "call_id": 2,
+      "section_id": "divisions-overview",
+      "section_title": "COBOL Division Structure",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:46:43.787906",
+      "end_timestamp": "2025-11-12T19:47:37.888474",
+      "duration_seconds": 54.1,
+      "tokens": {
+        "input": 855946,
+        "output": 1067,
+        "total": 857013,
+        "source": "actual_openai"
+      },
+      "output_length": 5089,
+      "pass_number": 1
+    },
+    {
+      "call_id": 3,
+      "section_id": "copybooks-referenced",
+      "section_title": "Referenced Copybooks",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:47:38.012087",
+      "end_timestamp": "2025-11-12T19:48:15.247753",
+      "duration_seconds": 37.235,
+      "tokens": {
+        "input": 856087,
+        "output": 219,
+        "total": 856306,
+        "source": "actual_openai"
+      },
+      "output_length": 900,
+      "pass_number": 1
+    },
+    {
+      "call_id": 4,
+      "section_id": "data-structures",
+      "section_title": "Data Structures",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:48:15.402248",
+      "end_timestamp": "2025-11-12T19:50:15.019979",
+      "duration_seconds": 119.617,
+      "tokens": {
+        "input": 855950,
+        "output": 3222,
+        "total": 859172,
+        "source": "actual_openai"
+      },
+      "output_length": 9704,
+      "pass_number": 1
+    },
+    {
+      "call_id": 5,
+      "section_id": "superbol-summary",
+      "section_title": "Control Flow Analysis Metadata",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:50:15.150030",
+      "end_timestamp": "2025-11-12T19:50:46.999384",
+      "duration_seconds": 31.849,
+      "tokens": {
+        "input": 855912,
+        "output": 41,
+        "total": 855953,
+        "source": "actual_openai"
+      },
+      "output_length": 130,
+      "pass_number": 1
+    },
+    {
+      "call_id": 6,
+      "section_id": "gnucobol-summary",
+      "section_title": "Semantic Analysis Metadata",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:50:47.140326",
+      "end_timestamp": "2025-11-12T19:51:18.753658",
+      "duration_seconds": 31.613,
+      "tokens": {
+        "input": 855926,
+        "output": 41,
+        "total": 855967,
+        "source": "actual_openai"
+      },
+      "output_length": 147,
+      "pass_number": 1
+    },
+    {
+      "call_id": 7,
+      "section_id": "ctags-summary",
+      "section_title": "Symbol Parser Metadata",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:51:18.886050",
+      "end_timestamp": "2025-11-12T19:51:50.696558",
+      "duration_seconds": 31.81,
+      "tokens": {
+        "input": 855917,
+        "output": 40,
+        "total": 855957,
+        "source": "actual_openai"
+      },
+      "output_length": 120,
+      "pass_number": 1
+    },
+    {
+      "call_id": 8,
+      "section_id": "metadata-info",
+      "section_title": "Document Information",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:51:50.724725",
+      "end_timestamp": "2025-11-12T19:51:57.273984",
+      "duration_seconds": 6.549,
+      "tokens": {
+        "input": 57921,
+        "output": 64,
+        "total": 57985,
+        "source": "actual_openai"
+      },
+      "output_length": 243,
+      "pass_number": 2
+    },
+    {
+      "call_id": 9,
+      "section_id": "cfg-with-calls-diagram",
+      "section_title": "Control Flow with External Calls",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:51:57.292505",
+      "end_timestamp": "2025-11-12T19:52:14.764913",
+      "duration_seconds": 17.472,
+      "tokens": {
+        "input": 58531,
+        "output": 879,
+        "total": 59410,
+        "source": "actual_openai"
+      },
+      "output_length": 2477,
+      "pass_number": 2
+    },
+    {
+      "call_id": 10,
+      "section_id": "external-call-context",
+      "section_title": "External Call Context",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:52:14.809870",
+      "end_timestamp": "2025-11-12T19:52:54.739076",
+      "duration_seconds": 39.929,
+      "tokens": {
+        "input": 58040,
+        "output": 1718,
+        "total": 59758,
+        "source": "actual_openai"
+      },
+      "output_length": 8153,
+      "pass_number": 2
+    },
+    {
+      "call_id": 11,
+      "section_id": "paragraph-complexity",
+      "section_title": "Paragraph Complexity Analysis",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:52:54.760083",
+      "end_timestamp": "2025-11-12T19:53:09.643670",
+      "duration_seconds": 14.883,
+      "tokens": {
+        "input": 58039,
+        "output": 706,
+        "total": 58745,
+        "source": "actual_openai"
+      },
+      "output_length": 2446,
+      "pass_number": 2
+    },
+    {
+      "call_id": 12,
+      "section_id": "dfa-diagram",
+      "section_title": "Data Flow Diagram",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:53:09.671459",
+      "end_timestamp": "2025-11-12T19:54:10.514752",
+      "duration_seconds": 60.843,
+      "tokens": {
+        "input": 57984,
+        "output": 1002,
+        "total": 58986,
+        "source": "actual_openai"
+      },
+      "output_length": 2795,
+      "pass_number": 2
+    },
+    {
+      "call_id": 13,
+      "section_id": "data-transformations",
+      "section_title": "Data Transformations",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:54:10.559289",
+      "end_timestamp": "2025-11-12T19:54:16.759069",
+      "duration_seconds": 6.2,
+      "tokens": {
+        "input": 57943,
+        "output": 52,
+        "total": 57995,
+        "source": "actual_openai"
+      },
+      "output_length": 259,
+      "pass_number": 2
+    },
+    {
+      "call_id": 14,
+      "section_id": "call-frequency-heatmap",
+      "section_title": "Call Frequency Analysis",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:54:16.782515",
+      "end_timestamp": "2025-11-12T19:54:42.450478",
+      "duration_seconds": 25.668,
+      "tokens": {
+        "input": 58072,
+        "output": 475,
+        "total": 58547,
+        "source": "actual_openai"
+      },
+      "output_length": 1727,
+      "pass_number": 2
+    },
+    {
+      "call_id": 15,
+      "section_id": "program-call-diagram",
+      "section_title": "Program Call Hierarchy",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:54:42.472534",
+      "end_timestamp": "2025-11-12T19:55:11.810781",
+      "duration_seconds": 29.338,
+      "tokens": {
+        "input": 58226,
+        "output": 698,
+        "total": 58924,
+        "source": "actual_openai"
+      },
+      "output_length": 2135,
+      "pass_number": 2
+    },
+    {
+      "call_id": 16,
+      "section_id": "system-wide-dependencies",
+      "section_title": "System-Wide Program Dependencies",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:55:11.834269",
+      "end_timestamp": "2025-11-12T19:56:50.979044",
+      "duration_seconds": 99.145,
+      "tokens": {
+        "input": 58104,
+        "output": 9283,
+        "total": 67387,
+        "source": "actual_openai"
+      },
+      "output_length": 20182,
+      "pass_number": 2
+    },
+    {
+      "call_id": 17,
+      "section_id": "call-details-with-context",
+      "section_title": "Detailed Call Analysis",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-12T19:56:51.051173",
+      "end_timestamp": "2025-11-12T19:57:14.315033",
+      "duration_seconds": 23.264,
+      "tokens": {
+        "input": 58133,
+        "output": 780,
+        "total": 58913,
+        "source": "actual_openai"
+      },
+      "output_length": 3159,
+      "pass_number": 2
+    }
+  ]
+}
