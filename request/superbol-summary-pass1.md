@@ -1,5 +1,5 @@
 # LLM Request Debug File
-Generated: 2025-11-12T19:50:15.142763
+Generated: 2025-11-13T19:48:45.539220
 
 ## Request Metadata
 - **Section ID**: superbol-summary
@@ -61,7 +61,7 @@ Generate documentation for this section using the following metadata:
 
 {
   "program_name": "TDAS-MINDISTCALC",
-  "timestamp": "2025-11-12T19:50:15.023529",
+  "timestamp": "2025-11-13T19:48:45.410377",
   "superbol_symbols": {
     "symbols": [
       {

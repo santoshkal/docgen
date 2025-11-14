@@ -1,5 +1,5 @@
 # LLM Request Debug File
-Generated: 2025-11-12T19:54:16.781720
+Generated: 2025-11-13T19:54:59.995133
 
 ## Request Metadata
 - **Section ID**: call-frequency-heatmap
@@ -78,7 +78,7 @@ Generate documentation for this section using the following metadata:
 
 {
   "program_name": "TDAS-MINDISTCALC",
-  "timestamp": "2025-11-12T19:54:16.762196",
+  "timestamp": "2025-11-13T19:54:59.975478",
   "superbol_symbols": {
     "program_id": null,
     "children": [],

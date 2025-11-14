@@ -1,5 +1,5 @@
 # LLM Request Debug File
-Generated: 2025-11-12T19:52:14.809246
+Generated: 2025-11-13T19:53:14.934540
 
 ## Request Metadata
 - **Section ID**: external-call-context
@@ -79,7 +79,7 @@ Generate documentation for this section using the following metadata:
 
 {
   "program_name": "TDAS-MINDISTCALC",
-  "timestamp": "2025-11-12T19:52:14.765369",
+  "timestamp": "2025-11-13T19:53:14.886255",
   "superbol_symbols": {
     "program_id": null,
     "children": [],

@@ -15,10 +15,10 @@ servers:
     docker_image: ctags-mcp:test
   gnuCobol:
     enabled: true
-    docker_image: gnucobol-mcp:upstream
+    docker_image: gnucobol-mcp:test
   superbol-lsp:
     enabled: true
-    docker_image: superbol-lsp-mcp:upstream
+    docker_image: superbol-mcp:test
 
 llm:
   provider: openai

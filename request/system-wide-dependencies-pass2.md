@@ -1,5 +1,5 @@
 # LLM Request Debug File
-Generated: 2025-11-12T19:55:11.833295
+Generated: 2025-11-13T19:55:40.277085
 
 ## Request Metadata
 - **Section ID**: system-wide-dependencies
@@ -92,7 +92,7 @@ Generate documentation for this section using the following metadata:
 
 {
   "program_name": "TDAS-MINDISTCALC",
-  "timestamp": "2025-11-12T19:55:11.811202",
+  "timestamp": "2025-11-13T19:55:40.257936",
   "superbol_symbols": {
     "program_id": null,
     "children": [],

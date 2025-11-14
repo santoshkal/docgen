@@ -1,5 +1,5 @@
 # LLM Request Debug File
-Generated: 2025-11-12T19:48:15.393261
+Generated: 2025-11-13T19:47:02.193135
 
 ## Request Metadata
 - **Section ID**: data-structures
@@ -65,7 +65,7 @@ Generate documentation for this section using the following metadata:
 
 {
   "program_name": "TDAS-MINDISTCALC",
-  "timestamp": "2025-11-12T19:48:15.248292",
+  "timestamp": "2025-11-13T19:47:02.059271",
   "superbol_symbols": {
     "symbols": [
       {

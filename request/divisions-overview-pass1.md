@@ -1,5 +1,5 @@
 # LLM Request Debug File
-Generated: 2025-11-12T19:46:43.780075
+Generated: 2025-11-13T19:45:19.877684
 
 ## Request Metadata
 - **Section ID**: divisions-overview
@@ -63,7 +63,7 @@ Generate documentation for this section using the following metadata:
 
 {
   "program_name": "TDAS-MINDISTCALC",
-  "timestamp": "2025-11-12T19:46:43.660199",
+  "timestamp": "2025-11-13T19:45:19.758694",
   "superbol_symbols": {
     "symbols": [
       {

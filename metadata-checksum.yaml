@@ -1,14 +1,14 @@
 metadata:
-  generated_at: '2025-11-05T19:01:11.997874'
+  generated_at: '2025-11-14T15:47:16.011451'
   algorithm: sha256
 ctags:
   ctags-TDAS-MINDISTCALC-outline.json: 3b9c5dc76dd46a6c9691c7ddfa345bccc6f020c5a459c7dfa25f2fd95bed3a9f
   cobol-project.tags: 2a8a832dd8e7e8632c7f48d8c1c623b3bcfc5293f2854d24c8c936e41bff7979
 gnucobol:
-  gnucobol-TDAS-MINDISTCALC-analysis.json: 2a270348a2bd0d00b4ef142fcdef1fa86d69853fd17aa4846d7e5c7580999063
+  gnucobol-TDAS-MINDISTCALC-analysis.json: ccbb807593245a5c64721b46939eb264a75ab7a1ddbe697c968d316fb39ab0d1
 superbol:
-  superbol-TDAS-MINDISTCALC-doc-symbols.json: 6ec6acc28120c4777bce6140240f32e33411bc2888eb92504520bf7631e784cd
+  superbol-TDAS-MINDISTCALC-doc-symbols.json: d11d314d9151f45452f731b380543d18ae94ea8061577419191900c12bb44f55
   superbol-cfg/TDAS-MINDISTCALC.json: 955da9d1c762808f909bbba00e0b0b83665bfbf4864f342b75362210f94d779b
 statistics:
   total_files: 5
-  total_size_bytes: 4947435
+  total_size_bytes: 13326701

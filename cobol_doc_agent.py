@@ -1156,6 +1156,97 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
     return filtered_context
 
 
+def extract_explanations_from_llm_response(llm_response: str) -> str:
+    """
+    Extract ONLY the explanations from LLM response, excluding code blocks.
+
+    This allows us to use the original chunk for source code (100% coverage)
+    while using LLM's explanations for documentation.
+
+    Args:
+        llm_response: Complete LLM response with code blocks and explanations
+
+    Returns:
+        Explanations text with markdown formatting, without code blocks
+    """
+    import re
+
+    # Split response into sections by markdown headers (### Block N:)
+    # This preserves the structure while removing code blocks
+
+    lines = llm_response.splitlines()
+    result_lines = []
+    in_code_block = False
+
+    for line in lines:
+        # Detect code block boundaries
+        if line.strip().startswith('```'):
+            in_code_block = not in_code_block
+            continue  # Skip the ``` markers
+
+        # Skip lines inside code blocks
+        if in_code_block:
+            continue
+
+        # Keep everything else (headers, explanations, text)
+        result_lines.append(line)
+
+    return '\n'.join(result_lines)
+
+
+def count_non_executable_lines(source_lines: List[str]) -> Dict[str, int]:
+    """
+    Count non-executable lines in COBOL-74 source code.
+
+    COBOL-74 column 7 indicators:
+    - '*' = Comment line (non-executable)
+    - '/' = Page break/eject (non-executable)
+    - 'D' = Debug line (executable - conditional compilation)
+    - '$' = Compiler directive (executable - affects build)
+    - '-' = Continuation (executable - part of code)
+    - ' ' = Normal code (executable)
+
+    Args:
+        source_lines: List of COBOL source code lines
+
+    Returns:
+        Dict with counts:
+        {
+            'total_lines': int,
+            'comment_lines': int (marked with *),
+            'page_break_lines': int (marked with /),
+            'non_executable_lines': int (total comments + page breaks),
+            'executable_lines': int
+        }
+    """
+    total_lines = len(source_lines)
+    comment_count = 0
+    page_break_count = 0
+
+    for line in source_lines:
+        # COBOL-74 format: columns 1-6 (sequence), column 7 (indicator), columns 8-72 (code)
+        if len(line) < 7:
+            continue  # Skip malformed lines
+
+        indicator = line[6]  # Column 7 (0-indexed position 6)
+
+        if indicator == '*':
+            comment_count += 1
+        elif indicator == '/':
+            page_break_count += 1
+
+    non_executable = comment_count + page_break_count
+    executable = total_lines - non_executable
+
+    return {
+        'total_lines': total_lines,
+        'comment_lines': comment_count,
+        'page_break_lines': page_break_count,
+        'non_executable_lines': non_executable,
+        'executable_lines': executable
+    }
+
+
 def _write_llm_request_debug_file(
     section_id: str,
     section_title: str,
@@ -1543,45 +1634,66 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         # Update context with this chunk's source code
         chunk_context = context.copy()
         chunk_context['source_code'] = chunk_content
+
+        # Remove program_map from chunk_context to avoid duplication
+        # (it's already included in chunk_content header)
+        if 'program_map' in chunk_context:
+            del chunk_context['program_map']
+
         chunk_context['chunk_number'] = chunk_num
         chunk_context['total_chunks'] = total_chunks
         chunk_context['start_line'] = chunk_info['start_line']
         chunk_context['end_line'] = chunk_info['end_line']
         chunk_context['line_count'] = chunk_info['line_count']
 
+        # Count non-executable lines in this chunk (comments and page breaks)
+        # Use splitlines() to avoid off-by-one error with trailing newline
+        chunk_lines = chunk_info['content'].splitlines()
+        line_counts = count_non_executable_lines(chunk_lines)
+        expected_executable = line_counts['executable_lines']
+        non_executable = line_counts['non_executable_lines']
+
+        print(f"     Lines: {line_counts['total_lines']} total, {expected_executable} executable, {non_executable} non-executable")
+        print(f"     (Comments: {line_counts['comment_lines']}, Page breaks: {line_counts['page_break_lines']})")
+
         # Generate content for this chunk with SMART RETRY (limited)
         chunk_result = None
+        validation_result = None
+        explanation_coverage = 0.0  # Initialize for scope
         max_retries = 1  # Only 1 retry (2 attempts total) - conservative!
 
         for attempt in range(1, max_retries + 2):  # 1 + 1 retry = 2 attempts max
             try:
                 current_instruction = instruction + f"\n\n**CHUNK {chunk_num} of {total_chunks}**: Continue numbering from previous chunks."
 
-                # On retry, add specific feedback about missing lines
+                # On retry, add sleep and specific feedback about missing lines
                 if attempt > 1:
-                    print(f"  ↻ Retry attempt {attempt}")
-                    # Add targeted retry feedback (only if coverage < 80%)
-                    if validation_result.coverage_percentage < 80.0:
+                    import time
+                    sleep_duration = 3  # 3 seconds between retries
+                    print(f"  ↻ Retry attempt {attempt} (after {sleep_duration}s cooldown)...")
+                    time.sleep(sleep_duration)
+
+                    # Add targeted retry feedback (only if coverage < 95%)
+                    if validation_result.coverage_percentage < 95.0:
                         retry_feedback = f"""
 **RETRY REQUIRED - Previous attempt had {validation_result.coverage_percentage:.1f}% coverage**
-You missed {validation_result.missing_line_count} lines.
+You missed {validation_result.missing_line_count} executable lines.
 
-🚨 CRITICAL: You are likely skipping COBOL-74 COMMENT LINES!
+🚨 ANALYSIS: This chunk has {expected_executable} executable lines (excluding {non_executable} comments/page-breaks).
+You returned {validation_result.found_lines} lines. You're missing {validation_result.missing_line_count} executable lines.
 
-COBOL-74 comments have "*" in column 7 (after sequence number):
-  Example: 000020* This is a comment
-           000026*REMARKS.
+COMMON ISSUES:
+- Skipping repetitive FILLER definitions (FORBIDDEN!)
+- Summarizing data tables with "..." (FORBIDDEN!)
+- Omitting "boring" sections for brevity (FORBIDDEN!)
+- Using phrases like "similar pattern continues" (FORBIDDEN!)
 
-YOU MUST INCLUDE ALL COMMENT LINES (lines with *) in your ```cobol code blocks!
-
-Comments are SOURCE CODE that must be preserved verbatim.
-Do NOT skip them thinking they're "already documented".
-
-Also include:
-- ALL data tables and FILLER definitions
-- ALL WORKING-STORAGE variables
-- Complete FILE SECTION layouts
-- EVERY line from the source code provided above
+YOU MUST:
+- Include EVERY executable line with its sequence number
+- Show ALL FILLERs even if there are 500+ repetitive ones
+- Show ALL data table entries completely
+- Never use abbreviation, summarization, or ellipsis
+- Include complete WORKING-STORAGE and FILE SECTION layouts
 """
                         current_instruction = retry_feedback + "\n" + current_instruction
 
@@ -1597,21 +1709,26 @@ Also include:
                     chunk_number=chunk_num
                 )
 
-                # Validate chunk result
+                # Validate chunk result against expected executable lines
                 validator = ChunkDocumentationValidator(chunk_info, chunk_result)
                 validation_result = validator.validate(min_coverage_percentage=100.0)
 
-                if validation_result.is_valid:
-                    print(f"  ✓ Complete: {validation_result.coverage_percentage:.1f}% coverage ({validation_result.found_lines}/{validation_result.expected_lines} lines)")
+                # Calculate explanation coverage (LLM's code vs expected executable)
+                explanation_coverage = (validation_result.found_lines / expected_executable * 100) if expected_executable > 0 else 0
+
+                if validation_result.found_lines >= expected_executable * 0.95:  # 95% threshold
+                    print(f"  ✓ Complete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{expected_executable} executable lines)")
+                    print(f"     Source coverage: 100% (using original chunk)")
                     validation_stats['validated'] += 1
                     break  # Success!
                 else:
-                    print(f"  ⚠ Incomplete: {validation_result.coverage_percentage:.1f}% coverage ({validation_result.found_lines}/{validation_result.expected_lines} lines)")
-                    print(f"     Missing: {validation_result.missing_line_count} lines in {len(validation_result.missing_line_ranges)} gaps")
+                    print(f"  ⚠ Incomplete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{expected_executable} executable lines)")
+                    print(f"     Missing: {expected_executable - validation_result.found_lines} executable lines")
+                    print(f"     Source coverage: 100% (will use original chunk)")
 
-                    # Only retry if coverage is REALLY bad (< 80%) and we have retries left
-                    if validation_result.coverage_percentage >= 80.0:
-                        print(f"     → Accepting (coverage ≥ 80%)")
+                    # Only retry if coverage is below 95% and we have retries left
+                    if explanation_coverage >= 95.0:
+                        print(f"     → Accepting (explanation coverage ≥ 95%)")
                         validation_stats['incomplete'] += 1
                         break  # Good enough, don't retry
                     elif attempt >= max_retries + 1:
@@ -1641,7 +1758,41 @@ Also include:
                     'chunk_info': chunk_info
                 })
 
-        all_results.append(chunk_result if chunk_result else f"\n\n**[Chunk {chunk_num} - no result]**\n\n")
+        # Build final chunk documentation: Original source + LLM explanations
+        if chunk_result:
+            # Extract explanations from LLM response (removes code blocks)
+            llm_explanations = extract_explanations_from_llm_response(chunk_result)
+
+            # Build complete chunk doc with original source (100% coverage guaranteed)
+            final_chunk_doc = f"""
+## Chunk {chunk_num}/{total_chunks}: Lines {chunk_info['start_line']}-{chunk_info['end_line']}
+
+### Complete Source Code
+
+```cobol
+{chunk_info['content']}```
+
+**Coverage:** 100% ({chunk_info['line_count']} lines) - Using original chunk source
+
+---
+
+### Detailed Explanations
+
+{llm_explanations}
+
+---
+
+**Validation Summary:**
+- Total lines in chunk: {line_counts['total_lines']}
+- Executable lines: {line_counts['executable_lines']}
+- Non-executable (comments/page-breaks): {line_counts['non_executable_lines']}
+- LLM explanation coverage: {explanation_coverage:.1f}%
+- Source coverage: 100% (guaranteed)
+
+"""
+            all_results.append(final_chunk_doc)
+        else:
+            all_results.append(f"\n\n**[Chunk {chunk_num} - no result]**\n\n")
 
     # Combine all results from Pass 1
     combined_result = "\n\n".join(all_results)

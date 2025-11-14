@@ -696,7 +696,8 @@ NOTE: The above program map shows the ENTIRE program structure for context.
 
     # Wrap source code in markdown code block for clear visual separation
     # This helps LLM distinguish source code from metadata/instructions
-    # and makes it obvious what content needs to be documented
+    # NOTE: Detailed instructions are now in the YAML template (cobol-doc-template.yaml)
+    # to avoid duplication and ensure consistency across all requests.
     source_code_section = f"""
 =============================================================================
 CHUNK {chunk['chunk_number']} SOURCE CODE (Lines {chunk['start_line']}-{chunk['end_line']})
@@ -705,52 +706,9 @@ CHUNK {chunk['chunk_number']} SOURCE CODE (Lines {chunk['start_line']}-{chunk['e
 ```cobol
 {chunk['content']}```
 
-⚠️  CRITICAL: The source code above (within the ```cobol code block) is what you MUST document.
-    It contains ALL {chunk['line_count']:,} lines from {chunk['start_line']} to {chunk['end_line']}.
-
-    You MUST include EVERY line from this code block in your documentation output.
-
-    🚨 COBOL-74 COMMENT PRESERVATION (ABSOLUTELY MANDATORY):
-    ============================================================================
-    COBOL-74 comments are marked with "*" in column 7 (after the 6-digit sequence number).
-
-    Example comment lines:
-      000020* This is a comment
-      000026*REMARKS.
-      000028*  SYSTEM    : TDAR
-
-    ⚠️  YOU MUST INCLUDE ALL COMMENT LINES IN YOUR CODE BLOCKS!
-
-    Comments are NOT "already documented" - they are SOURCE CODE that must be preserved.
-    Include EVERY comment line (marked with *) verbatim in your ```cobol code blocks.
-
-    DO NOT:
-    - Skip comment lines thinking they don't need documentation
-    - Omit comment blocks (even if they span 100+ lines)
-    - Exclude REMARKS sections, copyright notices, or build information
-    - Remove any line that starts with a * after the sequence number
-
-    DO:
-    - Include EVERY line starting with 000010* through 999999*
-    - Preserve all comment formatting exactly as shown
-    - Show complete comment blocks in their entirety
-    - Treat comments as essential source code content
-    ============================================================================
-
-    **IMPORTANT - Document ALL COBOL Divisions:**
-    - IDENTIFICATION DIVISION: Include program metadata verbatim
-    - ENVIRONMENT DIVISION: Include all FILE-CONTROL entries verbatim
-    - DATA DIVISION: Include ALL data definitions (FD, 01-level, FILLER, etc.) verbatim
-    - PROCEDURE DIVISION: Include all paragraphs with code and explanations
-
-    Do NOT skip:
-    - Data tables (even with thousands of FILLER definitions)
-    - WORKING-STORAGE variables
-    - FILE SECTION record layouts
-    - ANY lines from the source code above
-
-    Each line starts with a 6-digit sequence number (e.g., 003240).
-    Include these sequence numbers in your code blocks to prove coverage.
+⚠️  This is the source code you must document.
+    {chunk['line_count']:,} lines from {chunk['start_line']} to {chunk['end_line']}.
+    Refer to the template instructions for complete requirements.
 """
 
     return header + source_code_section

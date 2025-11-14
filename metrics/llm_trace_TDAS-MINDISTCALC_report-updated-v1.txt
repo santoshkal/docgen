@@ -1,0 +1,825 @@
+================================================================================
+DETAILED LLM CALL TRACE REPORT
+================================================================================
+Generated: 2025-11-13T22:12:11.737541
+Log File: llm_trace_TDAS-MINDISTCALC.jsonl
+
+SUMMARY
+--------------------------------------------------------------------------------
+Total Calls:       83
+Total Duration:    147.57 minutes
+Total Input Tokens: 7,812,081
+Total Output Tokens: 675,427
+Total Tokens:      8,487,508
+
+INDIVIDUAL CALLS
+--------------------------------------------------------------------------------
+
+Call #1
+  Section:       executive-summary - Executive Summary
+  Pass:          1
+  Start:         2025-11-13T19:44:19.475873
+  Duration:      60.279 seconds
+  Input Tokens:  856,117
+  Output Tokens: 1,012
+  Output Length: 3,527 chars
+
+Call #2
+  Section:       divisions-overview - COBOL Division Structure
+  Pass:          1
+  Start:         2025-11-13T19:45:19.885646
+  Duration:      70.024 seconds
+  Input Tokens:  855,946
+  Output Tokens: 954
+  Output Length: 5,031 chars
+
+Call #3
+  Section:       copybooks-referenced - Referenced Copybooks
+  Pass:          1
+  Start:         2025-11-13T19:46:30.048573
+  Duration:      32.01 seconds
+  Input Tokens:  856,087
+  Output Tokens: 208
+  Output Length: 851 chars
+
+Call #4
+  Section:       data-structures - Data Structures
+  Pass:          1
+  Start:         2025-11-13T19:47:02.201885
+  Duration:      103.205 seconds
+  Input Tokens:  855,950
+  Output Tokens: 2,716
+  Output Length: 9,012 chars
+
+Call #5
+  Section:       superbol-summary - Control Flow Analysis Metadata
+  Pass:          1
+  Start:         2025-11-13T19:48:45.547233
+  Duration:      30.745 seconds
+  Input Tokens:  855,912
+  Output Tokens: 41
+  Output Length: 130 chars
+
+Call #6
+  Section:       gnucobol-summary - Semantic Analysis Metadata
+  Pass:          1
+  Start:         2025-11-13T19:49:16.436082
+  Duration:      28.857 seconds
+  Input Tokens:  855,926
+  Output Tokens: 41
+  Output Length: 147 chars
+
+Call #7
+  Section:       ctags-summary - Symbol Parser Metadata
+  Pass:          1
+  Start:         2025-11-13T19:49:45.440689
+  Duration:      180.947 seconds
+  Input Tokens:  855,917
+  Output Tokens: 40
+  Output Length: 120 chars
+
+Call #8
+  Section:       metadata-info - Document Information
+  Pass:          2
+  Start:         2025-11-13T19:52:46.412486
+  Duration:      7.688 seconds
+  Input Tokens:  57,921
+  Output Tokens: 64
+  Output Length: 243 chars
+
+Call #9
+  Section:       cfg-with-calls-diagram - Control Flow with External Calls
+  Pass:          2
+  Start:         2025-11-13T19:52:54.127754
+  Duration:      20.758 seconds
+  Input Tokens:  58,531
+  Output Tokens: 879
+  Output Length: 2,457 chars
+
+Call #10
+  Section:       external-call-context - External Call Context
+  Pass:          2
+  Start:         2025-11-13T19:53:14.935128
+  Duration:      21.312 seconds
+  Input Tokens:  58,040
+  Output Tokens: 1,272
+  Output Length: 6,473 chars
+
+Call #11
+  Section:       paragraph-complexity - Paragraph Complexity Analysis
+  Pass:          2
+  Start:         2025-11-13T19:53:36.269042
+  Duration:      51.013 seconds
+  Input Tokens:  58,039
+  Output Tokens: 613
+  Output Length: 2,332 chars
+
+Call #12
+  Section:       dfa-diagram - Data Flow Diagram
+  Pass:          2
+  Start:         2025-11-13T19:54:27.307221
+  Duration:      28.405 seconds
+  Input Tokens:  57,984
+  Output Tokens: 1,087
+  Output Length: 2,966 chars
+
+Call #13
+  Section:       data-transformations - Data Transformations
+  Pass:          2
+  Start:         2025-11-13T19:54:55.748625
+  Duration:      4.224 seconds
+  Input Tokens:  57,943
+  Output Tokens: 10
+  Output Length: 63 chars
+
+Call #14
+  Section:       call-frequency-heatmap - Call Frequency Analysis
+  Pass:          2
+  Start:         2025-11-13T19:54:59.995884
+  Duration:      12.829 seconds
+  Input Tokens:  58,072
+  Output Tokens: 359
+  Output Length: 1,422 chars
+
+Call #15
+  Section:       program-call-diagram - Program Call Hierarchy
+  Pass:          2
+  Start:         2025-11-13T19:55:12.847262
+  Duration:      27.41 seconds
+  Input Tokens:  58,226
+  Output Tokens: 698
+  Output Length: 2,135 chars
+
+Call #16
+  Section:       system-wide-dependencies - System-Wide Program Dependencies
+  Pass:          2
+  Start:         2025-11-13T19:55:40.277835
+  Duration:      13.753 seconds
+  Input Tokens:  58,104
+  Output Tokens: 443
+  Output Length: 1,620 chars
+
+Call #17
+  Section:       call-details-with-context - Detailed Call Analysis
+  Pass:          2
+  Start:         2025-11-13T19:55:54.088540
+  Duration:      19.99 seconds
+  Input Tokens:  58,133
+  Output Tokens: 856
+  Output Length: 3,595 chars
+
+Call #18
+  Section:       execution-flow-sequence - Execution Flow Sequence
+  Pass:          2
+  Start:         2025-11-13T19:56:14.122892
+  Duration:      61.293 seconds
+  Input Tokens:  58,317
+  Output Tokens: 3,290
+  Output Length: 9,051 chars
+
+Call #19
+  Section:       business-operations-catalog - Business Operations Catalog
+  Pass:          2
+  Start:         2025-11-13T19:57:15.453253
+  Duration:      54.398 seconds
+  Input Tokens:  58,055
+  Output Tokens: 2,521
+  Output Length: 8,606 chars
+
+Call #20
+  Section:       code-references - Code References
+  Pass:          2
+  Start:         2025-11-13T19:58:09.950993
+  Duration:      25.792 seconds
+  Input Tokens:  57,909
+  Output Tokens: 1,591
+  Output Length: 4,044 chars
+
+Call #21
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 1/55
+  Pass:          3
+  Chunk:         1
+  Start:         2025-11-13T19:58:36.461304
+  Duration:      67.788 seconds
+  Input Tokens:  16,395
+  Output Tokens: 9,519
+  Output Length: 35,796 chars
+
+Call #22
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 2/55
+  Pass:          3
+  Chunk:         2
+  Start:         2025-11-13T19:59:44.267752
+  Duration:      137.8 seconds
+  Input Tokens:  16,758
+  Output Tokens: 11,530
+  Output Length: 42,553 chars
+
+Call #23
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 3/55
+  Pass:          3
+  Chunk:         3
+  Start:         2025-11-13T20:02:02.084946
+  Duration:      134.798 seconds
+  Input Tokens:  15,140
+  Output Tokens: 14,392
+  Output Length: 45,511 chars
+
+Call #24
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 4/55
+  Pass:          3
+  Chunk:         4
+  Start:         2025-11-13T20:04:16.900426
+  Duration:      66.585 seconds
+  Input Tokens:  13,965
+  Output Tokens: 6,759
+  Output Length: 19,356 chars
+
+Call #25
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 5/55
+  Pass:          3
+  Chunk:         5
+  Start:         2025-11-13T20:05:23.495327
+  Duration:      113.546 seconds
+  Input Tokens:  14,963
+  Output Tokens: 8,902
+  Output Length: 33,043 chars
+
+Call #26
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 6/55
+  Pass:          3
+  Chunk:         6
+  Start:         2025-11-13T20:07:17.059655
+  Duration:      143.761 seconds
+  Input Tokens:  16,743
+  Output Tokens: 13,413
+  Output Length: 48,627 chars
+
+Call #27
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 7/55
+  Pass:          3
+  Chunk:         7
+  Start:         2025-11-13T20:09:40.838399
+  Duration:      172.016 seconds
+  Input Tokens:  16,929
+  Output Tokens: 14,442
+  Output Length: 49,416 chars
+
+Call #28
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 8/55
+  Pass:          3
+  Chunk:         8
+  Start:         2025-11-13T20:12:32.870311
+  Duration:      127.253 seconds
+  Input Tokens:  16,679
+  Output Tokens: 11,343
+  Output Length: 43,441 chars
+
+Call #29
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 9/55
+  Pass:          3
+  Chunk:         9
+  Start:         2025-11-13T20:14:40.143459
+  Duration:      167.698 seconds
+  Input Tokens:  24,607
+  Output Tokens: 15,791
+  Output Length: 62,840 chars
+
+Call #30
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 10/55
+  Pass:          3
+  Chunk:         10
+  Start:         2025-11-13T20:17:27.852348
+  Duration:      26.126 seconds
+  Input Tokens:  8,675
+  Output Tokens: 1,974
+  Output Length: 6,955 chars
+
+Call #31
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 11/55
+  Pass:          3
+  Chunk:         11
+  Start:         2025-11-13T20:17:54.017745
+  Duration:      316.315 seconds
+  Input Tokens:  43,398
+  Output Tokens: 32,768
+  Output Length: 127,432 chars
+
+Call #32
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 12/55
+  Pass:          3
+  Chunk:         12
+  Start:         2025-11-13T20:23:10.357699
+  Duration:      117.418 seconds
+  Input Tokens:  14,936
+  Output Tokens: 9,923
+  Output Length: 38,080 chars
+
+Call #33
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 13/55
+  Pass:          3
+  Chunk:         13
+  Start:         2025-11-13T20:25:07.782977
+  Duration:      121.715 seconds
+  Input Tokens:  10,927
+  Output Tokens: 7,060
+  Output Length: 26,115 chars
+
+Call #34
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 14/55
+  Pass:          3
+  Chunk:         14
+  Start:         2025-11-13T20:27:09.525058
+  Duration:      122.846 seconds
+  Input Tokens:  21,211
+  Output Tokens: 13,160
+  Output Length: 47,708 chars
+
+Call #35
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 15/55
+  Pass:          3
+  Chunk:         15
+  Start:         2025-11-13T20:29:12.388460
+  Duration:      80.497 seconds
+  Input Tokens:  14,647
+  Output Tokens: 7,400
+  Output Length: 22,459 chars
+
+Call #36
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 16/55
+  Pass:          3
+  Chunk:         16
+  Start:         2025-11-13T20:30:32.924239
+  Duration:      203.336 seconds
+  Input Tokens:  29,533
+  Output Tokens: 20,550
+  Output Length: 71,777 chars
+
+Call #37
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 17/55
+  Pass:          3
+  Chunk:         17
+  Start:         2025-11-13T20:33:56.276915
+  Duration:      184.89 seconds
+  Input Tokens:  23,205
+  Output Tokens: 15,946
+  Output Length: 53,375 chars
+
+Call #38
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 18/55
+  Pass:          3
+  Chunk:         18
+  Start:         2025-11-13T20:37:01.182726
+  Duration:      94.688 seconds
+  Input Tokens:  12,483
+  Output Tokens: 5,818
+  Output Length: 20,527 chars
+
+Call #39
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 19/55
+  Pass:          3
+  Chunk:         19
+  Start:         2025-11-13T20:38:35.907005
+  Duration:      89.619 seconds
+  Input Tokens:  33,330
+  Output Tokens: 7,440
+  Output Length: 28,331 chars
+
+Call #40
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 19/55
+  Pass:          3
+  Chunk:         19
+  Start:         2025-11-13T20:40:08.531520
+  Duration:      138.695 seconds
+  Input Tokens:  33,510
+  Output Tokens: 12,164
+  Output Length: 44,824 chars
+
+Call #41
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 20/55
+  Pass:          3
+  Chunk:         20
+  Start:         2025-11-13T20:42:27.247848
+  Duration:      60.087 seconds
+  Input Tokens:  16,552
+  Output Tokens: 8,892
+  Output Length: 31,700 chars
+
+Call #42
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 21/55
+  Pass:          3
+  Chunk:         21
+  Start:         2025-11-13T20:43:27.351804
+  Duration:      119.994 seconds
+  Input Tokens:  14,398
+  Output Tokens: 6,883
+  Output Length: 24,355 chars
+
+Call #43
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 22/55
+  Pass:          3
+  Chunk:         22
+  Start:         2025-11-13T20:45:27.357917
+  Duration:      106.694 seconds
+  Input Tokens:  15,057
+  Output Tokens: 7,402
+  Output Length: 25,686 chars
+
+Call #44
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 23/55
+  Pass:          3
+  Chunk:         23
+  Start:         2025-11-13T20:47:14.067306
+  Duration:      71.95 seconds
+  Input Tokens:  13,424
+  Output Tokens: 6,018
+  Output Length: 21,603 chars
+
+Call #45
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 24/55
+  Pass:          3
+  Chunk:         24
+  Start:         2025-11-13T20:48:26.031511
+  Duration:      154.49 seconds
+  Input Tokens:  16,100
+  Output Tokens: 9,486
+  Output Length: 34,042 chars
+
+Call #46
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 25/55
+  Pass:          3
+  Chunk:         25
+  Start:         2025-11-13T20:51:00.551009
+  Duration:      171.32 seconds
+  Input Tokens:  22,629
+  Output Tokens: 15,708
+  Output Length: 58,792 chars
+
+Call #47
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 26/55
+  Pass:          3
+  Chunk:         26
+  Start:         2025-11-13T20:53:51.893351
+  Duration:      116.507 seconds
+  Input Tokens:  16,584
+  Output Tokens: 10,477
+  Output Length: 38,676 chars
+
+Call #48
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 27/55
+  Pass:          3
+  Chunk:         27
+  Start:         2025-11-13T20:55:48.413276
+  Duration:      161.649 seconds
+  Input Tokens:  16,678
+  Output Tokens: 11,207
+  Output Length: 40,778 chars
+
+Call #49
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 28/55
+  Pass:          3
+  Chunk:         28
+  Start:         2025-11-13T20:58:30.075953
+  Duration:      216.772 seconds
+  Input Tokens:  16,323
+  Output Tokens: 16,022
+  Output Length: 48,247 chars
+
+Call #50
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 29/55
+  Pass:          3
+  Chunk:         29
+  Start:         2025-11-13T21:02:06.867157
+  Duration:      97.838 seconds
+  Input Tokens:  16,640
+  Output Tokens: 8,757
+  Output Length: 25,455 chars
+
+Call #51
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 29/55
+  Pass:          3
+  Chunk:         29
+  Start:         2025-11-13T21:03:47.710030
+  Duration:      163.451 seconds
+  Input Tokens:  16,819
+  Output Tokens: 12,902
+  Output Length: 37,741 chars
+
+Call #52
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 30/55
+  Pass:          3
+  Chunk:         30
+  Start:         2025-11-13T21:06:31.180669
+  Duration:      104.111 seconds
+  Input Tokens:  16,388
+  Output Tokens: 11,641
+  Output Length: 37,126 chars
+
+Call #53
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 31/55
+  Pass:          3
+  Chunk:         31
+  Start:         2025-11-13T21:08:15.310235
+  Duration:      182.81 seconds
+  Input Tokens:  16,954
+  Output Tokens: 13,202
+  Output Length: 48,124 chars
+
+Call #54
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 32/55
+  Pass:          3
+  Chunk:         32
+  Start:         2025-11-13T21:11:18.139173
+  Duration:      106.616 seconds
+  Input Tokens:  16,709
+  Output Tokens: 11,243
+  Output Length: 32,470 chars
+
+Call #55
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 33/55
+  Pass:          3
+  Chunk:         33
+  Start:         2025-11-13T21:13:04.771988
+  Duration:      126.76 seconds
+  Input Tokens:  16,593
+  Output Tokens: 12,016
+  Output Length: 36,919 chars
+
+Call #56
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 34/55
+  Pass:          3
+  Chunk:         34
+  Start:         2025-11-13T21:15:11.551168
+  Duration:      93.848 seconds
+  Input Tokens:  16,645
+  Output Tokens: 10,380
+  Output Length: 29,647 chars
+
+Call #57
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 35/55
+  Pass:          3
+  Chunk:         35
+  Start:         2025-11-13T21:16:45.408970
+  Duration:      94.428 seconds
+  Input Tokens:  16,282
+  Output Tokens: 9,519
+  Output Length: 25,610 chars
+
+Call #58
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 36/55
+  Pass:          3
+  Chunk:         36
+  Start:         2025-11-13T21:18:19.854292
+  Duration:      167.464 seconds
+  Input Tokens:  16,400
+  Output Tokens: 12,569
+  Output Length: 34,242 chars
+
+Call #59
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 37/55
+  Pass:          3
+  Chunk:         37
+  Start:         2025-11-13T21:21:07.335351
+  Duration:      74.848 seconds
+  Input Tokens:  16,482
+  Output Tokens: 7,494
+  Output Length: 23,127 chars
+
+Call #60
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 37/55
+  Pass:          3
+  Chunk:         37
+  Start:         2025-11-13T21:22:25.187387
+  Duration:      129.525 seconds
+  Input Tokens:  16,661
+  Output Tokens: 11,523
+  Output Length: 34,961 chars
+
+Call #61
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 38/55
+  Pass:          3
+  Chunk:         38
+  Start:         2025-11-13T21:24:34.729555
+  Duration:      105.709 seconds
+  Input Tokens:  16,652
+  Output Tokens: 8,659
+  Output Length: 27,181 chars
+
+Call #62
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 38/55
+  Pass:          3
+  Chunk:         38
+  Start:         2025-11-13T21:26:23.442872
+  Duration:      89.813 seconds
+  Input Tokens:  16,831
+  Output Tokens: 7,652
+  Output Length: 23,605 chars
+
+Call #63
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 39/55
+  Pass:          3
+  Chunk:         39
+  Start:         2025-11-13T21:27:53.271290
+  Duration:      87.868 seconds
+  Input Tokens:  16,790
+  Output Tokens: 8,975
+  Output Length: 23,417 chars
+
+Call #64
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 40/55
+  Pass:          3
+  Chunk:         40
+  Start:         2025-11-13T21:29:21.155250
+  Duration:      133.216 seconds
+  Input Tokens:  16,445
+  Output Tokens: 10,646
+  Output Length: 30,002 chars
+
+Call #65
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 41/55
+  Pass:          3
+  Chunk:         41
+  Start:         2025-11-13T21:31:34.389232
+  Duration:      253.145 seconds
+  Input Tokens:  16,511
+  Output Tokens: 12,795
+  Output Length: 34,137 chars
+
+Call #66
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 42/55
+  Pass:          3
+  Chunk:         42
+  Start:         2025-11-13T21:35:47.545003
+  Duration:      127.348 seconds
+  Input Tokens:  16,309
+  Output Tokens: 9,397
+  Output Length: 25,417 chars
+
+Call #67
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 43/55
+  Pass:          3
+  Chunk:         43
+  Start:         2025-11-13T21:37:54.902716
+  Duration:      258.456 seconds
+  Input Tokens:  16,281
+  Output Tokens: 11,727
+  Output Length: 34,434 chars
+
+Call #68
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 44/55
+  Pass:          3
+  Chunk:         44
+  Start:         2025-11-13T21:42:13.367429
+  Duration:      134.453 seconds
+  Input Tokens:  16,705
+  Output Tokens: 11,604
+  Output Length: 30,834 chars
+
+Call #69
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 45/55
+  Pass:          3
+  Chunk:         45
+  Start:         2025-11-13T21:44:27.830709
+  Duration:      113.169 seconds
+  Input Tokens:  16,835
+  Output Tokens: 8,934
+  Output Length: 22,686 chars
+
+Call #70
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 46/55
+  Pass:          3
+  Chunk:         46
+  Start:         2025-11-13T21:46:21.009516
+  Duration:      132.537 seconds
+  Input Tokens:  16,807
+  Output Tokens: 9,540
+  Output Length: 26,533 chars
+
+Call #71
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 47/55
+  Pass:          3
+  Chunk:         47
+  Start:         2025-11-13T21:48:33.559261
+  Duration:      158.553 seconds
+  Input Tokens:  16,705
+  Output Tokens: 10,262
+  Output Length: 28,865 chars
+
+Call #72
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 48/55
+  Pass:          3
+  Chunk:         48
+  Start:         2025-11-13T21:51:12.122804
+  Duration:      138.964 seconds
+  Input Tokens:  16,620
+  Output Tokens: 9,052
+  Output Length: 27,689 chars
+
+Call #73
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 49/55
+  Pass:          3
+  Chunk:         49
+  Start:         2025-11-13T21:53:31.096438
+  Duration:      176.854 seconds
+  Input Tokens:  16,598
+  Output Tokens: 12,688
+  Output Length: 36,451 chars
+
+Call #74
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 50/55
+  Pass:          3
+  Chunk:         50
+  Start:         2025-11-13T21:56:27.959921
+  Duration:      118.243 seconds
+  Input Tokens:  16,536
+  Output Tokens: 11,121
+  Output Length: 34,231 chars
+
+Call #75
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 51/55
+  Pass:          3
+  Chunk:         51
+  Start:         2025-11-13T21:58:26.211743
+  Duration:      110.65 seconds
+  Input Tokens:  16,537
+  Output Tokens: 8,997
+  Output Length: 26,095 chars
+
+Call #76
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 51/55
+  Pass:          3
+  Chunk:         51
+  Start:         2025-11-13T22:00:19.865091
+  Duration:      139.249 seconds
+  Input Tokens:  16,716
+  Output Tokens: 11,537
+  Output Length: 32,356 chars
+
+Call #77
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 52/55
+  Pass:          3
+  Chunk:         52
+  Start:         2025-11-13T22:02:39.127355
+  Duration:      64.127 seconds
+  Input Tokens:  16,618
+  Output Tokens: 10,858
+  Output Length: 25,949 chars
+
+Call #78
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 53/55
+  Pass:          3
+  Chunk:         53
+  Start:         2025-11-13T22:03:43.263654
+  Duration:      128.858 seconds
+  Input Tokens:  16,643
+  Output Tokens: 11,241
+  Output Length: 27,133 chars
+
+Call #79
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 54/55
+  Pass:          3
+  Chunk:         54
+  Start:         2025-11-13T22:05:52.139317
+  Duration:      210.289 seconds
+  Input Tokens:  16,587
+  Output Tokens: 11,624
+  Output Length: 27,594 chars
+
+Call #80
+  Section:       detailed-code-explanation - Detailed Code-Block Explanation - Chunk 55/55
+  Pass:          3
+  Chunk:         55
+  Start:         2025-11-13T22:09:22.440546
+  Duration:      162.214 seconds
+  Input Tokens:  11,807
+  Output Tokens: 5,459
+  Output Length: 13,680 chars
+
+Call #81
+  Section:       error-handling - Error Handling Strategy
+  Pass:          3
+  Start:         2025-11-13T22:12:04.697266
+  Duration:      1.405 seconds
+  Input Tokens:  3,043
+  Output Tokens: 56
+  Output Length: 300 chars
+
+Call #82
+  Section:       code-metrics - Code Metrics
+  Pass:          3
+  Start:         2025-11-13T22:12:06.109431
+  Duration:      1.684 seconds
+  Input Tokens:  3,024
+  Output Tokens: 86
+  Output Length: 507 chars
+
+Call #83
+  Section:       dependencies-matrix - Dependencies Matrix
+  Pass:          3
+  Start:         2025-11-13T22:12:07.798906
+  Duration:      3.917 seconds
+  Input Tokens:  3,000
+  Output Tokens: 187
+  Output Length: 1,033 chars
+
+================================================================================

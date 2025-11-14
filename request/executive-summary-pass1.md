@@ -1,5 +1,5 @@
 # LLM Request Debug File
-Generated: 2025-11-12T19:45:41.362087
+Generated: 2025-11-13T19:44:19.461512
 
 ## Request Metadata
 - **Section ID**: executive-summary
@@ -81,7 +81,7 @@ Generate documentation for this section using the following metadata:
 
 {
   "program_name": "TDAS-MINDISTCALC",
-  "timestamp": "2025-11-12T19:45:40.766666",
+  "timestamp": "2025-11-13T19:44:18.919851",
   "superbol_symbols": {
     "symbols": [
       {

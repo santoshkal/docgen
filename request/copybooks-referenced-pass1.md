@@ -1,5 +1,5 @@
 # LLM Request Debug File
-Generated: 2025-11-12T19:47:38.004059
+Generated: 2025-11-13T19:46:30.040248
 
 ## Request Metadata
 - **Section ID**: copybooks-referenced
@@ -79,7 +79,7 @@ Generate documentation for this section using the following metadata:
 
 {
   "program_name": "TDAS-MINDISTCALC",
-  "timestamp": "2025-11-12T19:47:37.888916",
+  "timestamp": "2025-11-13T19:46:29.910100",
   "superbol_symbols": {
     "symbols": [
       {
