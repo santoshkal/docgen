@@ -1,20 +1,1727 @@
 {
   "session_info": {
     "agent": "cobol_doc_agent",
-    "start_timestamp": "2025-11-14T15:47:49.899346",
-    "end_timestamp": "2025-11-14T15:47:49.899360"
+    "start_timestamp": "2025-11-14T17:28:44.181382",
+    "end_timestamp": "2025-11-14T19:57:53.000129"
   },
   "summary": {
-    "total_calls": 1,
-    "total_duration_seconds": 0.0,
-    "total_duration_minutes": 0.0,
-    "total_input_tokens": 0,
-    "total_output_tokens": 0,
-    "total_tokens": 0,
-    "average_duration_seconds": 0.0,
-    "average_input_tokens": 0.0,
-    "average_output_tokens": 0.0
+    "total_calls": 88,
+    "total_duration_seconds": 8916.461,
+    "total_duration_minutes": 148.61,
+    "total_input_tokens": 1877110,
+    "total_output_tokens": 711300,
+    "total_tokens": 2588410,
+    "average_duration_seconds": 101.323,
+    "average_input_tokens": 21330.8,
+    "average_output_tokens": 8083.0
   },
-  "section_stats": {},
-  "calls": []
+  "section_stats": {
+    "executive-summary": {
+      "count": 1,
+      "duration": 11.563973188400269,
+      "input_tokens": 4210,
+      "output_tokens": 772
+    },
+    "divisions-overview": {
+      "count": 1,
+      "duration": 5.957177639007568,
+      "input_tokens": 4039,
+      "output_tokens": 337
+    },
+    "copybooks-referenced": {
+      "count": 1,
+      "duration": 2.7700464725494385,
+      "input_tokens": 4180,
+      "output_tokens": 185
+    },
+    "data-structures": {
+      "count": 1,
+      "duration": 1.765200138092041,
+      "input_tokens": 4043,
+      "output_tokens": 52
+    },
+    "superbol-summary": {
+      "count": 1,
+      "duration": 0.9047975540161133,
+      "input_tokens": 4005,
+      "output_tokens": 41
+    },
+    "gnucobol-summary": {
+      "count": 1,
+      "duration": 1.049570083618164,
+      "input_tokens": 4019,
+      "output_tokens": 41
+    },
+    "ctags-summary": {
+      "count": 1,
+      "duration": 1.157231092453003,
+      "input_tokens": 4010,
+      "output_tokens": 39
+    },
+    "metadata-info": {
+      "count": 1,
+      "duration": 17.327465057373047,
+      "input_tokens": 67645,
+      "output_tokens": 71
+    },
+    "cfg-with-calls-diagram": {
+      "count": 1,
+      "duration": 17.758132696151733,
+      "input_tokens": 68255,
+      "output_tokens": 871
+    },
+    "external-call-context": {
+      "count": 1,
+      "duration": 22.82242441177368,
+      "input_tokens": 67764,
+      "output_tokens": 1211
+    },
+    "paragraph-complexity": {
+      "count": 1,
+      "duration": 62.666059255599976,
+      "input_tokens": 67763,
+      "output_tokens": 639
+    },
+    "dfa-diagram": {
+      "count": 1,
+      "duration": 27.92242932319641,
+      "input_tokens": 67708,
+      "output_tokens": 976
+    },
+    "data-transformations": {
+      "count": 1,
+      "duration": 31.266458988189697,
+      "input_tokens": 67667,
+      "output_tokens": 989
+    },
+    "call-frequency-heatmap": {
+      "count": 1,
+      "duration": 18.207666158676147,
+      "input_tokens": 67796,
+      "output_tokens": 425
+    },
+    "program-call-diagram": {
+      "count": 1,
+      "duration": 23.170524835586548,
+      "input_tokens": 67950,
+      "output_tokens": 698
+    },
+    "system-wide-dependencies": {
+      "count": 1,
+      "duration": 57.91164231300354,
+      "input_tokens": 67828,
+      "output_tokens": 1843
+    },
+    "call-details-with-context": {
+      "count": 1,
+      "duration": 34.757028579711914,
+      "input_tokens": 67857,
+      "output_tokens": 819
+    },
+    "execution-flow-sequence": {
+      "count": 1,
+      "duration": 28.09934949874878,
+      "input_tokens": 68041,
+      "output_tokens": 2258
+    },
+    "business-operations-catalog": {
+      "count": 1,
+      "duration": 63.471477031707764,
+      "input_tokens": 67779,
+      "output_tokens": 4763
+    },
+    "code-references": {
+      "count": 1,
+      "duration": 39.87171006202698,
+      "input_tokens": 67633,
+      "output_tokens": 2172
+    },
+    "detailed-code-explanation": {
+      "count": 65,
+      "duration": 8438.052221536636,
+      "input_tokens": 957665,
+      "output_tokens": 691766
+    },
+    "error-handling": {
+      "count": 1,
+      "duration": 2.6567542552948,
+      "input_tokens": 3105,
+      "output_tokens": 56
+    },
+    "code-metrics": {
+      "count": 1,
+      "duration": 1.7028748989105225,
+      "input_tokens": 3086,
+      "output_tokens": 87
+    },
+    "dependencies-matrix": {
+      "count": 1,
+      "duration": 3.628829002380371,
+      "input_tokens": 3062,
+      "output_tokens": 189
+    }
+  },
+  "calls": [
+    {
+      "call_id": 1,
+      "section_id": "executive-summary",
+      "section_title": "Executive Summary",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:28:44.181382",
+      "end_timestamp": "2025-11-14T17:28:55.745580",
+      "duration_seconds": 11.564,
+      "tokens": {
+        "input": 4210,
+        "output": 772,
+        "total": 4982,
+        "source": "actual_openai"
+      },
+      "output_length": 2990,
+      "pass_number": 1
+    },
+    {
+      "call_id": 2,
+      "section_id": "divisions-overview",
+      "section_title": "COBOL Division Structure",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:28:55.754258",
+      "end_timestamp": "2025-11-14T17:29:01.711635",
+      "duration_seconds": 5.957,
+      "tokens": {
+        "input": 4039,
+        "output": 337,
+        "total": 4376,
+        "source": "actual_openai"
+      },
+      "output_length": 1734,
+      "pass_number": 1
+    },
+    {
+      "call_id": 3,
+      "section_id": "copybooks-referenced",
+      "section_title": "Referenced Copybooks",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:29:01.718073",
+      "end_timestamp": "2025-11-14T17:29:04.488325",
+      "duration_seconds": 2.77,
+      "tokens": {
+        "input": 4180,
+        "output": 185,
+        "total": 4365,
+        "source": "actual_openai"
+      },
+      "output_length": 733,
+      "pass_number": 1
+    },
+    {
+      "call_id": 4,
+      "section_id": "data-structures",
+      "section_title": "Data Structures",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:29:04.525884",
+      "end_timestamp": "2025-11-14T17:29:06.291264",
+      "duration_seconds": 1.765,
+      "tokens": {
+        "input": 4043,
+        "output": 52,
+        "total": 4095,
+        "source": "actual_openai"
+      },
+      "output_length": 249,
+      "pass_number": 1
+    },
+    {
+      "call_id": 5,
+      "section_id": "superbol-summary",
+      "section_title": "Control Flow Analysis Metadata",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:29:06.302285",
+      "end_timestamp": "2025-11-14T17:29:07.207264",
+      "duration_seconds": 0.905,
+      "tokens": {
+        "input": 4005,
+        "output": 41,
+        "total": 4046,
+        "source": "actual_openai"
+      },
+      "output_length": 129,
+      "pass_number": 1
+    },
+    {
+      "call_id": 6,
+      "section_id": "gnucobol-summary",
+      "section_title": "Semantic Analysis Metadata",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:29:07.213819",
+      "end_timestamp": "2025-11-14T17:29:08.263574",
+      "duration_seconds": 1.05,
+      "tokens": {
+        "input": 4019,
+        "output": 41,
+        "total": 4060,
+        "source": "actual_openai"
+      },
+      "output_length": 148,
+      "pass_number": 1
+    },
+    {
+      "call_id": 7,
+      "section_id": "ctags-summary",
+      "section_title": "Symbol Parser Metadata",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:29:08.270206",
+      "end_timestamp": "2025-11-14T17:29:09.427599",
+      "duration_seconds": 1.157,
+      "tokens": {
+        "input": 4010,
+        "output": 39,
+        "total": 4049,
+        "source": "actual_openai"
+      },
+      "output_length": 120,
+      "pass_number": 1
+    },
+    {
+      "call_id": 8,
+      "section_id": "metadata-info",
+      "section_title": "Document Information",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:29:09.442661",
+      "end_timestamp": "2025-11-14T17:29:26.770313",
+      "duration_seconds": 17.327,
+      "tokens": {
+        "input": 67645,
+        "output": 71,
+        "total": 67716,
+        "source": "actual_openai"
+      },
+      "output_length": 237,
+      "pass_number": 2
+    },
+    {
+      "call_id": 9,
+      "section_id": "cfg-with-calls-diagram",
+      "section_title": "Control Flow with External Calls",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:29:26.783526",
+      "end_timestamp": "2025-11-14T17:29:44.541862",
+      "duration_seconds": 17.758,
+      "tokens": {
+        "input": 68255,
+        "output": 871,
+        "total": 69126,
+        "source": "actual_openai"
+      },
+      "output_length": 2439,
+      "pass_number": 2
+    },
+    {
+      "call_id": 10,
+      "section_id": "external-call-context",
+      "section_title": "External Call Context",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:29:44.581035",
+      "end_timestamp": "2025-11-14T17:30:07.403672",
+      "duration_seconds": 22.822,
+      "tokens": {
+        "input": 67764,
+        "output": 1211,
+        "total": 68975,
+        "source": "actual_openai"
+      },
+      "output_length": 6109,
+      "pass_number": 2
+    },
+    {
+      "call_id": 11,
+      "section_id": "paragraph-complexity",
+      "section_title": "Paragraph Complexity Analysis",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:30:07.418669",
+      "end_timestamp": "2025-11-14T17:31:10.084935",
+      "duration_seconds": 62.666,
+      "tokens": {
+        "input": 67763,
+        "output": 639,
+        "total": 68402,
+        "source": "actual_openai"
+      },
+      "output_length": 2380,
+      "pass_number": 2
+    },
+    {
+      "call_id": 12,
+      "section_id": "dfa-diagram",
+      "section_title": "Data Flow Diagram",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:31:10.097649",
+      "end_timestamp": "2025-11-14T17:31:38.020181",
+      "duration_seconds": 27.922,
+      "tokens": {
+        "input": 67708,
+        "output": 976,
+        "total": 68684,
+        "source": "actual_openai"
+      },
+      "output_length": 2804,
+      "pass_number": 2
+    },
+    {
+      "call_id": 13,
+      "section_id": "data-transformations",
+      "section_title": "Data Transformations",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:31:38.043289",
+      "end_timestamp": "2025-11-14T17:32:09.309980",
+      "duration_seconds": 31.266,
+      "tokens": {
+        "input": 67667,
+        "output": 989,
+        "total": 68656,
+        "source": "actual_openai"
+      },
+      "output_length": 3751,
+      "pass_number": 2
+    },
+    {
+      "call_id": 14,
+      "section_id": "call-frequency-heatmap",
+      "section_title": "Call Frequency Analysis",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:32:09.323090",
+      "end_timestamp": "2025-11-14T17:32:27.530954",
+      "duration_seconds": 18.208,
+      "tokens": {
+        "input": 67796,
+        "output": 425,
+        "total": 68221,
+        "source": "actual_openai"
+      },
+      "output_length": 1753,
+      "pass_number": 2
+    },
+    {
+      "call_id": 15,
+      "section_id": "program-call-diagram",
+      "section_title": "Program Call Hierarchy",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:32:27.540800",
+      "end_timestamp": "2025-11-14T17:32:50.711519",
+      "duration_seconds": 23.171,
+      "tokens": {
+        "input": 67950,
+        "output": 698,
+        "total": 68648,
+        "source": "actual_openai"
+      },
+      "output_length": 2135,
+      "pass_number": 2
+    },
+    {
+      "call_id": 16,
+      "section_id": "system-wide-dependencies",
+      "section_title": "System-Wide Program Dependencies",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:32:50.721026",
+      "end_timestamp": "2025-11-14T17:33:48.632919",
+      "duration_seconds": 57.912,
+      "tokens": {
+        "input": 67828,
+        "output": 1843,
+        "total": 69671,
+        "source": "actual_openai"
+      },
+      "output_length": 5373,
+      "pass_number": 2
+    },
+    {
+      "call_id": 17,
+      "section_id": "call-details-with-context",
+      "section_title": "Detailed Call Analysis",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:33:48.671851",
+      "end_timestamp": "2025-11-14T17:34:23.429095",
+      "duration_seconds": 34.757,
+      "tokens": {
+        "input": 67857,
+        "output": 819,
+        "total": 68676,
+        "source": "actual_openai"
+      },
+      "output_length": 3293,
+      "pass_number": 2
+    },
+    {
+      "call_id": 18,
+      "section_id": "execution-flow-sequence",
+      "section_title": "Execution Flow Sequence",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:34:23.467909",
+      "end_timestamp": "2025-11-14T17:34:51.567507",
+      "duration_seconds": 28.099,
+      "tokens": {
+        "input": 68041,
+        "output": 2258,
+        "total": 70299,
+        "source": "actual_openai"
+      },
+      "output_length": 6130,
+      "pass_number": 2
+    },
+    {
+      "call_id": 19,
+      "section_id": "business-operations-catalog",
+      "section_title": "Business Operations Catalog",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:34:51.597441",
+      "end_timestamp": "2025-11-14T17:35:55.069424",
+      "duration_seconds": 63.471,
+      "tokens": {
+        "input": 67779,
+        "output": 4763,
+        "total": 72542,
+        "source": "actual_openai"
+      },
+      "output_length": 21918,
+      "pass_number": 2
+    },
+    {
+      "call_id": 20,
+      "section_id": "code-references",
+      "section_title": "Code References",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:35:55.161069",
+      "end_timestamp": "2025-11-14T17:36:35.032902",
+      "duration_seconds": 39.872,
+      "tokens": {
+        "input": 67633,
+        "output": 2172,
+        "total": 69805,
+        "source": "actual_openai"
+      },
+      "output_length": 5205,
+      "pass_number": 2
+    },
+    {
+      "call_id": 21,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 1/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:36:35.789810",
+      "end_timestamp": "2025-11-14T17:37:37.898399",
+      "duration_seconds": 62.108,
+      "tokens": {
+        "input": 13194,
+        "output": 6279,
+        "total": 19473,
+        "source": "actual_openai"
+      },
+      "output_length": 22947,
+      "pass_number": 3,
+      "chunk_number": 1
+    },
+    {
+      "call_id": 22,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 2/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:37:37.909596",
+      "end_timestamp": "2025-11-14T17:40:10.764582",
+      "duration_seconds": 152.854,
+      "tokens": {
+        "input": 13557,
+        "output": 11627,
+        "total": 25184,
+        "source": "actual_openai"
+      },
+      "output_length": 42412,
+      "pass_number": 3,
+      "chunk_number": 2
+    },
+    {
+      "call_id": 23,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 3/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:40:10.784022",
+      "end_timestamp": "2025-11-14T17:43:04.817994",
+      "duration_seconds": 174.033,
+      "tokens": {
+        "input": 11939,
+        "output": 14451,
+        "total": 26390,
+        "source": "actual_openai"
+      },
+      "output_length": 45586,
+      "pass_number": 3,
+      "chunk_number": 3
+    },
+    {
+      "call_id": 24,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 4/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:43:04.829946",
+      "end_timestamp": "2025-11-14T17:44:31.273248",
+      "duration_seconds": 86.443,
+      "tokens": {
+        "input": 10764,
+        "output": 6899,
+        "total": 17663,
+        "source": "actual_openai"
+      },
+      "output_length": 20698,
+      "pass_number": 3,
+      "chunk_number": 4
+    },
+    {
+      "call_id": 25,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 5/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:44:31.290514",
+      "end_timestamp": "2025-11-14T17:47:14.094130",
+      "duration_seconds": 162.803,
+      "tokens": {
+        "input": 11762,
+        "output": 11378,
+        "total": 23140,
+        "source": "actual_openai"
+      },
+      "output_length": 39650,
+      "pass_number": 3,
+      "chunk_number": 5
+    },
+    {
+      "call_id": 26,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 6/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:47:14.116082",
+      "end_timestamp": "2025-11-14T17:49:48.045273",
+      "duration_seconds": 153.928,
+      "tokens": {
+        "input": 13542,
+        "output": 11700,
+        "total": 25242,
+        "source": "actual_openai"
+      },
+      "output_length": 43326,
+      "pass_number": 3,
+      "chunk_number": 6
+    },
+    {
+      "call_id": 27,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 7/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:49:48.066081",
+      "end_timestamp": "2025-11-14T17:52:42.511830",
+      "duration_seconds": 174.445,
+      "tokens": {
+        "input": 13728,
+        "output": 14183,
+        "total": 27911,
+        "source": "actual_openai"
+      },
+      "output_length": 49045,
+      "pass_number": 3,
+      "chunk_number": 7
+    },
+    {
+      "call_id": 28,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 8/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:52:42.533793",
+      "end_timestamp": "2025-11-14T17:54:42.554426",
+      "duration_seconds": 120.02,
+      "tokens": {
+        "input": 13478,
+        "output": 10826,
+        "total": 24304,
+        "source": "actual_openai"
+      },
+      "output_length": 43674,
+      "pass_number": 3,
+      "chunk_number": 8
+    },
+    {
+      "call_id": 29,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 9/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:54:42.583637",
+      "end_timestamp": "2025-11-14T17:57:30.338084",
+      "duration_seconds": 167.754,
+      "tokens": {
+        "input": 21406,
+        "output": 15861,
+        "total": 37267,
+        "source": "actual_openai"
+      },
+      "output_length": 63171,
+      "pass_number": 3,
+      "chunk_number": 9
+    },
+    {
+      "call_id": 30,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 10/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:57:30.343861",
+      "end_timestamp": "2025-11-14T17:57:50.548444",
+      "duration_seconds": 20.204,
+      "tokens": {
+        "input": 5474,
+        "output": 1778,
+        "total": 7252,
+        "source": "actual_openai"
+      },
+      "output_length": 6333,
+      "pass_number": 3,
+      "chunk_number": 10
+    },
+    {
+      "call_id": 31,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 11/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:57:50.598772",
+      "end_timestamp": "2025-11-14T17:58:36.498431",
+      "duration_seconds": 45.899,
+      "tokens": {
+        "input": 40197,
+        "output": 2961,
+        "total": 43158,
+        "source": "actual_openai"
+      },
+      "output_length": 10932,
+      "pass_number": 3,
+      "chunk_number": 11
+    },
+    {
+      "call_id": 32,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 11/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T17:58:39.504356",
+      "end_timestamp": "2025-11-14T18:05:05.653310",
+      "duration_seconds": 386.147,
+      "tokens": {
+        "input": 40379,
+        "output": 32768,
+        "total": 73147,
+        "source": "actual_openai"
+      },
+      "output_length": 127327,
+      "pass_number": 3,
+      "chunk_number": 11
+    },
+    {
+      "call_id": 33,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 12/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:05:05.676303",
+      "end_timestamp": "2025-11-14T18:07:34.330304",
+      "duration_seconds": 148.653,
+      "tokens": {
+        "input": 11735,
+        "output": 10550,
+        "total": 22285,
+        "source": "actual_openai"
+      },
+      "output_length": 37991,
+      "pass_number": 3,
+      "chunk_number": 12
+    },
+    {
+      "call_id": 34,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 12/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:07:37.334835",
+      "end_timestamp": "2025-11-14T18:09:32.944179",
+      "duration_seconds": 115.609,
+      "tokens": {
+        "input": 11914,
+        "output": 9245,
+        "total": 21159,
+        "source": "actual_openai"
+      },
+      "output_length": 33489,
+      "pass_number": 3,
+      "chunk_number": 12
+    },
+    {
+      "call_id": 35,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 13/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:09:32.956193",
+      "end_timestamp": "2025-11-14T18:11:01.938598",
+      "duration_seconds": 88.979,
+      "tokens": {
+        "input": 7726,
+        "output": 6558,
+        "total": 14284,
+        "source": "actual_openai"
+      },
+      "output_length": 24067,
+      "pass_number": 3,
+      "chunk_number": 13
+    },
+    {
+      "call_id": 36,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 13/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:11:04.942385",
+      "end_timestamp": "2025-11-14T18:15:19.719409",
+      "duration_seconds": 254.776,
+      "tokens": {
+        "input": 7905,
+        "output": 6826,
+        "total": 14731,
+        "source": "actual_openai"
+      },
+      "output_length": 25978,
+      "pass_number": 3,
+      "chunk_number": 13
+    },
+    {
+      "call_id": 37,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 14/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:15:19.746445",
+      "end_timestamp": "2025-11-14T18:17:21.174144",
+      "duration_seconds": 121.427,
+      "tokens": {
+        "input": 18010,
+        "output": 16343,
+        "total": 34353,
+        "source": "actual_openai"
+      },
+      "output_length": 58612,
+      "pass_number": 3,
+      "chunk_number": 14
+    },
+    {
+      "call_id": 38,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 15/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:17:21.190574",
+      "end_timestamp": "2025-11-14T18:18:33.166356",
+      "duration_seconds": 71.976,
+      "tokens": {
+        "input": 11446,
+        "output": 7146,
+        "total": 18592,
+        "source": "actual_openai"
+      },
+      "output_length": 22283,
+      "pass_number": 3,
+      "chunk_number": 15
+    },
+    {
+      "call_id": 39,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 16/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:18:33.186615",
+      "end_timestamp": "2025-11-14T18:21:43.721429",
+      "duration_seconds": 190.533,
+      "tokens": {
+        "input": 26332,
+        "output": 20848,
+        "total": 47180,
+        "source": "actual_openai"
+      },
+      "output_length": 72024,
+      "pass_number": 3,
+      "chunk_number": 16
+    },
+    {
+      "call_id": 40,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 17/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:21:43.751728",
+      "end_timestamp": "2025-11-14T18:23:21.284601",
+      "duration_seconds": 97.532,
+      "tokens": {
+        "input": 20004,
+        "output": 9858,
+        "total": 29862,
+        "source": "actual_openai"
+      },
+      "output_length": 34135,
+      "pass_number": 3,
+      "chunk_number": 17
+    },
+    {
+      "call_id": 41,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 17/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:23:24.288208",
+      "end_timestamp": "2025-11-14T18:25:56.061499",
+      "duration_seconds": 151.773,
+      "tokens": {
+        "input": 20183,
+        "output": 15437,
+        "total": 35620,
+        "source": "actual_openai"
+      },
+      "output_length": 51128,
+      "pass_number": 3,
+      "chunk_number": 17
+    },
+    {
+      "call_id": 42,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 18/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:25:56.070546",
+      "end_timestamp": "2025-11-14T18:27:01.010580",
+      "duration_seconds": 64.94,
+      "tokens": {
+        "input": 9282,
+        "output": 5782,
+        "total": 15064,
+        "source": "actual_openai"
+      },
+      "output_length": 20204,
+      "pass_number": 3,
+      "chunk_number": 18
+    },
+    {
+      "call_id": 43,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 19/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:27:01.048326",
+      "end_timestamp": "2025-11-14T18:30:02.022849",
+      "duration_seconds": 180.974,
+      "tokens": {
+        "input": 30129,
+        "output": 12562,
+        "total": 42691,
+        "source": "actual_openai"
+      },
+      "output_length": 45388,
+      "pass_number": 3,
+      "chunk_number": 19
+    },
+    {
+      "call_id": 44,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 19/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:30:05.027779",
+      "end_timestamp": "2025-11-14T18:31:50.815621",
+      "duration_seconds": 105.787,
+      "tokens": {
+        "input": 30309,
+        "output": 12192,
+        "total": 42501,
+        "source": "actual_openai"
+      },
+      "output_length": 43950,
+      "pass_number": 3,
+      "chunk_number": 19
+    },
+    {
+      "call_id": 45,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 20/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:31:50.835655",
+      "end_timestamp": "2025-11-14T18:33:39.299932",
+      "duration_seconds": 108.464,
+      "tokens": {
+        "input": 13351,
+        "output": 9448,
+        "total": 22799,
+        "source": "actual_openai"
+      },
+      "output_length": 33400,
+      "pass_number": 3,
+      "chunk_number": 20
+    },
+    {
+      "call_id": 46,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 21/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:33:39.315892",
+      "end_timestamp": "2025-11-14T18:35:19.905369",
+      "duration_seconds": 100.589,
+      "tokens": {
+        "input": 11197,
+        "output": 7211,
+        "total": 18408,
+        "source": "actual_openai"
+      },
+      "output_length": 25197,
+      "pass_number": 3,
+      "chunk_number": 21
+    },
+    {
+      "call_id": 47,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 22/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:35:19.922223",
+      "end_timestamp": "2025-11-14T18:37:50.304312",
+      "duration_seconds": 150.381,
+      "tokens": {
+        "input": 11856,
+        "output": 8851,
+        "total": 20707,
+        "source": "actual_openai"
+      },
+      "output_length": 30753,
+      "pass_number": 3,
+      "chunk_number": 22
+    },
+    {
+      "call_id": 48,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 23/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:37:50.319130",
+      "end_timestamp": "2025-11-14T18:39:05.982109",
+      "duration_seconds": 75.662,
+      "tokens": {
+        "input": 10223,
+        "output": 7153,
+        "total": 17376,
+        "source": "actual_openai"
+      },
+      "output_length": 24931,
+      "pass_number": 3,
+      "chunk_number": 23
+    },
+    {
+      "call_id": 49,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 24/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:39:06.000873",
+      "end_timestamp": "2025-11-14T18:41:28.508464",
+      "duration_seconds": 142.507,
+      "tokens": {
+        "input": 12899,
+        "output": 9530,
+        "total": 22429,
+        "source": "actual_openai"
+      },
+      "output_length": 34816,
+      "pass_number": 3,
+      "chunk_number": 24
+    },
+    {
+      "call_id": 50,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 25/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:41:28.538975",
+      "end_timestamp": "2025-11-14T18:45:06.637097",
+      "duration_seconds": 218.097,
+      "tokens": {
+        "input": 19428,
+        "output": 14208,
+        "total": 33636,
+        "source": "actual_openai"
+      },
+      "output_length": 54737,
+      "pass_number": 3,
+      "chunk_number": 25
+    },
+    {
+      "call_id": 51,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 26/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:45:06.658376",
+      "end_timestamp": "2025-11-14T18:47:23.214435",
+      "duration_seconds": 136.555,
+      "tokens": {
+        "input": 13383,
+        "output": 11021,
+        "total": 24404,
+        "source": "actual_openai"
+      },
+      "output_length": 40335,
+      "pass_number": 3,
+      "chunk_number": 26
+    },
+    {
+      "call_id": 52,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 27/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:47:23.234967",
+      "end_timestamp": "2025-11-14T18:50:15.852327",
+      "duration_seconds": 172.616,
+      "tokens": {
+        "input": 13477,
+        "output": 14493,
+        "total": 27970,
+        "source": "actual_openai"
+      },
+      "output_length": 49978,
+      "pass_number": 3,
+      "chunk_number": 27
+    },
+    {
+      "call_id": 53,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 28/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:50:15.869908",
+      "end_timestamp": "2025-11-14T18:53:20.970547",
+      "duration_seconds": 185.1,
+      "tokens": {
+        "input": 13122,
+        "output": 16148,
+        "total": 29270,
+        "source": "actual_openai"
+      },
+      "output_length": 50193,
+      "pass_number": 3,
+      "chunk_number": 28
+    },
+    {
+      "call_id": 54,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 29/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:53:20.989027",
+      "end_timestamp": "2025-11-14T18:55:14.481541",
+      "duration_seconds": 113.492,
+      "tokens": {
+        "input": 13439,
+        "output": 9031,
+        "total": 22470,
+        "source": "actual_openai"
+      },
+      "output_length": 25407,
+      "pass_number": 3,
+      "chunk_number": 29
+    },
+    {
+      "call_id": 55,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 29/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:55:17.485886",
+      "end_timestamp": "2025-11-14T18:57:14.274765",
+      "duration_seconds": 116.788,
+      "tokens": {
+        "input": 13618,
+        "output": 8710,
+        "total": 22328,
+        "source": "actual_openai"
+      },
+      "output_length": 24672,
+      "pass_number": 3,
+      "chunk_number": 29
+    },
+    {
+      "call_id": 56,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 30/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:57:14.292441",
+      "end_timestamp": "2025-11-14T18:58:54.921284",
+      "duration_seconds": 100.628,
+      "tokens": {
+        "input": 13187,
+        "output": 11513,
+        "total": 24700,
+        "source": "actual_openai"
+      },
+      "output_length": 35997,
+      "pass_number": 3,
+      "chunk_number": 30
+    },
+    {
+      "call_id": 57,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 31/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T18:58:54.941179",
+      "end_timestamp": "2025-11-14T19:01:48.795963",
+      "duration_seconds": 173.854,
+      "tokens": {
+        "input": 13753,
+        "output": 12672,
+        "total": 26425,
+        "source": "actual_openai"
+      },
+      "output_length": 46552,
+      "pass_number": 3,
+      "chunk_number": 31
+    },
+    {
+      "call_id": 58,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 32/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:01:48.813064",
+      "end_timestamp": "2025-11-14T19:03:46.097256",
+      "duration_seconds": 117.284,
+      "tokens": {
+        "input": 13508,
+        "output": 8640,
+        "total": 22148,
+        "source": "actual_openai"
+      },
+      "output_length": 26181,
+      "pass_number": 3,
+      "chunk_number": 32
+    },
+    {
+      "call_id": 59,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 32/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:03:49.101525",
+      "end_timestamp": "2025-11-14T19:05:22.294527",
+      "duration_seconds": 93.192,
+      "tokens": {
+        "input": 13687,
+        "output": 8890,
+        "total": 22577,
+        "source": "actual_openai"
+      },
+      "output_length": 26460,
+      "pass_number": 3,
+      "chunk_number": 32
+    },
+    {
+      "call_id": 60,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 33/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:05:22.310539",
+      "end_timestamp": "2025-11-14T19:07:48.608212",
+      "duration_seconds": 146.297,
+      "tokens": {
+        "input": 13392,
+        "output": 11096,
+        "total": 24488,
+        "source": "actual_openai"
+      },
+      "output_length": 33404,
+      "pass_number": 3,
+      "chunk_number": 33
+    },
+    {
+      "call_id": 61,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 34/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:07:48.625769",
+      "end_timestamp": "2025-11-14T19:10:44.836663",
+      "duration_seconds": 176.21,
+      "tokens": {
+        "input": 13444,
+        "output": 12424,
+        "total": 25868,
+        "source": "actual_openai"
+      },
+      "output_length": 35313,
+      "pass_number": 3,
+      "chunk_number": 34
+    },
+    {
+      "call_id": 62,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 35/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:10:44.853146",
+      "end_timestamp": "2025-11-14T19:12:23.843803",
+      "duration_seconds": 98.99,
+      "tokens": {
+        "input": 13081,
+        "output": 9756,
+        "total": 22837,
+        "source": "actual_openai"
+      },
+      "output_length": 26192,
+      "pass_number": 3,
+      "chunk_number": 35
+    },
+    {
+      "call_id": 63,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 36/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:12:23.860785",
+      "end_timestamp": "2025-11-14T19:14:49.879260",
+      "duration_seconds": 146.018,
+      "tokens": {
+        "input": 13199,
+        "output": 10622,
+        "total": 23821,
+        "source": "actual_openai"
+      },
+      "output_length": 28365,
+      "pass_number": 3,
+      "chunk_number": 36
+    },
+    {
+      "call_id": 64,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 37/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:14:49.895353",
+      "end_timestamp": "2025-11-14T19:15:57.205489",
+      "duration_seconds": 67.31,
+      "tokens": {
+        "input": 13281,
+        "output": 7255,
+        "total": 20536,
+        "source": "actual_openai"
+      },
+      "output_length": 22117,
+      "pass_number": 3,
+      "chunk_number": 37
+    },
+    {
+      "call_id": 65,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 37/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:16:00.209661",
+      "end_timestamp": "2025-11-14T19:18:11.508399",
+      "duration_seconds": 131.298,
+      "tokens": {
+        "input": 13460,
+        "output": 13297,
+        "total": 26757,
+        "source": "actual_openai"
+      },
+      "output_length": 40933,
+      "pass_number": 3,
+      "chunk_number": 37
+    },
+    {
+      "call_id": 66,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 38/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:18:11.524774",
+      "end_timestamp": "2025-11-14T19:19:05.085304",
+      "duration_seconds": 53.56,
+      "tokens": {
+        "input": 13451,
+        "output": 4243,
+        "total": 17694,
+        "source": "actual_openai"
+      },
+      "output_length": 12722,
+      "pass_number": 3,
+      "chunk_number": 38
+    },
+    {
+      "call_id": 67,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 38/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:19:08.089127",
+      "end_timestamp": "2025-11-14T19:21:20.276491",
+      "duration_seconds": 132.187,
+      "tokens": {
+        "input": 13630,
+        "output": 12777,
+        "total": 26407,
+        "source": "actual_openai"
+      },
+      "output_length": 37424,
+      "pass_number": 3,
+      "chunk_number": 38
+    },
+    {
+      "call_id": 68,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 39/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:21:20.291984",
+      "end_timestamp": "2025-11-14T19:22:50.515739",
+      "duration_seconds": 90.223,
+      "tokens": {
+        "input": 13589,
+        "output": 8932,
+        "total": 22521,
+        "source": "actual_openai"
+      },
+      "output_length": 23303,
+      "pass_number": 3,
+      "chunk_number": 39
+    },
+    {
+      "call_id": 69,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 40/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:22:50.530360",
+      "end_timestamp": "2025-11-14T19:25:06.392647",
+      "duration_seconds": 135.862,
+      "tokens": {
+        "input": 13244,
+        "output": 10563,
+        "total": 23807,
+        "source": "actual_openai"
+      },
+      "output_length": 28668,
+      "pass_number": 3,
+      "chunk_number": 40
+    },
+    {
+      "call_id": 70,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 41/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:25:06.408953",
+      "end_timestamp": "2025-11-14T19:27:44.685054",
+      "duration_seconds": 158.275,
+      "tokens": {
+        "input": 13310,
+        "output": 10049,
+        "total": 23359,
+        "source": "actual_openai"
+      },
+      "output_length": 26929,
+      "pass_number": 3,
+      "chunk_number": 41
+    },
+    {
+      "call_id": 71,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 42/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:27:44.701871",
+      "end_timestamp": "2025-11-14T19:28:43.250972",
+      "duration_seconds": 58.549,
+      "tokens": {
+        "input": 13108,
+        "output": 4767,
+        "total": 17875,
+        "source": "actual_openai"
+      },
+      "output_length": 14298,
+      "pass_number": 3,
+      "chunk_number": 42
+    },
+    {
+      "call_id": 72,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 42/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:28:46.254865",
+      "end_timestamp": "2025-11-14T19:32:03.817855",
+      "duration_seconds": 197.562,
+      "tokens": {
+        "input": 13287,
+        "output": 14380,
+        "total": 27667,
+        "source": "actual_openai"
+      },
+      "output_length": 40651,
+      "pass_number": 3,
+      "chunk_number": 42
+    },
+    {
+      "call_id": 73,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 43/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:32:03.835865",
+      "end_timestamp": "2025-11-14T19:34:14.983765",
+      "duration_seconds": 131.147,
+      "tokens": {
+        "input": 13080,
+        "output": 10930,
+        "total": 24010,
+        "source": "actual_openai"
+      },
+      "output_length": 30030,
+      "pass_number": 3,
+      "chunk_number": 43
+    },
+    {
+      "call_id": 74,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 44/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:34:14.994148",
+      "end_timestamp": "2025-11-14T19:35:58.966644",
+      "duration_seconds": 103.972,
+      "tokens": {
+        "input": 13504,
+        "output": 11789,
+        "total": 25293,
+        "source": "actual_openai"
+      },
+      "output_length": 32375,
+      "pass_number": 3,
+      "chunk_number": 44
+    },
+    {
+      "call_id": 75,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 45/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:35:58.981628",
+      "end_timestamp": "2025-11-14T19:37:37.502424",
+      "duration_seconds": 98.52,
+      "tokens": {
+        "input": 13634,
+        "output": 9022,
+        "total": 22656,
+        "source": "actual_openai"
+      },
+      "output_length": 22929,
+      "pass_number": 3,
+      "chunk_number": 45
+    },
+    {
+      "call_id": 76,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 46/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:37:37.517041",
+      "end_timestamp": "2025-11-14T19:39:27.770166",
+      "duration_seconds": 110.253,
+      "tokens": {
+        "input": 13606,
+        "output": 9449,
+        "total": 23055,
+        "source": "actual_openai"
+      },
+      "output_length": 26474,
+      "pass_number": 3,
+      "chunk_number": 46
+    },
+    {
+      "call_id": 77,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 47/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:39:27.785326",
+      "end_timestamp": "2025-11-14T19:43:48.965436",
+      "duration_seconds": 261.179,
+      "tokens": {
+        "input": 13504,
+        "output": 10768,
+        "total": 24272,
+        "source": "actual_openai"
+      },
+      "output_length": 30887,
+      "pass_number": 3,
+      "chunk_number": 47
+    },
+    {
+      "call_id": 78,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 48/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:43:48.981444",
+      "end_timestamp": "2025-11-14T19:47:14.952269",
+      "duration_seconds": 205.97,
+      "tokens": {
+        "input": 13419,
+        "output": 8804,
+        "total": 22223,
+        "source": "actual_openai"
+      },
+      "output_length": 26986,
+      "pass_number": 3,
+      "chunk_number": 48
+    },
+    {
+      "call_id": 79,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 49/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:47:14.968158",
+      "end_timestamp": "2025-11-14T19:48:54.360405",
+      "duration_seconds": 99.392,
+      "tokens": {
+        "input": 13397,
+        "output": 10387,
+        "total": 23784,
+        "source": "actual_openai"
+      },
+      "output_length": 29166,
+      "pass_number": 3,
+      "chunk_number": 49
+    },
+    {
+      "call_id": 80,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 50/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:48:54.376517",
+      "end_timestamp": "2025-11-14T19:51:05.864347",
+      "duration_seconds": 131.487,
+      "tokens": {
+        "input": 13335,
+        "output": 11763,
+        "total": 25098,
+        "source": "actual_openai"
+      },
+      "output_length": 35730,
+      "pass_number": 3,
+      "chunk_number": 50
+    },
+    {
+      "call_id": 81,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 51/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:51:05.881541",
+      "end_timestamp": "2025-11-14T19:52:47.865028",
+      "duration_seconds": 101.983,
+      "tokens": {
+        "input": 13336,
+        "output": 9936,
+        "total": 23272,
+        "source": "actual_openai"
+      },
+      "output_length": 27514,
+      "pass_number": 3,
+      "chunk_number": 51
+    },
+    {
+      "call_id": 82,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 52/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:52:47.881877",
+      "end_timestamp": "2025-11-14T19:54:28.082503",
+      "duration_seconds": 100.2,
+      "tokens": {
+        "input": 13417,
+        "output": 10684,
+        "total": 24101,
+        "source": "actual_openai"
+      },
+      "output_length": 25803,
+      "pass_number": 3,
+      "chunk_number": 52
+    },
+    {
+      "call_id": 83,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 53/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:54:28.099284",
+      "end_timestamp": "2025-11-14T19:55:42.976551",
+      "duration_seconds": 74.877,
+      "tokens": {
+        "input": 13442,
+        "output": 11182,
+        "total": 24624,
+        "source": "actual_openai"
+      },
+      "output_length": 27203,
+      "pass_number": 3,
+      "chunk_number": 53
+    },
+    {
+      "call_id": 84,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 54/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:55:42.993327",
+      "end_timestamp": "2025-11-14T19:56:40.100224",
+      "duration_seconds": 57.106,
+      "tokens": {
+        "input": 13386,
+        "output": 10338,
+        "total": 23724,
+        "source": "actual_openai"
+      },
+      "output_length": 24818,
+      "pass_number": 3,
+      "chunk_number": 54
+    },
+    {
+      "call_id": 85,
+      "section_id": "detailed-code-explanation",
+      "section_title": "Detailed Code-Block Explanation - Chunk 55/55",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:56:40.111490",
+      "end_timestamp": "2025-11-14T19:57:44.934498",
+      "duration_seconds": 64.823,
+      "tokens": {
+        "input": 8606,
+        "output": 4976,
+        "total": 13582,
+        "source": "actual_openai"
+      },
+      "output_length": 13509,
+      "pass_number": 3,
+      "chunk_number": 55
+    },
+    {
+      "call_id": 86,
+      "section_id": "error-handling",
+      "section_title": "Error Handling Strategy",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:57:44.974946",
+      "end_timestamp": "2025-11-14T19:57:47.631843",
+      "duration_seconds": 2.657,
+      "tokens": {
+        "input": 3105,
+        "output": 56,
+        "total": 3161,
+        "source": "actual_openai"
+      },
+      "output_length": 300,
+      "pass_number": 3
+    },
+    {
+      "call_id": 87,
+      "section_id": "code-metrics",
+      "section_title": "Code Metrics",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:57:47.638772",
+      "end_timestamp": "2025-11-14T19:57:49.341817",
+      "duration_seconds": 1.703,
+      "tokens": {
+        "input": 3086,
+        "output": 87,
+        "total": 3173,
+        "source": "actual_openai"
+      },
+      "output_length": 505,
+      "pass_number": 3
+    },
+    {
+      "call_id": 88,
+      "section_id": "dependencies-matrix",
+      "section_title": "Dependencies Matrix",
+      "model": "gpt-4.1",
+      "start_timestamp": "2025-11-14T19:57:49.346968",
+      "end_timestamp": "2025-11-14T19:57:52.975977",
+      "duration_seconds": 3.629,
+      "tokens": {
+        "input": 3062,
+        "output": 189,
+        "total": 3251,
+        "source": "actual_openai"
+      },
+      "output_length": 1032,
+      "pass_number": 3
+    }
+  ]
 }

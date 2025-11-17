@@ -77,6 +77,7 @@ class AgentState(TypedDict):
     superbol_cfg: Dict[str, Any]
     gnucobol_analysis: Dict[str, Any]
     ctags_outline: Dict[str, Any]
+    called_by_graph: Dict[str, List[str]]  # PHASE 3: Reverse call graph (target → [callers])
 
     # Two-Pass Generation Mode
     use_two_pass_mode: bool  # Whether to use two-pass generation (default: False)
@@ -327,10 +328,58 @@ def load_metadata_node(state: AgentState) -> AgentState:
     print(f"Loading metadata for program: {program_name}")
 
     try:
-        # Load SuperBol Symbols
+        # Load SuperBol Symbols with intelligent filtering for large files
         superbol_symbols_path = metadata_dir / "superbol" / f"superbol-{program_name}-doc-symbols.json"
         with open(superbol_symbols_path, 'r') as f:
-            state["superbol_symbols"] = json.load(f)
+            superbol_data = json.load(f)
+
+            # PHASE 1 OPTIMIZATION: Filter large symbol arrays
+            symbols = superbol_data.get('symbols', [])
+            original_count = len(symbols)
+
+            if original_count > 5000:  # Large file detected (> 5K symbols)
+                print(f"  ⚠ Large SuperBol file detected: {original_count:,} symbols")
+
+                # Categorize symbols by kind
+                filtered_symbols = []
+                kind_counts = {'original': {}, 'filtered': {}}
+
+                # Count originals
+                for symbol in symbols:
+                    kind = symbol.get('kind', 'unknown')
+                    kind_counts['original'][kind] = kind_counts['original'].get(kind, 0) + 1
+
+                # Filter strategy:
+                # - Kind 12 (Programs/Sections): Keep ALL (~1.6K) - CRITICAL
+                # - Kind 17 (Paragraphs): Keep ALL (~258) - CRITICAL
+                # - Kind 13 (Data items): Sample first 500 - BLOAT SOURCE (10K+)
+                for symbol in symbols:
+                    kind = symbol.get('kind', 'unknown')
+
+                    if kind in [12, 17]:  # Programs and Paragraphs - keep all
+                        filtered_symbols.append(symbol)
+                        kind_counts['filtered'][kind] = kind_counts['filtered'].get(kind, 0) + 1
+                    elif kind == 13:  # Data items - sample
+                        if kind_counts['filtered'].get(13, 0) < 500:
+                            filtered_symbols.append(symbol)
+                            kind_counts['filtered'][kind] = kind_counts['filtered'].get(kind, 0) + 1
+
+                superbol_data['symbols'] = filtered_symbols
+                superbol_data['_optimization_metadata'] = {
+                    'original_symbol_count': original_count,
+                    'filtered_symbol_count': len(filtered_symbols),
+                    'reduction_percentage': round((1 - len(filtered_symbols)/original_count) * 100, 1),
+                    'kind_distribution_original': kind_counts['original'],
+                    'kind_distribution_filtered': kind_counts['filtered']
+                }
+
+                reduction_pct = (1 - len(filtered_symbols)/original_count) * 100
+                print(f"     Filtered to {len(filtered_symbols):,} symbols ({reduction_pct:.1f}% reduction)")
+                print(f"     Kind 12 (Programs): {kind_counts['filtered'].get(12, 0):,} (kept all)")
+                print(f"     Kind 17 (Paragraphs): {kind_counts['filtered'].get(17, 0):,} (kept all)")
+                print(f"     Kind 13 (Data items): {kind_counts['filtered'].get(13, 0):,} (sampled from {kind_counts['original'].get(13, 0):,})")
+
+            state["superbol_symbols"] = superbol_data
 
         # Load SuperBol CFG
         superbol_cfg_path = metadata_dir / "superbol" / "superbol-cfg" / f"{program_name}.json"
@@ -355,7 +404,26 @@ def load_metadata_node(state: AgentState) -> AgentState:
         elif gnucobol_single_path.exists():
             # Single-file mode: load from individual file analysis
             with open(gnucobol_single_path, 'r') as f:
-                state["gnucobol_analysis"] = json.load(f)
+                gnucobol_data = json.load(f)
+
+                # PHASE 1 OPTIMIZATION: Strip bloat fields (never used by template)
+                bloat_fields = ['listing', 'stdout', 'stderr', 'command']
+                total_bloat_removed = 0
+                removed_fields = []
+
+                for field in bloat_fields:
+                    if field in gnucobol_data:
+                        field_size = len(str(gnucobol_data[field]))
+                        total_bloat_removed += field_size
+                        removed_fields.append(f"{field}({field_size:,} chars)")
+                        del gnucobol_data[field]
+
+                if total_bloat_removed > 0:
+                    print(f"  → Stripped GnuCOBOL bloat: {', '.join(removed_fields)}")
+                    print(f"     Total removed: {total_bloat_removed:,} chars (~{total_bloat_removed//4:,} tokens)")
+
+                # Preserve essential fields: file_path, success, message, analysis, error
+                state["gnucobol_analysis"] = gnucobol_data
         else:
             print(f"⚠ Warning: No GnuCOBOL analysis found for {program_name}")
             state["gnucobol_analysis"] = {}
@@ -367,12 +435,92 @@ def load_metadata_node(state: AgentState) -> AgentState:
 
         print(f"✓ Successfully loaded all metadata for {program_name}")
 
+        # PHASE 3: Build reverse call graph for "Called by" relationships
+        called_by_graph = build_reverse_call_graph(
+            state["superbol_cfg"],
+            state["ctags_outline"]
+        )
+
+        # Store in state for use in filtered contexts
+        state["called_by_graph"] = called_by_graph
+
+        if called_by_graph:
+            total_relationships = sum(len(callers) for callers in called_by_graph.values())
+            print(f"  → Built reverse call graph: {len(called_by_graph):,} targets with {total_relationships:,} relationships")
+
     except Exception as e:
         error_msg = f"Error loading metadata: {str(e)}"
         print(f"✗ {error_msg}")
         state["errors"].append(error_msg)
 
     return state
+
+
+def build_reverse_call_graph(superbol_cfg: Dict[str, Any], ctags_outline: Dict[str, Any]) -> Dict[str, List[str]]:
+    """
+    Build reverse call graph: paragraph_name → [list of callers]
+
+    PHASE 3: Solve "Called by: Information not available" problem
+
+    Sources:
+    - SuperBol CFG edges (from → to)
+    - SuperBol CFG performs
+    - CTags performs
+
+    Returns:
+        Dictionary mapping target → [list of callers]
+        Example: {"PARA-B": ["PARA-A", "PARA-C"]}  # PARA-B is called by PARA-A and PARA-C
+    """
+    called_by = {}
+
+    # Process SuperBol CFG edges
+    if isinstance(superbol_cfg, dict):
+        edges = superbol_cfg.get("edges", [])
+        for edge in edges:
+            source = edge.get("from")
+            target = edge.get("to")
+
+            if source and target:
+                if target not in called_by:
+                    called_by[target] = []
+                if source not in called_by[target]:  # Avoid duplicates
+                    called_by[target].append(source)
+
+        # Process PERFORM statements from SuperBol
+        performs = superbol_cfg.get("performs", [])
+        for perform in performs:
+            caller = perform.get("from")
+            target = perform.get("to")
+
+            if caller and target:
+                if target not in called_by:
+                    called_by[target] = []
+                if caller not in called_by[target]:
+                    called_by[target].append(caller)
+
+    # Process CTags performs (additional source)
+    if isinstance(ctags_outline, dict):
+        outline = ctags_outline.get("outline", {})
+        if isinstance(outline, dict):
+            # CTags may have a performs array
+            ctags_performs = outline.get("performs", [])
+            # Or it might be in the top level
+            if not ctags_performs:
+                ctags_performs = ctags_outline.get("performs", [])
+
+            for perform in ctags_performs:
+                # CTags structure might be different - adapt as needed
+                if isinstance(perform, dict):
+                    caller = perform.get("from") or perform.get("caller")
+                    target = perform.get("to") or perform.get("target") or perform.get("name")
+
+                    if caller and target:
+                        if target not in called_by:
+                            called_by[target] = []
+                        if caller not in called_by[target]:
+                            called_by[target].append(caller)
+
+    return called_by
 
 
 def load_template_node(state: AgentState) -> AgentState:
@@ -687,11 +835,28 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
     filtered = {
         "program_name": full_metadata["program_name"],
         "timestamp": full_metadata["timestamp"]
+        # PHASE 3: called_by_graph included selectively per pass (not in Pass 1 - too large for summaries)
     }
 
     if pass_number == 1:
-        # Pass 1: Overview & Structure - Need full symbol tree, division structure
-        filtered["superbol_symbols"] = superbol_symbols  # FULL symbols
+        # Pass 1: Overview & Structure - Need SUMMARY, not full symbols
+        # CRITICAL FIX: Pass 1 sections (executive-summary) don't need 2,412 full symbols OR 1,016 called_by relationships
+        # They only need: counts, program name, basic structure, external calls
+        if isinstance(superbol_symbols, dict):
+            symbols = superbol_symbols.get('symbols', [])
+            # Extract just counts and metadata, not all symbol details
+            filtered["superbol_symbols"] = {
+                "success": superbol_symbols.get("success"),
+                "error": superbol_symbols.get("error"),
+                "symbol_count": len(symbols),
+                "program_count": len([s for s in symbols if s.get('kind') == 12]),
+                "paragraph_count": len([s for s in symbols if s.get('kind') == 17]),
+                "data_item_count": len([s for s in symbols if s.get('kind') == 13]),
+                # Include optimization metadata if present
+                "_optimization_metadata": superbol_symbols.get("_optimization_metadata", {})
+            }
+        else:
+            filtered["superbol_symbols"] = superbol_symbols
 
         # CFG: Summary stats + CRITICAL external calls and copybooks for executive summary
         if isinstance(superbol_cfg, dict):
@@ -707,18 +872,38 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
         else:
             filtered["superbol_cfg"] = superbol_cfg
 
-        # GnuCOBOL: Summary + program calls
+        # GnuCOBOL: Summary + program calls + ESSENTIAL FIELDS
         filtered["gnucobol_analysis"] = {
             "summary": gnucobol.get("summary", {}),
             "program_calls": gnucobol.get("program_calls", []),
-            "call_summary": gnucobol.get("call_summary", {})
+            "call_summary": gnucobol.get("call_summary", {}),
+            # PHASE 2: Essential scalar fields (for template placeholders)
+            "file_path": gnucobol.get("file_path"),
+            "success": gnucobol.get("success"),
+            "message": gnucobol.get("message"),
+            "analysis": gnucobol.get("analysis", {})
         }
 
-        # Ctags: Full structure
-        filtered["ctags_outline"] = ctags  # FULL outline
+        # Ctags: SUMMARY ONLY (not full outline - too large for Pass 1)
+        # Pass 1 sections only need counts and division names, not all paragraph details
+        filtered["ctags_outline"] = {
+            "program_name": ctags.get("program_name"),
+            "divisions": ctags.get("divisions", []),  # Division names (small)
+            "paragraph_count": len(ctags.get("paragraphs", [])),
+            "section_count": len(ctags.get("sections", [])),
+            "data_item_count": len(ctags.get("data_items", [])),
+            "symbol_count": ctags.get("symbol_count"),
+            # Include file path if available
+            "file": ctags.get("outline", {}).get("file") if isinstance(ctags.get("outline"), dict) else None
+        }
+
+        # Pass 1: Do NOT include called_by_graph (too large - 1,016 entries not needed for summaries)
 
     elif pass_number == 2:
         # Pass 2: Logic & Flow - Need full CFG, paragraphs, program calls
+        # CRITICAL: Pass 2 DOES need called_by_graph for paragraph relationships
+        filtered["called_by_graph"] = full_metadata.get("called_by_graph", {})
+
         # SuperBOL: Full procedure division, limited data division
         filtered["superbol_symbols"] = {
             "program_id": superbol_symbols.get("program_id"),
@@ -747,7 +932,7 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
         else:
             filtered["superbol_cfg"] = superbol_cfg
 
-        # GnuCOBOL: Full program calls + procedure structure
+        # GnuCOBOL: Full program calls + procedure structure + ESSENTIAL FIELDS
         paragraphs = gnucobol.get("paragraphs", [])
         filtered["gnucobol_analysis"] = {
             "summary": gnucobol.get("summary", {}),
@@ -755,11 +940,17 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
             "call_summary": gnucobol.get("call_summary", {}),
             "paragraphs": limit_array(paragraphs, 100),  # First 100 paragraphs
             "sections": limit_array(gnucobol.get("sections", []), 50),
-            "performs": limit_array(gnucobol.get("performs", []), 200)
+            "performs": limit_array(gnucobol.get("performs", []), 200),
+            # PHASE 2: Essential scalar fields (for template placeholders)
+            "file_path": gnucobol.get("file_path"),
+            "success": gnucobol.get("success"),
+            "message": gnucobol.get("message"),
+            "analysis": gnucobol.get("analysis", {})
         }
 
-        # Ctags: Full paragraph structure
+        # Ctags: Full paragraph structure + ESSENTIAL FIELDS
         paragraphs = ctags.get("paragraphs", [])
+        ctags_outline = ctags.get("outline", {})
         filtered["ctags_outline"] = {
             "program_name": ctags.get("program_name"),
             "divisions": ctags.get("divisions", []),
@@ -767,7 +958,10 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
             "total_paragraphs": len(paragraphs),
             "sections": limit_array(ctags.get("sections", []), 50),
             "performs": limit_array(ctags.get("performs", []), 200),
-            "data_items": limit_array(ctags.get("data_items", []), 50)  # Some data for reference
+            "data_items": limit_array(ctags.get("data_items", []), 50),  # Some data for reference
+            # PHASE 2: Essential scalar fields (for template placeholders)
+            "symbol_count": ctags.get("symbol_count"),
+            "file": ctags_outline.get("file") if isinstance(ctags_outline, dict) else None
         }
 
     else:  # pass_number == 3
@@ -792,15 +986,21 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
         else:
             filtered["superbol_cfg"] = {"note": "CFG data available"}
 
-        # GnuCOBOL: Metrics + dependencies
+        # GnuCOBOL: Metrics + dependencies + ESSENTIAL FIELDS
         filtered["gnucobol_analysis"] = {
             "summary": gnucobol.get("summary", {}),
             "program_calls": gnucobol.get("program_calls", []),
             "copybooks": gnucobol.get("copybooks", []),
-            "complexity_metrics": gnucobol.get("complexity_metrics", {})
+            "complexity_metrics": gnucobol.get("complexity_metrics", {}),
+            # PHASE 2: Essential scalar fields (for template placeholders)
+            "file_path": gnucobol.get("file_path"),
+            "success": gnucobol.get("success"),
+            "message": gnucobol.get("message"),
+            "analysis": gnucobol.get("analysis", {})
         }
 
-        # Ctags: Counts + samples
+        # Ctags: Counts + samples + ESSENTIAL FIELDS
+        ctags_outline = ctags.get("outline", {})
         filtered["ctags_outline"] = {
             "program_name": ctags.get("program_name"),
             "divisions": ctags.get("divisions", []),
@@ -809,7 +1009,10 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
             "total_data_items": len(ctags.get("data_items", [])),
             "total_performs": len(ctags.get("performs", [])),
             "sample_paragraphs": limit_array(ctags.get("paragraphs", []), 20),
-            "sample_data_items": limit_array(ctags.get("data_items", []), 20)
+            "sample_data_items": limit_array(ctags.get("data_items", []), 20),
+            # PHASE 2: Essential scalar fields (for template placeholders)
+            "symbol_count": ctags.get("symbol_count"),
+            "file": ctags_outline.get("file") if isinstance(ctags_outline, dict) else None
         }
 
     return filtered
@@ -1050,7 +1253,8 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
         "superbol_symbols": state["superbol_symbols"],
         "superbol_cfg": state["superbol_cfg"],
         "gnucobol_analysis": state["gnucobol_analysis"],
-        "ctags_outline": state["ctags_outline"]
+        "ctags_outline": state["ctags_outline"],
+        "called_by_graph": state.get("called_by_graph", {})  # PHASE 3: Include reverse call graph
     }
 
     # Check which mode we're in
@@ -1152,6 +1356,28 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
     except Exception as e:
         print(f"  ⚠ Warning: Program map generation failed: {e}")
         # Continue without program map - graceful degradation
+
+    # PHASE 2: Extract source_file_path for template placeholders
+    # Priority: gnucobol.file_path → ctags.outline.file → None
+    source_file_path = None
+
+    if "gnucobol_analysis" in filtered_context:
+        source_file_path = filtered_context["gnucobol_analysis"].get("file_path")
+
+    if not source_file_path and "ctags_outline" in filtered_context:
+        ctags_outline = filtered_context["ctags_outline"]
+        if isinstance(ctags_outline, dict):
+            # Try direct file field first (Pass 2 & 3)
+            source_file_path = ctags_outline.get("file")
+            # Try outline.file if not found (Pass 1 - full ctags)
+            if not source_file_path and "outline" in ctags_outline:
+                outline = ctags_outline["outline"]
+                if isinstance(outline, dict):
+                    source_file_path = outline.get("file")
+
+    # Add to context for template
+    if source_file_path:
+        filtered_context["source_file_path"] = source_file_path
 
     return filtered_context
 
@@ -1459,7 +1685,9 @@ OUTPUT FORMAT:
 """
 
     # Build user prompt with metadata
-    metadata_str = json.dumps(context, indent=2)
+    # CRITICAL: Use compact JSON (no indent) to reduce token count
+    # indent=2 adds ~50% overhead (800K → 1.2M tokens)
+    metadata_str = json.dumps(context)
     user_prompt = f"""Generate documentation for this section using the following metadata:
 
 {metadata_str}
@@ -1518,6 +1746,30 @@ Remember:
     return content
 
 
+def filter_context_for_code_explanation(context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Create ultra-minimal metadata for code explanation chunks.
+
+    CRITICAL: Code explanation only needs program name and source code.
+    Passing full metadata (800K tokens) per chunk causes overflow.
+
+    Target: < 10K tokens for metadata (vs 800K with full context)
+
+    Returns minimal context with:
+    - program_name
+    - timestamp
+    - source_file_path (if available)
+    - called_by_graph (for this chunk's paragraphs only - added during processing)
+    """
+    return {
+        "program_name": context.get("program_name", "UNKNOWN"),
+        "timestamp": context.get("timestamp"),
+        "source_file_path": context.get("source_file_path")
+        # Note: source_code, chunk info added per chunk during processing
+        # Note: called_by_graph filtered per chunk's paragraphs only
+    }
+
+
 def process_large_file_in_chunks(
     section_id: str,
     section_title: str,
@@ -1534,7 +1786,7 @@ def process_large_file_in_chunks(
 
     This function:
     1. Uses source_chunker to split file into manageable pieces
-    2. Processes each chunk with the LLM
+    2. Processes each chunk with the LLM (with MINIMAL metadata)
     3. Combines results maintaining sequential numbering
     4. Verifies complete coverage
 
@@ -1543,7 +1795,7 @@ def process_large_file_in_chunks(
         section_title: Section title
         instruction: Processing instructions
         template: Output template
-        context: Context dict (metadata)
+        context: Context dict (metadata) - WILL BE FILTERED to minimal
         chunked_file_info: Info about chunked file
         llm_config: LLM configuration
         pass_number: Optional pass number (for two-pass mode)
@@ -1631,15 +1883,13 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             program_map=program_map  # Include program map in each chunk
         )
 
-        # Update context with this chunk's source code
-        chunk_context = context.copy()
+        # CRITICAL OPTIMIZATION: Use MINIMAL metadata for code explanation
+        # Full context (~800K tokens) causes overflow when multiplied by 25 chunks
+        # Code explanation only needs: program_name, source_code, and chunk info
+        chunk_context = filter_context_for_code_explanation(context)
+
+        # Add chunk-specific information
         chunk_context['source_code'] = chunk_content
-
-        # Remove program_map from chunk_context to avoid duplication
-        # (it's already included in chunk_content header)
-        if 'program_map' in chunk_context:
-            del chunk_context['program_map']
-
         chunk_context['chunk_number'] = chunk_num
         chunk_context['total_chunks'] = total_chunks
         chunk_context['start_line'] = chunk_info['start_line']
