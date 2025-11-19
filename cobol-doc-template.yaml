@@ -131,131 +131,97 @@ sections:
     title: Detailed Code-Block Explanation
     instruction: |
       ═══════════════════════════════════════════════════════════════════════════
-      ⚠️  CRITICAL INSTRUCTIONS - READ CAREFULLY
+      ⚠️  CRITICAL MASTER INSTRUCTIONS — READ CAREFULLY
       ═══════════════════════════════════════════════════════════════════════════
 
-      You will receive COBOL-74 source code from lines {{start_line}} to {{end_line}}.
+      You will receive *raw COBOL-74 source code* from lines {{start_line}} to 
+      {{end_line}} exactly as it appears in the input.
 
-      🚨 YOUR MANDATORY TASK:
-      1. Return EVERY EXECUTABLE LINE in ```cobol code blocks with sequence numbers
-      2. Provide detailed explanations for each code section
-      3. Include self-assessment at the end
+      You have **TWO CRITICAL JOBS**.  
+      BOTH jobs are mandatory. BOTH must succeed for output to be valid.
 
-      ═══════════════════════════════════════════════════════════════════════════
-      📋 CODE INCLUSION RULES - ABSOLUTE REQUIREMENTS
-      ═══════════════════════════════════════════════════════════════════════════
+      ⭐ CRITICAL JOB #1 — VERBATIM CODE REPRODUCTION  
+         You MUST output the ENTIRE original COBOL source code, exactly as 
+         provided, inside ```cobol``` fenced code blocks.  
+         This includes every character, every sequence number, every space, 
+         every comment, every filler, every table entry, every period, and 
+         every division.
 
-      ✅ ALWAYS INCLUDE (No Exceptions for Brevity or Repetition):
-        • IDENTIFICATION DIVISION - ALL lines (PROGRAM-ID, AUTHOR, DATE-WRITTEN)
-        • ENVIRONMENT DIVISION - ALL lines (FILE-CONTROL, SELECT statements)
-        • DATA DIVISION - EVERY SINGLE LINE:
-          → Every FD entry with complete record layouts
-          → Every 01-level variable in WORKING-STORAGE
-          → Every subordinate level (05, 10, 15, 77, 88)
-          → Every FILLER definition (even if 1000+ repetitive ones)
-          → Every PIC, VALUE, OCCURS, REDEFINES clause
-          → Every data table entry (NO summarization allowed)
-        • PROCEDURE DIVISION - EVERY SINGLE LINE:
-          → Every paragraph/section definition
-          → Every MOVE, PERFORM, IF, COMPUTE statement
-          → Every period, condition, branch
+      ⭐ CRITICAL JOB #2 — BLOCK-BY-BLOCK CODE EXPLANATION  
+         You MUST provide a complete, accurate, and detailed explanation for 
+         each logical block (paragraph, section, data group, etc.), and you 
+         MUST include a second verbatim code snippet for each block.
+
+      If token limits prevent complete execution of both jobs, apply **Task 
+      Priority Rules** below.
 
       ═══════════════════════════════════════════════════════════════════════════
-      🚫 FORBIDDEN BEHAVIORS - WILL CAUSE VALIDATION FAILURE
+      🚨 TASK PRIORITY IN CASE OF TOKEN LIMIT PRESSURE
       ═══════════════════════════════════════════════════════════════════════════
 
-      ❌ NEVER use "Omitted for brevity"
-         Bad:  "05 FILLER PIC X(10). ... (50 similar entries omitted)"
-         Good: Show ALL 50 FILLER entries verbatim
+      1. CRITICAL JOB #1 — Verbatim reproduction of ALL COBOL lines  
+         (This must ALWAYS be completed. If you cannot complete this, you must 
+         truncate **explanations**, NOT code.)
 
-      ❌ NEVER use "Similar pattern continues" or "Pattern repeats"
-         Bad:  "05 FIELD-1 PIC 9(5). ... (pattern repeats 100 times)"
-         Good: Show ALL 100 field definitions verbatim
+      2. CRITICAL JOB #2 — Block-by-block verbatim code + explanation  
+         (If token pressure exists, explanations may be shortened, but code 
+         reproduction remains mandatory.)
 
-      ❌ NEVER summarize repetitive code
-         Bad:  "Multiple FILLER definitions follow..."
-         Good: Include EVERY FILLER line with its sequence number
-
-      ❌ NEVER skip sections you consider "boring" or "redundant"
-         Bad:  Skipping 200 lines of data table entries
-         Good: Include ALL 200 lines verbatim
-
-      ❌ NEVER use ellipsis (...) to indicate omitted code
-         Bad:  "05 FIELD-1 ... 05 FIELD-100"
-         Good: Show FIELD-1, FIELD-2, ..., FIELD-100 (all 100 lines)
-
-      ❌ NEVER skip lines because they look repetitive
-         Bad:  "05 FILLER PIC X. (repeated 500 times)"
-         Good: Show all 500 lines individually
+      ⚠️ Under NO circumstances may you:
+         - Modify the input code,
+         - Omit code,
+         - Summarize code,
+         - Skip blocks,
+         - Produce only explanations without code.
 
       ═══════════════════════════════════════════════════════════════════════════
-      ✅ VALIDATION CRITERIA - Your Output Will Be Automatically Checked
+      📐 GLOBAL OUTPUT STRUCTURE (MUST FOLLOW THIS EXACT ORDER)
       ═══════════════════════════════════════════════════════════════════════════
 
-      Your code blocks will be validated against these requirements:
-
-      1. COMPLETE LINE COVERAGE:
-         → Every executable line from {{start_line}} to {{end_line}} must appear in ```cobol blocks
-         → Automated extraction of sequence numbers from your output
-         → Missing even ONE executable line = VALIDATION FAILURE & RETRY
-
-      2. SEQUENCE NUMBER PRESERVATION:
-         → Every line must include its 6-digit sequence number
-         → Example: 003240 MOVE X TO Y.
-         → This proves you didn't skip or summarize
-
-      3. NO SUMMARIZATION KEYWORDS:
-         → Automated scan for: "omitted", "similar", "continues", "...", "repeats"
-         → If found in code sections = VALIDATION FAILURE
-
-      4. COMPLETENESS VERIFICATION:
-         → Expected executable lines: {{line_count}} minus comment lines
-         → Your code blocks must contain this exact number
-         → Coverage must be ≥95% of executable lines
-
-      ═══════════════════════════════════════════════════════════════════════════
-      📝 REQUIRED OUTPUT FORMAT
-      ═══════════════════════════════════════════════════════════════════════════
-
-      For each logical code block (paragraph, section, data group):
-
-      ### Block N: [BLOCK-NAME] (Lines X-Y)
+      --------------------------------------------------------------------------
+      ## COBOL Code (Complete Verbatim Copy)
 
       ```cobol
-      [SEQUENCE#] [COMPLETE CODE LINE 1]
-      [SEQUENCE#] [COMPLETE CODE LINE 2]
-      ... (show EVERY line - no skipping!)
-      [SEQUENCE#] [COMPLETE CODE LINE N]
+      [EVERY LINE EXACTLY AS RECEIVED IN INPUT — VERBATIM, NO CHANGES]
+      ```
+
+      --------------------------------------------------------------------------
+      ## Explanation by Block
+
+      For EACH logical block in the program:
+
+      ### Block N: [BLOCK-NAME] (Lines X–Y)
+
+      ```cobol
+      [EXACT LINES X–Y FROM THE ORIGINAL INPUT — VERBATIM]
       ```
 
       **Purpose:**
-      [High-level summary of what this block does]
+      - High-level summary of what the block accomplishes.
 
       **Detailed Explanation:**
-      [Comprehensive explanation covering:]
-      - What the code does (functional purpose)
-      - Why it's structured this way (design rationale)
-      - How control flows through it (execution path)
-      - Important variables and their roles
-      - Conditional logic and branches
-      - Data transformations
-      - External interactions (CALL, PERFORM)
+      - What each line does  
+      - Functional role  
+      - Execution flow  
+      - Conditional logic and branches  
+      - Variables and data elements used  
+      - Data transformations  
+      - File interactions  
+      - External calls  
       - Error handling (if any)
 
       **Technical Details:**
-      - Variables used: [list]
-      - Called by: [caller info]
-      - Calls: [callee info]
-      - Side effects: [file I/O, state changes]
+      - Variables used  
+      - Called by  
+      - Calls  
+      - Side effects  
 
-      ═══════════════════════════════════════════════════════════════════════════
-      📊 MANDATORY SELF-ASSESSMENT (Include at End of Response)
-      ═══════════════════════════════════════════════════════════════════════════
+      --------------------------------------------------------------------------
+      ## Coverage Self-Assessment
 
-      After generating all code blocks, provide this self-assessment:
+      Use the EXACT template below:
 
       ---
-
       ## Coverage Self-Assessment
 
       **Code Blocks Generated:**
@@ -271,31 +237,93 @@ sections:
       - Total excluded: [NUMBER]
 
       **My Calculation:**
-      - Source chunk contained: {{line_count}} total lines (lines {{start_line}}-{{end_line}})
+      - Source chunk contained: {{line_count}} total lines (lines {{start_line}}–{{end_line}})
       - I included: [NUMBER] executable lines in my code blocks
       - I excluded: [NUMBER] comment/page-break lines
-      - Expected executable: {{line_count}} - [excluded count]
+      - Expected executable: {{line_count}} – [excluded count]
       - My self-assessed coverage: [NUMBER]%
 
-      ⚠️ NOTE: This self-assessment will be verified programmatically.
-
+      ⚠️ This section must appear LAST. No text may follow it.
       ---
 
       ═══════════════════════════════════════════════════════════════════════════
-      📌 CRITICAL REMINDERS
+      📌 ABSOLUTE REQUIREMENTS FOR CODE REPRODUCTION (CRITICAL JOB #1)
       ═══════════════════════════════════════════════════════════════════════════
 
-      1. ⚠️ NEVER abbreviate repetitive code for "readability"
-      2. ⚠️ NEVER assume pattern from first few lines
-      3. ⚠️ NEVER skip lines because they seem redundant
-      4. ⚠️ ALWAYS show complete data tables (even if 500+ lines)
-      5. ⚠️ ALWAYS include sequence numbers to prove coverage
-      6. ⚠️ VALIDATION WILL VERIFY: (Your lines / Expected lines) ≥ 95%
+      ✔ MUST copy every character exactly as input  
+      ✔ MUST preserve spacing, indentation, alignment, sequence numbers  
+      ✔ MUST include:
+         - IDENTIFICATION DIVISION (ALL lines)
+         - ENVIRONMENT DIVISION (ALL lines)
+         - DATA DIVISION (ALL lines)
+             → All FD’s  
+             → All 01/05/10/15/77 levels  
+             → All FILLER lines  
+             → All OCCURS tables  
+             → All REDEFINES  
+         - PROCEDURE DIVISION (ALL lines)
+             → Every statement  
+             → Every continuation line  
+             → Every period
+
+      ✔ MUST wrap all code in ```cobol``` blocks
+      ✔ MUST include at least one ```cobol``` code block
+
+      ❌ MUST NOT:
+         - Alter code  
+         - Summarize code  
+         - Compress or combine lines  
+         - Invent missing lines  
+         - Add or remove spaces  
+         - Add commentary inside ```cobol``` blocks  
 
       ═══════════════════════════════════════════════════════════════════════════
-      🎯 Success Metric: Lines in your code blocks / Expected executable lines ≥ 95%
+      📌 REQUIREMENTS FOR BLOCK EXPLANATIONS (CRITICAL JOB #2)
       ═══════════════════════════════════════════════════════════════════════════
 
+      ✔ MUST include each block’s code (verbatim) in its own ```cobol``` block  
+      ✔ MUST provide a detailed explanation for each block  
+      ✔ MUST cover: logic, flow, variables, I/O, calls, transformations  
+
+      ⚠️ Explanation content may be shortened ONLY if token limits force it.
+
+      ❌ Explanations may NOT replace code.  
+      ❌ Blocks may NOT be skipped.  
+
+      ═══════════════════════════════════════════════════════════════════════════
+      🚫 FORBIDDEN KEYWORDS (CAUSES AUTOMATIC VALIDATION FAILURE)
+      ═══════════════════════════════════════════════════════════════════════════
+
+      The following MUST NOT appear in ANY code section:
+
+      - “omitted”  
+      - “skipped”  
+      - “similar”  
+      - “pattern continues”  
+      - “pattern repeats”  
+      - “...” for omission  
+
+      ═══════════════════════════════════════════════════════════════════════════
+      🔍 EXECUTABLE LINE COVERAGE REQUIREMENT
+      ═══════════════════════════════════════════════════════════════════════════
+
+      - Automated validation counts every executable COBOL line in your output.
+      - Expected executable lines = {{line_count}} – [excluded comment/page-break lines]
+      - Your included lines / expected lines must be == 100%.
+
+      ═══════════════════════════════════════════════════════════════════════════
+      🧠 FINAL REMINDERS
+      ═══════════════════════════════════════════════════════════════════════════
+
+      - You must always complete BOTH CRITICAL JOBS unless token limits are exceeded.
+      - If forced to choose due to output length, ALWAYS complete CRITICAL JOB #1 first.
+      - Never alter or summarize code.
+      - Never omit explanations unless token limit requires — and even then, reproduce all code.
+      - The validator checks code fidelity, block coverage, and == 100% line coverage.
+
+      ═══════════════════════════════════════════════════════════════════════════
+      🎯 SUCCESS METRIC: Perfect Verbatim Code + Complete Block Explanations
+      ═══════════════════════════════════════════════════════════════════════════
     template: |
       The following analysis covers the entire source code sequentially, from the first line to the last.
       Each numbered item represents a paragraph or logically grouped set of paragraphs that implement a single functionality.

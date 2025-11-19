@@ -1628,7 +1628,8 @@ def generate_section_content(
     section_config: Dict[str, Any],
     llm_config: Optional[Dict[str, Any]] = None,
     pass_number: Optional[int] = None,
-    chunk_number: Optional[int] = None
+    chunk_number: Optional[int] = None,
+    is_retry: bool = False
 ) -> str:
     """
     Use LLM to generate section content based on template and metadata.
@@ -1688,10 +1689,37 @@ OUTPUT FORMAT:
     # CRITICAL: Use compact JSON (no indent) to reduce token count
     # indent=2 adds ~50% overhead (800K → 1.2M tokens)
     metadata_str = json.dumps(context)
+
+    # RETRY ENHANCEMENT: Build retry emphasis to insert RIGHT AFTER code block
+    # This creates stronger proximity/association between source code and instruction
+    retry_emphasis = ""
+    if is_retry:
+        retry_emphasis = """
+
+=============================================================================
+🚨 CRITICAL RETRY INSTRUCTION 🚨
+=============================================================================
+
+You were asked to READ and RETURN the COBOL source code in response.
+But you have returned INCOMPLETE COBOL source code.
+
+RETURN the COMPLETE COBOL source code THIS TIME.
+
+DO NOT skip lines, summarize, or use ellipsis (...).
+INCLUDE EVERY SINGLE LINE from the source code provided above.
+
+=============================================================================
+"""
+
+    # Place retry emphasis RIGHT AFTER metadata (which contains source code)
+    # This is better than appending at the END because:
+    # 1. Stronger proximity to the actual code content
+    # 2. Creates immediate association: "this is the code" → "return it complete"
+    # 3. Attention mechanism favors nearby context
     user_prompt = f"""Generate documentation for this section using the following metadata:
 
 {metadata_str}
-
+{retry_emphasis}
 Remember:
 - Program name: {context.get('program_name', 'UNKNOWN')}
 - Follow template structure exactly
@@ -1906,95 +1934,107 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         print(f"     Lines: {line_counts['total_lines']} total, {expected_executable} executable, {non_executable} non-executable")
         print(f"     (Comments: {line_counts['comment_lines']}, Page breaks: {line_counts['page_break_lines']})")
 
-        # Generate content for this chunk with SMART RETRY (limited)
+        # ========================================================================
+        # TEST MODE: RETRIES DISABLED - Testing prompt quality alone
+        # ========================================================================
+        # Generate content for this chunk with NO RETRY (testing prompt alone)
         chunk_result = None
         validation_result = None
         explanation_coverage = 0.0  # Initialize for scope
-        max_retries = 1  # Only 1 retry (2 attempts total) - conservative!
+        # max_retries = 1  # COMMENTED OUT - no retries in test mode
 
-        for attempt in range(1, max_retries + 2):  # 1 + 1 retry = 2 attempts max
-            try:
-                current_instruction = instruction + f"\n\n**CHUNK {chunk_num} of {total_chunks}**: Continue numbering from previous chunks."
+        # COMMENTED OUT: Retry loop - testing single attempt with improved prompts
+        # for attempt in range(1, max_retries + 2):  # 1 + 1 retry = 2 attempts max
+        attempt = 1  # SINGLE ATTEMPT ONLY
+        try:
+            current_instruction = instruction + f"\n\n**CHUNK {chunk_num} of {total_chunks}**: Continue numbering from previous chunks."
 
-                # On retry, add sleep and specific feedback about missing lines
-                if attempt > 1:
-                    import time
-                    sleep_duration = 3  # 3 seconds between retries
-                    print(f"  ↻ Retry attempt {attempt} (after {sleep_duration}s cooldown)...")
-                    time.sleep(sleep_duration)
+            # COMMENTED OUT: Retry logic
+            # # On retry, add sleep and specific feedback about missing lines
+            # if attempt > 1:
+            #     import time
+            #     sleep_duration = 3  # 3 seconds between retries
+            #     print(f"  ↻ Retry attempt {attempt} (after {sleep_duration}s cooldown)...")
+            #     time.sleep(sleep_duration)
+            #
+            #     # Add targeted retry feedback (only if coverage < 95%)
+            #     if validation_result.coverage_percentage < 95.0:
+            #         retry_feedback = f"""
+            # **RETRY REQUIRED - Previous attempt had {validation_result.coverage_percentage:.1f}% coverage**
+            # You missed {validation_result.missing_line_count} executable lines.
+            #
+            # 🚨 ANALYSIS: This chunk has {expected_executable} executable lines (excluding {non_executable} comments/page-breaks).
+            # You returned {validation_result.found_lines} lines. You're missing {validation_result.missing_line_count} executable lines.
+            #
+            # COMMON ISSUES:
+            # - Skipping repetitive FILLER definitions (FORBIDDEN!)
+            # - Summarizing data tables with "..." (FORBIDDEN!)
+            # - Omitting "boring" sections for brevity (FORBIDDEN!)
+            # - Using phrases like "similar pattern continues" (FORBIDDEN!)
+            #
+            # YOU MUST:
+            # - Include EVERY executable line with its sequence number
+            # - Show ALL FILLERs even if there are 500+ repetitive ones
+            # - Show ALL data table entries completely
+            # - Never use abbreviation, summarization, or ellipsis
+            # - Include complete WORKING-STORAGE and FILE SECTION layouts
+            # """
+            #         current_instruction = retry_feedback + "\n" + current_instruction
 
-                    # Add targeted retry feedback (only if coverage < 95%)
-                    if validation_result.coverage_percentage < 95.0:
-                        retry_feedback = f"""
-**RETRY REQUIRED - Previous attempt had {validation_result.coverage_percentage:.1f}% coverage**
-You missed {validation_result.missing_line_count} executable lines.
+            chunk_result = generate_section_content(
+                section_id,
+                f"{section_title} - Chunk {chunk_num}/{total_chunks}",
+                current_instruction,
+                template,
+                chunk_context,
+                {},  # section_config
+                llm_config,
+                pass_number=pass_number,
+                chunk_number=chunk_num,
+                is_retry=False  # Never retry in test mode
+            )
 
-🚨 ANALYSIS: This chunk has {expected_executable} executable lines (excluding {non_executable} comments/page-breaks).
-You returned {validation_result.found_lines} lines. You're missing {validation_result.missing_line_count} executable lines.
+            # Validate chunk result against expected executable lines
+            validator = ChunkDocumentationValidator(chunk_info, chunk_result)
+            validation_result = validator.validate(min_coverage_percentage=100.0)
 
-COMMON ISSUES:
-- Skipping repetitive FILLER definitions (FORBIDDEN!)
-- Summarizing data tables with "..." (FORBIDDEN!)
-- Omitting "boring" sections for brevity (FORBIDDEN!)
-- Using phrases like "similar pattern continues" (FORBIDDEN!)
+            # Calculate explanation coverage (LLM's code vs expected executable)
+            explanation_coverage = (validation_result.found_lines / expected_executable * 100) if expected_executable > 0 else 0
 
-YOU MUST:
-- Include EVERY executable line with its sequence number
-- Show ALL FILLERs even if there are 500+ repetitive ones
-- Show ALL data table entries completely
-- Never use abbreviation, summarization, or ellipsis
-- Include complete WORKING-STORAGE and FILE SECTION layouts
-"""
-                        current_instruction = retry_feedback + "\n" + current_instruction
+            # TEST MODE: Just log coverage, no retry decisions
+            if validation_result.found_lines >= expected_executable * 0.95:  # 95% threshold
+                print(f"  ✓ Complete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{expected_executable} executable lines)")
+                print(f"     [TEST MODE] LLM returned complete code")
+                validation_stats['validated'] += 1
+            else:
+                print(f"  ⚠ Incomplete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{expected_executable} executable lines)")
+                print(f"     Missing: {expected_executable - validation_result.found_lines} executable lines")
+                print(f"     [TEST MODE] Recording LLM coverage as-is (no retry, no fallback)")
+                validation_stats['incomplete'] += 1
 
-                chunk_result = generate_section_content(
-                    section_id,
-                    f"{section_title} - Chunk {chunk_num}/{total_chunks}",
-                    current_instruction,
-                    template,
-                    chunk_context,
-                    {},  # section_config
-                    llm_config,
-                    pass_number=pass_number,
-                    chunk_number=chunk_num
-                )
+            # COMMENTED OUT: Retry decision logic
+            #     # Only retry if coverage is below 95% and we have retries left
+            #     if explanation_coverage >= 95.0:
+            #         print(f"     → Accepting (explanation coverage ≥ 95%)")
+            #         validation_stats['incomplete'] += 1
+            #         break  # Good enough, don't retry
+            #     elif attempt >= max_retries + 1:
+            #         print(f"     → Max retries reached, accepting result")
+            #         validation_stats['incomplete'] += 1
+            #         break  # Out of retries
+            #     else:
+            #         # Retry (only for < 80% coverage)
+            #         continue
 
-                # Validate chunk result against expected executable lines
-                validator = ChunkDocumentationValidator(chunk_info, chunk_result)
-                validation_result = validator.validate(min_coverage_percentage=100.0)
-
-                # Calculate explanation coverage (LLM's code vs expected executable)
-                explanation_coverage = (validation_result.found_lines / expected_executable * 100) if expected_executable > 0 else 0
-
-                if validation_result.found_lines >= expected_executable * 0.95:  # 95% threshold
-                    print(f"  ✓ Complete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{expected_executable} executable lines)")
-                    print(f"     Source coverage: 100% (using original chunk)")
-                    validation_stats['validated'] += 1
-                    break  # Success!
-                else:
-                    print(f"  ⚠ Incomplete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{expected_executable} executable lines)")
-                    print(f"     Missing: {expected_executable - validation_result.found_lines} executable lines")
-                    print(f"     Source coverage: 100% (will use original chunk)")
-
-                    # Only retry if coverage is below 95% and we have retries left
-                    if explanation_coverage >= 95.0:
-                        print(f"     → Accepting (explanation coverage ≥ 95%)")
-                        validation_stats['incomplete'] += 1
-                        break  # Good enough, don't retry
-                    elif attempt >= max_retries + 1:
-                        print(f"     → Max retries reached, accepting result")
-                        validation_stats['incomplete'] += 1
-                        break  # Out of retries
-                    else:
-                        # Retry (only for < 80% coverage)
-                        continue
-
-            except Exception as e:
-                print(f"  ✗ Attempt {attempt} failed: {e}")
-                if attempt >= max_retries + 1:
-                    chunk_result = f"\n\n**[Chunk {chunk_num} processing failed: {e}]**\n\n"
-                    validation_stats['incomplete'] += 1
-                    break
+        except Exception as e:
+            print(f"  ✗ Attempt {attempt} failed: {e}")
+            chunk_result = f"\n\n**[Chunk {chunk_num} processing failed: {e}]**\n\n"
+            validation_stats['incomplete'] += 1
+            # COMMENTED OUT: Retry on exception
+            # if attempt >= max_retries + 1:
+            #     chunk_result = f"\n\n**[Chunk {chunk_num} processing failed: {e}]**\n\n"
+            #     validation_stats['incomplete'] += 1
+            #     break
 
         # Track coverage
         if validation_result:
@@ -2008,36 +2048,58 @@ YOU MUST:
                     'chunk_info': chunk_info
                 })
 
-        # Build final chunk documentation: Original source + LLM explanations
+        # ========================================================================
+        # TEST MODE: Use ONLY LLM response - no original source fallback
+        # ========================================================================
+        # COMMENTED OUT: Build final chunk documentation with original source fallback
         if chunk_result:
-            # Extract explanations from LLM response (removes code blocks)
-            llm_explanations = extract_explanations_from_llm_response(chunk_result)
+            # COMMENTED OUT: Extract explanations and add original source
+            # # Extract explanations from LLM response (removes code blocks)
+            # llm_explanations = extract_explanations_from_llm_response(chunk_result)
+            #
+            # # Build complete chunk doc with original source (100% coverage guaranteed)
+            # final_chunk_doc = f"""
+            # ## Chunk {chunk_num}/{total_chunks}: Lines {chunk_info['start_line']}-{chunk_info['end_line']}
+            #
+            # ### Complete Source Code
+            #
+            # ```cobol
+            # {chunk_info['content']}```
+            #
+            # **Coverage:** 100% ({chunk_info['line_count']} lines) - Using original chunk source
+            #
+            # ---
+            #
+            # ### Detailed Explanations
+            #
+            # {llm_explanations}
+            #
+            # ---
+            #
+            # **Validation Summary:**
+            # - Total lines in chunk: {line_counts['total_lines']}
+            # - Executable lines: {line_counts['executable_lines']}
+            # - Non-executable (comments/page-breaks): {line_counts['non_executable_lines']}
+            # - LLM explanation coverage: {explanation_coverage:.1f}%
+            # - Source coverage: 100% (guaranteed)
+            #
+            # """
 
-            # Build complete chunk doc with original source (100% coverage guaranteed)
+            # TEST MODE: Use raw LLM response as-is (no source fallback)
             final_chunk_doc = f"""
 ## Chunk {chunk_num}/{total_chunks}: Lines {chunk_info['start_line']}-{chunk_info['end_line']}
 
-### Complete Source Code
-
-```cobol
-{chunk_info['content']}```
-
-**Coverage:** 100% ({chunk_info['line_count']} lines) - Using original chunk source
+{chunk_result}
 
 ---
 
-### Detailed Explanations
-
-{llm_explanations}
-
----
-
-**Validation Summary:**
+**[TEST MODE] Validation Summary:**
 - Total lines in chunk: {line_counts['total_lines']}
-- Executable lines: {line_counts['executable_lines']}
+- Executable lines expected: {line_counts['executable_lines']}
 - Non-executable (comments/page-breaks): {line_counts['non_executable_lines']}
-- LLM explanation coverage: {explanation_coverage:.1f}%
-- Source coverage: 100% (guaranteed)
+- LLM returned lines: {validation_result.found_lines if validation_result else 0}
+- LLM coverage: {explanation_coverage:.1f}%
+- **Using ONLY LLM response (no source fallback)**
 
 """
             all_results.append(final_chunk_doc)
@@ -2290,7 +2352,8 @@ Validation will verify 100% coverage.
                     {},
                     llm_config,
                     pass_number=pass_number,
-                    chunk_number=chunk_num
+                    chunk_number=chunk_num,
+                    is_retry=(attempt > 1)  # Add retry emphasis on subsequent attempts
                 )
 
                 # Validate
