@@ -3,10 +3,15 @@
 Chunk Documentation Validation using Pydantic
 
 Validates that generated markdown documentation contains ALL source code lines
-from the expected chunk range. Uses reconstruction method for accuracy.
+from the expected chunk range.
+
+Supports two validation strategies:
+1. Pattern-based: Fast validation using configurable line identifier patterns (e.g., COBOL sequence numbers)
+2. Diff-based: Robust fallback using content comparison (language-agnostic)
 """
 
 import re
+import difflib
 from typing import List, Set, Dict, Any, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -22,6 +27,7 @@ class ChunkValidationResult(BaseModel):
     extra_lines: List[int] = Field(default_factory=list, description="Lines found but not expected")
     error_message: Optional[str] = Field(None, description="Error message if validation failed")
     validation_details: Dict[str, Any] = Field(default_factory=dict, description="Additional validation details")
+    validation_method: Optional[str] = Field(None, description="Method used for validation: 'pattern-based' or 'diff-based'")
 
     @field_validator('coverage_percentage')
     @classmethod
@@ -50,15 +56,23 @@ class ChunkValidationResult(BaseModel):
 
 
 class ChunkDocumentationValidator:
-    """Validates chunk documentation against expected source code"""
+    """
+    Validates chunk documentation against expected source code.
 
-    def __init__(self, chunk: Dict[str, Any], markdown_output: str):
+    Supports two validation strategies:
+    1. Pattern-based: Uses configurable regex pattern to extract line identifiers
+    2. Diff-based: Compares actual content using difflib (fallback)
+    """
+
+    def __init__(self, chunk: Dict[str, Any], markdown_output: str, line_pattern: Optional[str] = None):
         """
         Initialize validator.
 
         Args:
-            chunk: Chunk metadata with start_line, end_line, line_count
+            chunk: Chunk metadata with start_line, end_line, line_count, content
             markdown_output: Generated markdown documentation to validate
+            line_pattern: Optional regex pattern for line identifiers (e.g., r'^\d{6}' for COBOL)
+                         If not provided, will check chunk metadata for 'line_identifier_pattern'
         """
         self.chunk = chunk
         self.markdown = markdown_output
@@ -66,19 +80,57 @@ class ChunkDocumentationValidator:
         self.end_line = chunk['end_line']
         self.expected_line_count = chunk['line_count']
 
+        # Get line pattern from: parameter > chunk metadata > default
+        self.line_pattern = (
+            line_pattern or
+            chunk.get('line_identifier_pattern') or
+            r'^\d{6}'  # Default: COBOL sequence numbers
+        )
+
+    def _has_line_pattern(self) -> bool:
+        """Check if a line pattern is available for pattern-based validation"""
+        return self.line_pattern is not None
+
+    def _extract_code_blocks_from_markdown(self) -> str:
+        """
+        Extract all code blocks from markdown output.
+
+        Returns:
+            Concatenated code from all code blocks
+        """
+        # Match: ```language\nCODE\n```
+        pattern = r'```\w*\n(.*?)\n```'
+        blocks = re.findall(pattern, self.markdown, re.DOTALL)
+        return '\n'.join(blocks)
+
+    def extract_line_identifiers_from_text(self, text: str) -> Set[str]:
+        """
+        Extract line identifiers from text using the configured pattern.
+
+        Args:
+            text: Source text to extract from
+
+        Returns:
+            Set of line identifier strings (e.g., {'000010', '000012', ...})
+        """
+        pattern = re.compile(self.line_pattern, re.MULTILINE)
+        matches = pattern.findall(text)
+        return set(matches)
+
     def extract_sequence_numbers(self) -> Set[int]:
         """
-        Extract all COBOL sequence numbers from markdown.
+        Extract all COBOL sequence numbers from markdown (backward compatibility).
 
         Returns:
             Set of sequence numbers found in markdown
         """
-        # Pattern: Lines starting with 6-digit sequence number
-        # Example: "000010 IDENTIFICATION DIVISION."
-        sequence_pattern = re.compile(r'^(\d{6})\s', re.MULTILINE)
-        sequences_found = sequence_pattern.findall(self.markdown)
-
-        return set(int(seq) for seq in sequences_found)
+        identifiers = self.extract_line_identifiers_from_text(self.markdown)
+        # Convert to integers if possible
+        try:
+            return set(int(seq) for seq in identifiers)
+        except ValueError:
+            # Not all integers - return as-is
+            return set()
 
     def sequence_to_line(self, sequence: int) -> int:
         """
@@ -159,9 +211,167 @@ class ChunkDocumentationValidator:
 
         return ranges
 
+    def _validate_by_pattern(self, min_coverage: float = 100.0) -> ChunkValidationResult:
+        """
+        Validate using pattern-based line identifier extraction.
+        Fast but requires correct pattern configuration.
+
+        Args:
+            min_coverage: Minimum acceptable coverage percentage
+
+        Returns:
+            ChunkValidationResult with validation details
+        """
+        # Extract identifiers from source chunk
+        source_code = self.chunk.get('content', '')
+        expected_identifiers = self.extract_line_identifiers_from_text(source_code)
+
+        # Extract identifiers from LLM output
+        llm_code = self._extract_code_blocks_from_markdown()
+        documented_identifiers = self.extract_line_identifiers_from_text(llm_code)
+
+        # Calculate coverage
+        if not expected_identifiers:
+            # Pattern found nothing - this validation method failed
+            return ChunkValidationResult(
+                is_valid=False,
+                expected_lines=0,
+                found_lines=0,
+                coverage_percentage=0.0,
+                missing_line_count=0,
+                validation_method='pattern-based',
+                error_message="Pattern-based validation failed: no line identifiers found in source"
+            )
+
+        missing = expected_identifiers - documented_identifiers
+        found = expected_identifiers & documented_identifiers
+        extra = documented_identifiers - expected_identifiers
+
+        coverage = (len(found) / len(expected_identifiers) * 100)
+        is_valid = (coverage >= min_coverage and len(missing) == 0)
+
+        # Build error message
+        error_message = None
+        if not is_valid:
+            error_message = (
+                f"INCOMPLETE DOCUMENTATION: Missing {len(missing)} line identifiers "
+                f"({100 - coverage:.2f}% of chunk). "
+                f"Expected {len(expected_identifiers)} identifiers, "
+                f"found {len(found)}."
+            )
+
+        # Build validation details
+        validation_details = {
+            'validation_strategy': 'pattern-based',
+            'pattern_used': self.line_pattern,
+            'expected_identifier_count': len(expected_identifiers),
+            'found_identifier_count': len(found),
+            'missing_identifier_count': len(missing),
+            'extra_identifier_count': len(extra)
+        }
+
+        return ChunkValidationResult(
+            is_valid=is_valid,
+            expected_lines=len(expected_identifiers),
+            found_lines=len(found),
+            coverage_percentage=coverage,
+            missing_line_ranges=[],  # Not applicable for pattern-based
+            missing_line_count=len(missing),
+            extra_lines=[],  # Not applicable for pattern-based
+            error_message=error_message,
+            validation_details=validation_details,
+            validation_method='pattern-based'
+        )
+
+    def _validate_by_diff(self, min_coverage: float = 100.0) -> ChunkValidationResult:
+        """
+        Validate by comparing actual source content vs LLM output using difflib.
+        Language-agnostic fallback method.
+
+        Args:
+            min_coverage: Minimum acceptable coverage percentage
+
+        Returns:
+            ChunkValidationResult with validation details
+        """
+        # Get source code from chunk
+        source_code = self.chunk.get('content', '').strip()
+        source_lines = [line for line in source_code.split('\n') if line.strip()]  # Non-empty lines
+
+        # Extract all code blocks from LLM markdown
+        llm_code = self._extract_code_blocks_from_markdown().strip()
+        llm_lines = [line for line in llm_code.split('\n') if line.strip()]  # Non-empty lines
+
+        if not source_lines:
+            return ChunkValidationResult(
+                is_valid=False,
+                expected_lines=0,
+                found_lines=0,
+                coverage_percentage=0.0,
+                missing_line_count=0,
+                validation_method='diff-based',
+                error_message="Diff-based validation failed: no source lines found"
+            )
+
+        # Compare using difflib
+        matcher = difflib.SequenceMatcher(
+            isjunk=lambda x: x.strip() == '',
+            a=source_lines,
+            b=llm_lines
+        )
+
+        # Calculate similarity ratio
+        similarity_ratio = matcher.ratio()  # 0.0 to 1.0
+        coverage_percentage = similarity_ratio * 100
+
+        # Find missing/changed lines
+        missing_line_indices = []
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag in ('delete', 'replace'):
+                # Lines in source but not in LLM output (or changed)
+                missing_line_indices.extend(range(i1, i2))
+
+        is_valid = (coverage_percentage >= min_coverage)
+
+        # Build error message
+        error_message = None
+        if not is_valid:
+            error_message = (
+                f"INCOMPLETE DOCUMENTATION: {coverage_percentage:.1f}% content match. "
+                f"Expected {len(source_lines)} lines, "
+                f"found {len(llm_lines)} lines. "
+                f"Approximately {len(missing_line_indices)} lines missing or changed."
+            )
+
+        # Build validation details
+        validation_details = {
+            'validation_strategy': 'diff-based',
+            'source_line_count': len(source_lines),
+            'llm_line_count': len(llm_lines),
+            'similarity_ratio': similarity_ratio,
+            'missing_or_changed_lines': len(missing_line_indices)
+        }
+
+        return ChunkValidationResult(
+            is_valid=is_valid,
+            expected_lines=len(source_lines),
+            found_lines=len(llm_lines),
+            coverage_percentage=coverage_percentage,
+            missing_line_ranges=[],  # Not applicable for diff-based
+            missing_line_count=len(missing_line_indices),
+            extra_lines=[],
+            error_message=error_message,
+            validation_details=validation_details,
+            validation_method='diff-based'
+        )
+
     def validate(self, min_coverage_percentage: float = 100.0) -> ChunkValidationResult:
         """
-        Validate chunk documentation.
+        Validate chunk documentation using hybrid approach.
+
+        Strategy:
+        1. Try pattern-based validation (fast) if pattern is available
+        2. If pattern-based finds 0 lines or fails, fall back to diff-based (robust)
 
         Args:
             min_coverage_percentage: Minimum acceptable coverage (default 100%)
@@ -169,73 +379,20 @@ class ChunkDocumentationValidator:
         Returns:
             ChunkValidationResult with validation details
         """
-        # Expected lines for this chunk
-        expected_lines = set(range(self.start_line, self.end_line + 1))
+        # Strategy 1: Pattern-based validation (if pattern available)
+        if self._has_line_pattern():
+            result = self._validate_by_pattern(min_coverage_percentage)
 
-        # Documented lines found in markdown
-        documented_lines = self.extract_documented_lines()
+            # Check if pattern-based validation succeeded
+            if result.found_lines > 0:
+                # Pattern found something - use this result
+                return result
 
-        # Find missing and extra lines
-        missing_lines = expected_lines - documented_lines
-        extra_lines = documented_lines - expected_lines
+            # Pattern failed to find anything - fall back to diff
+            print(f"  ⚠ Pattern validation found 0 lines (pattern may be incorrect), falling back to diff-based validation")
 
-        # Calculate coverage
-        found_count = len(documented_lines.intersection(expected_lines))
-        coverage_percentage = (found_count / len(expected_lines) * 100) if expected_lines else 0.0
-
-        # Find missing ranges
-        missing_ranges = self.find_missing_ranges(missing_lines)
-
-        # Determine if valid
-        is_valid = (coverage_percentage >= min_coverage_percentage and len(missing_lines) == 0)
-
-        # Create error message if invalid
-        error_message = None
-        if not is_valid:
-            if missing_lines:
-                error_message = (
-                    f"INCOMPLETE DOCUMENTATION: Missing {len(missing_lines)} lines "
-                    f"({100 - coverage_percentage:.2f}% of chunk). "
-                    f"Expected lines {self.start_line}-{self.end_line}, "
-                    f"but found only {found_count} lines. "
-                )
-
-                if missing_ranges:
-                    # Show first 5 gap ranges
-                    gap_examples = []
-                    for start, end in missing_ranges[:5]:
-                        gap_size = end - start + 1
-                        seq_start = self.line_to_sequence(start)
-                        seq_end = self.line_to_sequence(end)
-                        gap_examples.append(
-                            f"Lines {start}-{end} (Sequences {seq_start:06d}-{seq_end:06d}, {gap_size} lines)"
-                        )
-
-                    error_message += "\nLargest gaps:\n  - " + "\n  - ".join(gap_examples)
-
-                    if len(missing_ranges) > 5:
-                        error_message += f"\n  - ... and {len(missing_ranges) - 5} more gaps"
-
-        # Build validation details
-        validation_details = {
-            'chunk_start': self.start_line,
-            'chunk_end': self.end_line,
-            'expected_sequences': f"{self.line_to_sequence(self.start_line):06d}-{self.line_to_sequence(self.end_line):06d}",
-            'total_gaps': len(missing_ranges),
-            'largest_gap_size': max((end - start + 1 for start, end in missing_ranges), default=0)
-        }
-
-        return ChunkValidationResult(
-            is_valid=is_valid,
-            expected_lines=len(expected_lines),
-            found_lines=found_count,
-            coverage_percentage=coverage_percentage,
-            missing_line_ranges=missing_ranges,
-            missing_line_count=len(missing_lines),
-            extra_lines=sorted(extra_lines),
-            error_message=error_message,
-            validation_details=validation_details
-        )
+        # Strategy 2: Diff-based validation (fallback or no pattern available)
+        return self._validate_by_diff(min_coverage_percentage)
 
     def create_retry_prompt(self, validation_result: ChunkValidationResult) -> str:
         """
@@ -261,7 +418,7 @@ YOU MUST FIX THIS BY:
 1. Including EVERY line from {self.start_line} to {self.end_line} in your code blocks
 2. Do NOT skip data tables, FILLERs, comments, or any content
 3. Show ALL repetitive code - no abbreviation or summarization
-4. Ensure every line appears with its 6-digit sequence number
+4. Ensure every line appears with its line identifier
 
 MISSING LINE RANGES (you MUST add these):
 """
@@ -279,9 +436,9 @@ MISSING LINE RANGES (you MUST add these):
 
 INSTRUCTIONS FOR RETRY:
 1. Review the source code for lines {self.start_line}-{self.end_line}
-2. Include EVERY line in your markdown code blocks (```cobol ... ```)
+2. Include EVERY line in your markdown code blocks
 3. Even boring/repetitive code MUST be included
-4. Data Division tables with hundreds of FILLER entries MUST be shown completely
+4. Data tables with hundreds of entries MUST be shown completely
 5. Comments MUST be included
 6. Validation will check that all {self.expected_line_count} lines are present
 
@@ -316,8 +473,12 @@ if __name__ == "__main__":
     print("Chunk Documentation Validator")
     print("=" * 80)
     print("\nThis module validates that generated markdown contains all expected source lines.")
+    print("\nSupports two validation strategies:")
+    print("  1. Pattern-based: Fast validation using line identifier patterns")
+    print("  2. Diff-based: Robust content comparison (language-agnostic fallback)")
     print("\nUsage:")
     print("  from chunk_validation import validate_chunk_documentation")
     print("  result = validate_chunk_documentation(chunk, markdown_output)")
     print("  if not result.is_valid:")
     print("      print(result.error_message)")
+    print(f"  print(f'Validation method: {result.validation_method}')")

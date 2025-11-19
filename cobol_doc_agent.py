@@ -1501,6 +1501,7 @@ def _write_llm_request_debug_file(
     """
     import os
     from pathlib import Path
+    from source_chunker import estimate_tokens
 
     # Create request directory if it doesn't exist
     request_dir = Path("./request")
@@ -1528,9 +1529,9 @@ def _write_llm_request_debug_file(
         filename = f"{base_filename}-attempt-{attempt}.md"
         filepath = request_dir / filename
 
-    # Calculate token estimates
-    system_tokens = len(system_prompt) // 4
-    user_tokens = len(user_prompt) // 4
+    # Calculate accurate token counts using tiktoken
+    system_tokens = estimate_tokens(system_prompt, model=model if model != "unknown" else "gpt-4")
+    user_tokens = estimate_tokens(user_prompt, model=model if model != "unknown" else "gpt-4")
     total_tokens = system_tokens + user_tokens
 
     # Build debug content
@@ -1543,12 +1544,11 @@ Generated: {datetime.now().isoformat()}
 - **Model**: {model}
 - **Chunk Number**: {chunk_number if chunk_number else 'N/A'}
 - **Pass Number**: {pass_number if pass_number else 'N/A'}
-- **Attempt Number**: {attempt if attempt > 1 else 1} {'(RETRY)' if attempt > 1 else '(INITIAL)'}
 
-## Token Estimates (4 chars/token)
-- **System Prompt**: ~{system_tokens:,} tokens
-- **User Prompt**: ~{user_tokens:,} tokens
-- **Total Input**: ~{total_tokens:,} tokens
+## Token Counts (measured with tiktoken)
+- **System Prompt**: {system_tokens:,} tokens
+- **User Prompt**: {user_tokens:,} tokens
+- **Total Input**: {total_tokens:,} tokens
 
 ---
 
@@ -1924,15 +1924,14 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         chunk_context['end_line'] = chunk_info['end_line']
         chunk_context['line_count'] = chunk_info['line_count']
 
-        # Count non-executable lines in this chunk (comments and page breaks)
-        # Use splitlines() to avoid off-by-one error with trailing newline
-        chunk_lines = chunk_info['content'].splitlines()
-        line_counts = count_non_executable_lines(chunk_lines)
-        expected_executable = line_counts['executable_lines']
-        non_executable = line_counts['non_executable_lines']
+        # Add line identifier pattern for language-agnostic validation
+        chunk_info['line_identifier_pattern'] = r'^\d{6}'  # COBOL sequence numbers
 
-        print(f"     Lines: {line_counts['total_lines']} total, {expected_executable} executable, {non_executable} non-executable")
-        print(f"     (Comments: {line_counts['comment_lines']}, Page breaks: {line_counts['page_break_lines']})")
+        # Count total lines in this chunk for logging
+        chunk_lines = chunk_info['content'].splitlines()
+        total_lines_in_chunk = len(chunk_lines)
+
+        print(f"     Lines: {total_lines_in_chunk} total")
 
         # ========================================================================
         # TEST MODE: RETRIES DISABLED - Testing prompt quality alone
@@ -1961,10 +1960,10 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             #     if validation_result.coverage_percentage < 95.0:
             #         retry_feedback = f"""
             # **RETRY REQUIRED - Previous attempt had {validation_result.coverage_percentage:.1f}% coverage**
-            # You missed {validation_result.missing_line_count} executable lines.
+            # You missed {validation_result.missing_line_count} lines.
             #
-            # 🚨 ANALYSIS: This chunk has {expected_executable} executable lines (excluding {non_executable} comments/page-breaks).
-            # You returned {validation_result.found_lines} lines. You're missing {validation_result.missing_line_count} executable lines.
+            # 🚨 ANALYSIS: This chunk has {validation_result.expected_lines} expected lines.
+            # You returned {validation_result.found_lines} lines. You're missing {validation_result.missing_line_count} lines.
             #
             # COMMON ISSUES:
             # - Skipping repetitive FILLER definitions (FORBIDDEN!)
@@ -1994,21 +1993,21 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
                 is_retry=False  # Never retry in test mode
             )
 
-            # Validate chunk result against expected executable lines
+            # Validate chunk result against expected lines
             validator = ChunkDocumentationValidator(chunk_info, chunk_result)
             validation_result = validator.validate(min_coverage_percentage=100.0)
 
-            # Calculate explanation coverage (LLM's code vs expected executable)
-            explanation_coverage = (validation_result.found_lines / expected_executable * 100) if expected_executable > 0 else 0
+            # Calculate explanation coverage (LLM's code vs expected lines)
+            explanation_coverage = validation_result.coverage_percentage
 
             # TEST MODE: Just log coverage, no retry decisions
-            if validation_result.found_lines >= expected_executable * 0.95:  # 95% threshold
-                print(f"  ✓ Complete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{expected_executable} executable lines)")
+            if validation_result.coverage_percentage >= 95.0:  # 95% threshold
+                print(f"  ✓ Complete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{validation_result.expected_lines} lines)")
                 print(f"     [TEST MODE] LLM returned complete code")
                 validation_stats['validated'] += 1
             else:
-                print(f"  ⚠ Incomplete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{expected_executable} executable lines)")
-                print(f"     Missing: {expected_executable - validation_result.found_lines} executable lines")
+                print(f"  ⚠ Incomplete: {explanation_coverage:.1f}% coverage ({validation_result.found_lines}/{validation_result.expected_lines} lines)")
+                print(f"     Missing: {validation_result.missing_line_count} lines")
                 print(f"     [TEST MODE] Recording LLM coverage as-is (no retry, no fallback)")
                 validation_stats['incomplete'] += 1
 
@@ -2077,9 +2076,9 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             # ---
             #
             # **Validation Summary:**
-            # - Total lines in chunk: {line_counts['total_lines']}
-            # - Executable lines: {line_counts['executable_lines']}
-            # - Non-executable (comments/page-breaks): {line_counts['non_executable_lines']}
+            # - Total lines in chunk: {total_lines_in_chunk}
+            # - Expected lines: {validation_result.expected_lines}
+            # - LLM returned lines: {validation_result.found_lines}
             # - LLM explanation coverage: {explanation_coverage:.1f}%
             # - Source coverage: 100% (guaranteed)
             #
@@ -2094,11 +2093,11 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
 ---
 
 **[TEST MODE] Validation Summary:**
-- Total lines in chunk: {line_counts['total_lines']}
-- Executable lines expected: {line_counts['executable_lines']}
-- Non-executable (comments/page-breaks): {line_counts['non_executable_lines']}
+- Total lines in chunk: {total_lines_in_chunk}
+- Expected lines: {validation_result.expected_lines if validation_result else total_lines_in_chunk}
 - LLM returned lines: {validation_result.found_lines if validation_result else 0}
 - LLM coverage: {explanation_coverage:.1f}%
+- Validation method: {validation_result.validation_method if validation_result else 'N/A'}
 - **Using ONLY LLM response (no source fallback)**
 
 """
