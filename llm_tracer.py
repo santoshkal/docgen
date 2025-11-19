@@ -278,12 +278,13 @@ class LLMCallTracer:
 
         print("=" * 80)
 
-    def write_detailed_report(self, report_file: str = "llm_trace_report.txt"):
+    def write_detailed_report(self, report_file: str = "llm_trace_report.txt", coverage_result: dict = None):
         """
         Write detailed text report with all calls.
 
         Args:
             report_file: Path to report file
+            coverage_result: Optional coverage calculation result from code explanation
         """
         with open(report_file, 'w') as f:
             f.write("=" * 80 + "\n")
@@ -296,11 +297,22 @@ class LLMCallTracer:
             summary = self.get_summary()
             f.write("SUMMARY\n")
             f.write("-" * 80 + "\n")
-            f.write(f"Total Calls:       {summary['total_calls']}\n")
-            f.write(f"Total Duration:    {summary['total_duration_minutes']} minutes\n")
-            f.write(f"Total Input Tokens: {summary['total_input_tokens']:,}\n")
+            f.write(f"Total Calls:        {summary['total_calls']}\n")
+            f.write(f"Total Duration:     {summary['total_duration_minutes']} minutes\n")
+            f.write(f"Total Input Tokens:  {summary['total_input_tokens']:,}\n")
             f.write(f"Total Output Tokens: {summary['total_output_tokens']:,}\n")
-            f.write(f"Total Tokens:      {summary['total_tokens']:,}\n\n")
+            f.write(f"Total Tokens:       {summary['total_tokens']:,}\n")
+
+            # Add code explanation coverage if available
+            if coverage_result and not coverage_result.get('error'):
+                coverage_pct = coverage_result['coverage_percentage']
+                found = coverage_result['found_lines']
+                expected = coverage_result['expected_lines']
+                f.write(f"Code explanation Coverage: {coverage_pct:.1f}% ({found:,}/{expected:,} lines)\n")
+            elif coverage_result and coverage_result.get('error'):
+                f.write(f"Code explanation Coverage: N/A ({coverage_result['error']})\n")
+
+            f.write("\n")
 
             # Individual calls
             f.write("INDIVIDUAL CALLS\n")
@@ -380,12 +392,124 @@ class LLMCallTracer:
         with open(json_file, 'w') as f:
             json.dump(trace_document, f, indent=2, sort_keys=False)
 
-    def finalize(self):
+    def calculate_code_explanation_coverage(self, doc_path: str, source_path: str) -> dict:
+        """
+        Calculate coverage of code blocks in the detailed-code-explanation section.
+
+        This extracts all code blocks from the "Detailed Code Explanation" section
+        and compares them against the original source file using difflib.
+
+        Args:
+            doc_path: Path to generated documentation markdown file
+            source_path: Path to original COBOL source file
+
+        Returns:
+            Dictionary with coverage_percentage, expected_lines, found_lines
+        """
+        from pathlib import Path
+        import re
+        import difflib
+
+        try:
+            # Read documentation file
+            if not Path(doc_path).exists():
+                return {
+                    'coverage_percentage': 0.0,
+                    'expected_lines': 0,
+                    'found_lines': 0,
+                    'error': 'Documentation file not found'
+                }
+
+            with open(doc_path, 'r') as f:
+                doc_content = f.read()
+
+            # Extract all code blocks from chunk sections
+            # Each chunk has: ## Chunk N/M ... followed by ## COBOL Code (Complete Verbatim Copy)
+            # We need to extract ONLY the first code block after "COBOL Code (Complete Verbatim Copy)"
+            # to avoid including example snippets from explanations
+
+            # Find all "## COBOL Code (Complete Verbatim Copy)" sections
+            # Pattern: ## COBOL Code ... followed by ```cobol\nCODE\n```
+            chunk_code_pattern = r'##\s+COBOL Code \(Complete Verbatim Copy\)\s*\n+```(?:cobol)?\n(.*?)\n```'
+            code_blocks = re.findall(chunk_code_pattern, doc_content, re.DOTALL)
+
+            if not code_blocks:
+                # Try alternative pattern without language specifier
+                chunk_code_pattern = r'##\s+Chunk\s+\d+/\d+:.*?\n.*?```(?:\w*)\n(.*?)\n```'
+                code_blocks = re.findall(chunk_code_pattern, doc_content, re.DOTALL)
+
+            if not code_blocks:
+                return {
+                    'coverage_percentage': 0.0,
+                    'expected_lines': 0,
+                    'found_lines': 0,
+                    'error': 'No code blocks found in section'
+                }
+
+            # Concatenate all code blocks
+            llm_code = '\n'.join(code_blocks)
+
+            # Filter to get only lines with COBOL sequence numbers (actual source code)
+            # This excludes example snippets the LLM might create in explanations
+            sequence_pattern = re.compile(r'^(\d{6})\s', re.MULTILINE)
+            llm_lines_with_seq = [line for line in llm_code.split('\n') if sequence_pattern.match(line)]
+
+            # Read original source file
+            if not Path(source_path).exists():
+                return {
+                    'coverage_percentage': 0.0,
+                    'expected_lines': 0,
+                    'found_lines': len(llm_lines_with_seq),
+                    'error': 'Source file not found'
+                }
+
+            with open(source_path, 'r') as f:
+                source_code = f.read()
+
+            # Get all source lines (non-empty)
+            source_lines = [line for line in source_code.split('\n') if line.strip()]
+
+            # Calculate coverage using difflib
+            matcher = difflib.SequenceMatcher(a=source_lines, b=llm_lines_with_seq)
+            coverage_ratio = matcher.ratio()
+            coverage_percentage = coverage_ratio * 100.0
+
+            return {
+                'coverage_percentage': round(coverage_percentage, 1),
+                'expected_lines': len(source_lines),
+                'found_lines': len(llm_lines_with_seq),
+                'error': None
+            }
+
+        except Exception as e:
+            return {
+                'coverage_percentage': 0.0,
+                'expected_lines': 0,
+                'found_lines': 0,
+                'error': f'Coverage calculation failed: {str(e)}'
+            }
+
+    def finalize(self, doc_path: str = None, source_path: str = None):
         """
         Finalize tracing session.
 
         Writes summary to log file and generates reports.
+
+        Args:
+            doc_path: Optional path to generated documentation file (for coverage calculation)
+            source_path: Optional path to original source file (for coverage calculation)
         """
+        # Calculate code explanation coverage if paths provided
+        coverage_result = None
+        if doc_path and source_path:
+            print("\n  → Calculating code explanation coverage...")
+            coverage_result = self.calculate_code_explanation_coverage(doc_path, source_path)
+            if coverage_result.get('error'):
+                print(f"  ⚠ Coverage calculation warning: {coverage_result['error']}")
+            else:
+                print(f"  ✓ Coverage: {coverage_result['coverage_percentage']:.1f}% "
+                      f"({coverage_result['found_lines']:,}/{coverage_result['expected_lines']:,} lines)")
+
         # Write summary to JSONL log file
         with open(self.log_file, 'a') as f:
             summary_entry = {
@@ -394,6 +518,8 @@ class LLMCallTracer:
                 'summary': self.get_summary(),
                 'section_stats': self.get_section_summary()
             }
+            if coverage_result:
+                summary_entry['code_explanation_coverage'] = coverage_result
             f.write(json.dumps(summary_entry) + '\n')
 
         # Print summary
@@ -401,7 +527,7 @@ class LLMCallTracer:
 
         # Write detailed text report
         report_file = str(self.log_file).replace('.jsonl', '_report.txt')
-        self.write_detailed_report(report_file)
+        self.write_detailed_report(report_file, coverage_result=coverage_result)
 
         # Write pretty JSON for readability (NEW!)
         json_file = str(self.log_file).replace('.jsonl', '.json')
@@ -436,7 +562,13 @@ def get_tracer() -> Optional[LLMCallTracer]:
     return _tracer
 
 
-def finalize_tracer():
-    """Finalize global tracer."""
+def finalize_tracer(doc_path: str = None, source_path: str = None):
+    """
+    Finalize global tracer.
+
+    Args:
+        doc_path: Optional path to generated documentation file (for coverage calculation)
+        source_path: Optional path to original source file (for coverage calculation)
+    """
     if _tracer:
-        _tracer.finalize()
+        _tracer.finalize(doc_path=doc_path, source_path=source_path)

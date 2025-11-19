@@ -2961,7 +2961,13 @@ def generate_documentation(
         print("\n" + "="*70)
         print("Finalizing LLM Call Trace")
         print("="*70)
-        finalize_tracer()
+
+        # Pass documentation and source paths for coverage calculation
+        output_path = Path(output_dir) / f"{program_name}-documentation.md"
+        finalize_tracer(
+            doc_path=str(output_path) if output_path.exists() else None,
+            source_path=cobol_file_path
+        )
 
 
 if __name__ == "__main__":

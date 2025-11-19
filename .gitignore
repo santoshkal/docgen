@@ -1,0 +1,95 @@
+# Python virtual environments
+.venv
+venv/
+env/
+ENV/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+.tox/
+htmlcov/
+.hypothesis/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# LLM trace and debug files
+llm_trace_*.json
+llm_trace_*.jsonl
+llm_trace_*_report.txt
+llm_input_debug.txt
+llm_chunking_metadata*.json
+
+# Request debug files (generated during agent runs)
+request/
+
+# Metrics and historical data
+metrics/
+
+# Checksum files (regenerated on each run)
+source-checksum.yaml
+metadata-checksum.yaml
+
+# Repo map files (generated)
+repo-map.txt
+repo-map-*.txt
+
+# Test output and temporary files
+test_*.json
+test_trace.jsonl
+*.tmp
+*.temp
+*.log
+
+# Generated documentation (keep in docs/ directory instead)
+*-documentation.md
+
+# Generated diagrams
+workflow_graph.png
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment files with secrets (if any)
+.env
+.env.local
+*.key
+*.pem
