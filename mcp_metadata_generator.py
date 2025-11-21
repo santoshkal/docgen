@@ -15,7 +15,7 @@ The mcp-use library handles:
 import asyncio
 import json
 from pathlib import Path
-from typing import List, Any, Dict
+from typing import Any, Dict, List
 
 from mcp_use import MCPClient
 
@@ -158,6 +158,7 @@ class MCPMetadataGenerator:
             {
                 "path": " ".join(file_paths),  # Pass specific files, not entire workspace
                 "language": "cobol",
+                "output_format": "json",
                 "output_file": "/output/cobol-project.tags"
             }
         )
