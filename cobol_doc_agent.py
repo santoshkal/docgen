@@ -905,6 +905,7 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
         filtered["called_by_graph"] = full_metadata.get("called_by_graph", {})
 
         # SuperBOL: Full procedure division, limited data division
+        # TOON PHASE 2: Increased limits due to 23.1% token savings
         filtered["superbol_symbols"] = {
             "program_id": superbol_symbols.get("program_id"),
             "children": limit_array(superbol_symbols.get("children", []), 100),  # First 100 children for context
@@ -914,18 +915,19 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
         }
 
         # CFG: FULL but with conservative limits to stay under 1M
+        # TOON PHASE 2: Increased limits from 500→650 nodes, 1000→1300 edges (30% more due to 23.1% token savings)
         if isinstance(superbol_cfg, dict):
             nodes = superbol_cfg.get("nodes", [])
             edges = superbol_cfg.get("edges", [])
 
-            # Conservative limits: 500 nodes, 1000 edges (vs aggressive 100/200)
+            # TOON-enhanced limits: 650 nodes, 1300 edges (was 500/1000)
             # CRITICAL: Preserve calls[] and copybooks[] arrays for external dependencies
             filtered["superbol_cfg"] = {
-                "nodes": limit_array(nodes, 500),
-                "edges": limit_array(edges, 1000),
+                "nodes": limit_array(nodes, 650),
+                "edges": limit_array(edges, 1300),
                 "calls": superbol_cfg.get("calls", []),  # MUST preserve external calls
                 "copybooks": superbol_cfg.get("copybooks", []),  # MUST preserve copybooks
-                "performs": limit_array(superbol_cfg.get("performs", []), 1000),
+                "performs": limit_array(superbol_cfg.get("performs", []), 1300),
                 "total_nodes": len(nodes),
                 "total_edges": len(edges)
             }
@@ -933,6 +935,7 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
             filtered["superbol_cfg"] = superbol_cfg
 
         # GnuCOBOL: Full program calls + procedure structure + ESSENTIAL FIELDS
+        # NOTE: GnuCOBOL NOT converted to TOON (0% savings)
         paragraphs = gnucobol.get("paragraphs", [])
         filtered["gnucobol_analysis"] = {
             "summary": gnucobol.get("summary", {}),
@@ -949,12 +952,13 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
         }
 
         # Ctags: Full paragraph structure + ESSENTIAL FIELDS
+        # TOON PHASE 2: Increased limits from 100→150 paragraphs (50% more due to 37.4% token savings)
         paragraphs = ctags.get("paragraphs", [])
         ctags_outline = ctags.get("outline", {})
         filtered["ctags_outline"] = {
             "program_name": ctags.get("program_name"),
             "divisions": ctags.get("divisions", []),
-            "paragraphs": limit_array(paragraphs, 100),  # First 100 paragraphs
+            "paragraphs": limit_array(paragraphs, 150),  # TOON: Increased from 100→150 paragraphs
             "total_paragraphs": len(paragraphs),
             "sections": limit_array(ctags.get("sections", []), 50),
             "performs": limit_array(ctags.get("performs", []), 200),
@@ -963,6 +967,18 @@ def filter_metadata_for_pass(pass_number: int, full_metadata: Dict[str, Any]) ->
             "symbol_count": ctags.get("symbol_count"),
             "file": ctags_outline.get("file") if isinstance(ctags_outline, dict) else None
         }
+
+        # TOON PHASE 2: Convert high-value metadata to TOON format for 22% token savings
+        from metadata_toon_converter import convert_to_toon
+
+        # Convert CTags to TOON (37.4% savings) - highest value for Pass 2 logic sections
+        filtered["ctags_outline"] = convert_to_toon(filtered["ctags_outline"], "ctags")
+
+        # Convert SuperBOL symbols to TOON (23.1% savings)
+        filtered["superbol_symbols"] = convert_to_toon(filtered["superbol_symbols"], "superbol_symbols")
+
+        # Keep GnuCOBOL as JSON (0% TOON savings, not worth conversion overhead)
+        # filtered["gnucobol_analysis"] stays as dict
 
     else:  # pass_number == 3
         # Pass 3: Technical Details - Need metrics, dependencies, error handling
@@ -1670,6 +1686,14 @@ CRITICAL REQUIREMENTS FOR CONSISTENCY:
 6. For placeholders like {{{{program_name}}}}, replace with actual values
 7. Generate valid Markdown syntax
 8. For Mermaid diagrams, ensure valid syntax
+
+METADATA FORMAT NOTES:
+Some metadata may be provided in TOON (Token-Oriented Object Notation) format for token efficiency.
+TOON is a human-readable format that uses YAML-like indentation with CSV-style arrays.
+Example TOON array syntax: array[N]{{field1,field2}}: followed by indented rows.
+You can parse TOON metadata naturally - it's designed to be LLM-friendly and human-readable.
+If you see strings like "ctags_outline" or "superbol_symbols" in non-JSON format, that's TOON.
+Simply extract the information you need from the structure provided.
 
 TEMPLATE STRUCTURE TO FOLLOW:
 {template if template else "Generate appropriate structure based on instruction"}
