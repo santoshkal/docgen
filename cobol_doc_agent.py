@@ -249,12 +249,13 @@ def check_metadata_exists(state: AgentState) -> bool:
         metadata_dir / "ctags" / f"ctags-{program_name}-outline.json"
     ]
 
-    # GnuCOBOL analysis: check for either batch file (multi-file) or single file
+    # GnuCOBOL: check for relationships file (new format) or batch file (legacy)
+    # Note: analyze_cobol is deprecated, using extract_relationships and extract_cross_references_tool
+    gnucobol_relationships = metadata_dir / "gnucobol" / f"gnucobol-{program_name}-relationships.json"
     gnucobol_batch = metadata_dir / "gnucobol" / "gnucobol-batch-analyze-all.json"
-    gnucobol_single = metadata_dir / "gnucobol" / f"gnucobol-{program_name}-analysis.json"
 
-    # At least one GnuCOBOL file must exist
-    has_gnucobol = gnucobol_batch.exists() or gnucobol_single.exists()
+    # At least one GnuCOBOL file must exist (prefer relationships, fallback to batch)
+    has_gnucobol = gnucobol_relationships.exists() or gnucobol_batch.exists()
 
     return all(f.exists() for f in required_files) and has_gnucobol
 
@@ -387,12 +388,27 @@ def load_metadata_node(state: AgentState) -> AgentState:
             state["superbol_cfg"] = json.load(f)
 
         # Load GnuCOBOL Analysis
-        # In single-file mode, batch-analyze-all.json may not exist
+        # Note: analyze_cobol is deprecated, now using extract_relationships and extract_cross_references_tool
+        gnucobol_relationships_path = metadata_dir / "gnucobol" / f"gnucobol-{program_name}-relationships.json"
+        gnucobol_cross_refs_path = metadata_dir / "gnucobol" / f"gnucobol-{program_name}-cross-refs.json"
         gnucobol_batch_path = metadata_dir / "gnucobol" / "gnucobol-batch-analyze-all.json"
-        gnucobol_single_path = metadata_dir / "gnucobol" / f"gnucobol-{program_name}-analysis.json"
 
-        if gnucobol_batch_path.exists():
-            # Multi-file mode: load from batch analysis
+        if gnucobol_relationships_path.exists():
+            # New format: load relationships and cross-refs separately
+            gnucobol_data = {}
+
+            with open(gnucobol_relationships_path, 'r') as f:
+                gnucobol_data["relationships"] = json.load(f)
+
+            if gnucobol_cross_refs_path.exists():
+                with open(gnucobol_cross_refs_path, 'r') as f:
+                    gnucobol_data["cross_references"] = json.load(f)
+
+            state["gnucobol_analysis"] = gnucobol_data
+            print(f"  → Loaded GnuCOBOL relationships and cross-refs for {program_name}")
+
+        elif gnucobol_batch_path.exists():
+            # Legacy multi-file mode: load from batch analysis
             with open(gnucobol_batch_path, 'r') as f:
                 gnucobol_data = json.load(f)
                 # Extract this program's analysis
@@ -401,29 +417,6 @@ def load_metadata_node(state: AgentState) -> AgentState:
                     "per_file": gnucobol_data["result"]["per_file_analysis"],
                     "call_summary": gnucobol_data["result"]["call_summary"]
                 }
-        elif gnucobol_single_path.exists():
-            # Single-file mode: load from individual file analysis
-            with open(gnucobol_single_path, 'r') as f:
-                gnucobol_data = json.load(f)
-
-                # PHASE 1 OPTIMIZATION: Strip bloat fields (never used by template)
-                bloat_fields = ['listing', 'stdout', 'stderr', 'command']
-                total_bloat_removed = 0
-                removed_fields = []
-
-                for field in bloat_fields:
-                    if field in gnucobol_data:
-                        field_size = len(str(gnucobol_data[field]))
-                        total_bloat_removed += field_size
-                        removed_fields.append(f"{field}({field_size:,} chars)")
-                        del gnucobol_data[field]
-
-                if total_bloat_removed > 0:
-                    print(f"  → Stripped GnuCOBOL bloat: {', '.join(removed_fields)}")
-                    print(f"     Total removed: {total_bloat_removed:,} chars (~{total_bloat_removed//4:,} tokens)")
-
-                # Preserve essential fields: file_path, success, message, analysis, error
-                state["gnucobol_analysis"] = gnucobol_data
         else:
             print(f"⚠ Warning: No GnuCOBOL analysis found for {program_name}")
             state["gnucobol_analysis"] = {}

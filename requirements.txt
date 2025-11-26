@@ -16,7 +16,12 @@ python-dotenv>=1.0.0
 # MCP integration
 mcp-use>=0.1.0
 
+# Token counting (required for progress tracking)
+tiktoken>=0.8.0
+
 # Optional: for advanced features
-# tiktoken>=0.7.0  # Token counting
 # jinja2>=3.1.0    # Alternative templating
 ipython>=9.0.0     # For inline workflow visualization in Jupyter notebooks
+
+# Parallel execution framework
+ray>=2.40.0  # Latest 2025 version for distributed agent execution

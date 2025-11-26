@@ -1,260 +1,506 @@
+# ============================================================================
 # COBOL Documentation Agent - Configuration File
-# ==============================================
-# This file contains all configuration options for the COBOL Documentation Agent
-
 # ============================================================================
+# This file contains all available configuration options with detailed
+# explanations. Copy this file to config.yaml and customize for your needs.
+#
+# Quick Start:
+#   1. Copy this file: cp config.example.yaml config.yaml
+#   2. Edit paths, API keys, and LLM settings
+#   3. Run: python cobol_doc_agent.py --config config.yaml
+# ============================================================================
+
+# ----------------------------------------------------------------------------
 # SOURCE FILES CONFIGURATION
-# ============================================================================
+# ----------------------------------------------------------------------------
+# Defines what COBOL files to process
 source:
-  # Mode: 'single' or 'batch'
-  # - single: Process one program specified by program_name
-  # - batch: Process all COBOL files in source_files path
-  mode: batch
+  # Processing mode:
+  #   - single: Process one specific program
+  #   - batch:  Process all COBOL files in a directory (recursive)
+  mode: single
 
-  # Path to COBOL source file(s)
-  # Can be:
-  #   - A directory containing *.COB files (for batch mode)
-  #   - A single .COB file path (for single file processing)
-  source_files: ../cobol-source
+  # Path to COBOL source file or directory
+  #   - For single mode: path to a specific .cbl/.cob/.c74 file
+  #   - For batch mode:  path to directory containing COBOL files
+  # Supported extensions: .cob, .COB, .cbl, .CBL, .c74, .C74, .COBOL, .cobol
+  source_files: ../sample-programs/MAINPROG.cbl
 
-  # Program name (required for single mode, ignored in batch mode)
+  # Program name (REQUIRED for single mode, ignored for batch mode)
+  # This is the COBOL program-id, not the filename
   program_name: MAINPROG
 
-  # Workspace directory containing COBOL source files
-  # Used when source_files is not specified or for additional context
-  workspace: ../cobol-source
+# ----------------------------------------------------------------------------
+# CHECKSUM VALIDATION (Intelligent Change Detection)
+# ----------------------------------------------------------------------------
+# SHA256-based checksums to detect changes in source files and metadata
+# Enables intelligent regeneration: only process what changed
+validate_checksums:
+  # Path to source code checksum file
+  # This file tracks SHA256 hashes of all source COBOL files
+  # Auto-generated on first run, updated on each run
+  source_checksum_file_path: ./metadata/source-checksum.yaml
 
+  # Path to metadata checksum file (OPTIONAL)
+  # This file tracks SHA256 hashes of generated metadata files
+  # Used to detect corrupted or incomplete metadata
+  # Leave empty to skip metadata checksum validation
+  metadata_checksum_file_path: ./metadata/metadata-checksum.yaml
 
-# ============================================================================
-# OUTPUT PATHS CONFIGURATION
-# ============================================================================
+# ----------------------------------------------------------------------------
+# OUTPUT PATHS
+# ----------------------------------------------------------------------------
+# Where to store generated files
 output:
-  # Directory for storing extracted metadata (ctags, gnucobol, superbol)
-  metadata_dir: ../output
-
-  # Directory for storing generated documentation markdown files
-  docs_path: ../docs
-
-  # Create output directories if they don't exist
+  # Auto-create directories if they don't exist
   create_dirs: true
 
+  # Directory for metadata files (CTags, GnuCOBOL, SuperBOL outputs)
+  # Structure: metadata_dir/
+  #   ├── ctags/ctags-PROGRAM-outline.json
+  #   ├── gnucobol/gnucobol-batch-analyze-all.json
+  #   └── superbol/
+  #       ├── superbol-PROGRAM-doc-symbols.json
+  #       └── superbol-cfg/*.json
+  metadata_dir: ./metadata
 
-# ============================================================================
-# METADATA GENERATION (MCP) CONFIGURATION
-# ============================================================================
+  # Directory for generated Markdown documentation files
+  # Output filename format: PROGRAM-NAME-documentation.md
+  docs_path: ./docs
+
+# ----------------------------------------------------------------------------
+# MCP SERVERS CONFIGURATION (For Metadata Generation)
+# ----------------------------------------------------------------------------
+# Model Context Protocol servers for extracting structured metadata
+# Only used when metadata.generate = true
+servers:
+  # Universal CTags - Code structure and symbol extraction
+  ctags:
+    enabled: true
+    # Docker image for CTags MCP server
+    docker_image: ctags-mcp:test
+    # Optional extra arguments passed to the MCP server
+    extra_args: []
+
+  # GnuCOBOL Analyzer - Compiler-based analysis
+  gnuCobol:
+    enabled: true
+    # Docker image for GnuCOBOL MCP server
+    docker_image: gnucobol-mcp:test
+    # Optional extra arguments passed to the MCP server
+    extra_args: []
+
+  # SuperBOL LSP - Language Server Protocol for COBOL
+  # Provides: symbols, CFG (control flow graph), semantic analysis
+  superbol-lsp:
+    enabled: true
+    # Docker image for SuperBOL LSP MCP server
+    docker_image: superbol-mcp:test
+    # Optional extra arguments passed to the MCP server
+    extra_args: []
+
+# ----------------------------------------------------------------------------
+# METADATA GENERATION
+# ----------------------------------------------------------------------------
+# Controls when and how to generate metadata via MCP servers
 metadata:
-  # Whether to generate metadata via MCP servers. TODO: Requried?
-  generate: true
+  # Enable/disable metadata generation
+  # If false: Agent will load existing metadata from metadata_dir
+  # If true:  Agent will invoke MCP servers to generate fresh metadata
+  generate: false
 
-  # Skip metadata generation if files already exist TODO: Required?
+  # Skip metadata generation if files already exist
+  # Only relevant when generate = true
+  # If true:  Won't regenerate if metadata files exist
+  # If false: Will always regenerate metadata
   skip_existing: true
 
-  # Force regenerate all metadata even if it exists TODO: REquired?
-  force_regenerate: false
-
-  # MCP Servers Configuration (optional - uses defaults if not specified)
-  servers:
-    ctags:
-      enabled: true
-      docker_image: ctags-mcp-server:latest
-      # Custom docker args (optional)
-      # docker_args: []
-
-    gnucobol:
-      enabled: true
-      docker_image: gnucobol-mcp-server:latest
-
-    superbol:
-      enabled: true
-      docker_image: superbol-mcp-server:latest
-
-
-# ============================================================================
+# ----------------------------------------------------------------------------
 # TEMPLATE CONFIGURATION
-# ============================================================================
+# ----------------------------------------------------------------------------
+# YAML template defines the structure of generated documentation
 template:
-  # Path to documentation template YAML file
+  # Path to documentation template file
+  # The template defines:
+  #   - Section structure (Executive Summary, Control Flow, etc.)
+  #   - Instructions for each section (what LLM should generate)
+  #   - Output format (Markdown with Mermaid diagrams)
+  #   - Placeholders ({{program_name}}, {{file_path}}, etc.)
   path: ./cobol-doc-template.yaml
 
-  # Custom template variables (optional)
-  # These will be available in the template as {{custom.variable_name}}
-  custom_vars:
-    company_name: "Your Company Name"
-    project_name: "COBOL Modernization Project"
-    author: "Documentation Team"
-
-
-# ============================================================================
+# ----------------------------------------------------------------------------
 # LLM CONFIGURATION
-# ============================================================================
+# ----------------------------------------------------------------------------
+# Configuration for the Large Language Model used for documentation generation
 llm:
-  # LLM Provider TODO: Review
-  #
-  # Supported: openai, anthropic, azure_openai, google, ollama, bedrock
+  # LLM provider
+  # Supported values:
+  #   - openai: OpenAI GPT models
+  #   - anthropic: Anthropic Claude models
+  #   - google: Google Gemini models
+  #   - azure_openai: Azure-hosted OpenAI models
+  #   - ollama: Local Ollama models
   provider: openai
 
   # Model name (provider-specific)
-  # OpenAI: gpt-4o, gpt-4-turbo, gpt-3.5-turbo
+  # OpenAI: gpt-4o, gpt-4-turbo, gpt-4, gpt-3.5-turbo
   # Anthropic: claude-3-5-sonnet-20241022, claude-3-opus-20240229
+  # Google: gemini-1.5-pro, gemini-1.5-flash
   # Azure: Your deployment name
-  # Google: gemini-pro, gemini-1.5-pro
-  # Ollama: llama2, mistral, codellama
+  # Ollama: codellama, mistral, etc.
   model: gpt-4o
 
-  # API Key (or set via environment variable)
-  # TODO: Should read ENVs
-  # 
-  # Leave empty to use environment variables:
-  #   - OpenAI: OPENAI_API_KEY
-  #   - Anthropic: ANTHROPIC_API_KEY
-  #   - Azure: AZURE_OPENAI_API_KEY
-  #   - Google: GOOGLE_API_KEY
+  # API key for the LLM provider
+  # Use environment variables for security: ${VARIABLE_NAME}
+  # Examples:
+  #   ${OPENAI_API_KEY}
+  #   ${ANTHROPIC_API_KEY}
+  #   ${GOOGLE_API_KEY}
   api_key: ${OPENAI_API_KEY}
 
-  # Temperature (0.0 - 1.0)
-  # Lower = more focused/deterministic, Higher = more creative
+  # Temperature (0.0 - 2.0)
+  # Controls randomness in LLM output
+  #   0.0-0.3: Deterministic, consistent (RECOMMENDED for documentation)
+  #   0.4-0.7: Balanced creativity and consistency
+  #   0.8-2.0: Creative, varied (NOT recommended for documentation)
   temperature: 0.2
 
-  # Max tokens for response
-  max_tokens: 4096
+  # Provider-specific options (OPTIONAL, uncomment as needed)
 
-  # System prompt override (optional)
-  # If not specified, uses default prompts from the agent
-  # system_prompt: "You are an expert COBOL documentation writer..."
+  # # Anthropic-specific options
+  # anthropic:
+  #   max_tokens_to_sample: 4096
 
-  # Provider-specific configurations
-  openai:
-    # API base URL (optional, for custom endpoints)
-    # api_base: https://api.openai.com/v1
+  # # Azure OpenAI-specific options
+  # azure_openai:
+  #   api_base: https://your-resource.openai.azure.com
+  #   api_version: "2024-02-15-preview"
+  #   deployment_name: your-gpt4-deployment
 
-    # Organization ID (optional)
-    # organization: org-xxxxx
+  # # Google-specific options
+  # google:
+  #   max_output_tokens: 4096
+  #   top_p: 0.95
+  #   top_k: 40
 
-  anthropic:
-    # API base URL (optional)
-    # api_base: https://api.anthropic.com
+  # # Ollama-specific options (for local models)
+  # ollama:
+  #   base_url: http://localhost:11434
+  #   num_ctx: 8192  # Context window size
 
-    # Max tokens to sample
-    max_tokens_to_sample: 4096
+# ----------------------------------------------------------------------------
+# SOURCE CODE EXTRACTION (For Detailed Code Explanation)
+# ----------------------------------------------------------------------------
+# Controls how source code is included in detailed explanation sections
+source_extraction:
+  # Enable/disable source code extraction in detailed explanation section
+  # If false: Detailed Code Explanation section will use metadata only
+  # If true:  Will extract and include actual COBOL source code
+  enabled: true
 
-  azure_openai:
-    # Required for Azure
-    api_base: https://your-resource.openai.azure.com
-    api_version: "2024-02-15-preview"
-    deployment_name: your-gpt4-deployment
+  # Compress source code by removing non-executable lines
+  # Removes: comment lines, blank lines, sequence number columns
+  # Reduces token usage but may lose some context
+  # Recommended: false (keep full source for better understanding)
+  compress: false
 
-  google:
-    # Project ID for Google Cloud
-    # project_id: your-project-id
+  # # Advanced chunking options (OPTIONAL - defaults shown)
+  # # Uncomment to customize large file handling
+  # chunk_size: 500        # Maximum lines per chunk (for files >25K lines)
+  # overlap_lines: 50      # Lines of overlap between consecutive chunks
+  # min_chunk_size: 100    # Minimum viable chunk size
+  # max_chunks: 100        # Maximum number of chunks per file
 
-    # Location
-    # location: us-central1
-
-  ollama:
-    # Ollama base URL
-    base_url: http://localhost:11434
-
-    # Additional parameters
-    # num_ctx: 4096
-    # num_predict: 2048
-
-  bedrock:
-    # AWS Region
-    region_name: us-east-1
-
-    # Model ID
-    # model_id: anthropic.claude-3-sonnet-20240229-v1:0
-
-
-# ============================================================================
-# BATCH PROCESSING CONFIGURATION
-# ============================================================================
-batch:
-  # Enable parallel processing of multiple files
-  parallel: false
-
-  # Number of files to process concurrently (if parallel=true)
-  max_workers: 4
-
-  # Continue processing even if some files fail
-  continue_on_error: true
-
-  # Generate summary report after batch processing
-  generate_report: true
-
-
-# ============================================================================
-# LOGGING AND OUTPUT CONFIGURATION
-# ============================================================================
+# ----------------------------------------------------------------------------
+# LOGGING CONFIGURATION
+# ----------------------------------------------------------------------------
+# Controls console output and log verbosity
 logging:
-  # Log level: debug, info, warning, error
+  # Log level
+  # Options: debug, info, warning, error, critical
+  #   debug:   Most verbose, shows all operations
+  #   info:    Normal operations, progress updates
+  #   warning: Warnings and errors only
+  #   error:   Errors only
   level: info
 
-  # Enable verbose output
+  # Verbose mode - additional progress information
+  # If true: Shows detailed progress for each section
+  # If false: Shows minimal output
   verbose: true
 
-  # Log file path (optional, logs to stdout if not specified)
-  # log_file: ./cobol_doc_agent.log
+# ----------------------------------------------------------------------------
+# ORCHESTRATOR CONFIGURATION (Project-Level Processing)
+# ----------------------------------------------------------------------------
+# Controls parallel agent execution for processing entire COBOL projects
+# When enabled, the orchestrator:
+#   1. Scans project directory using Tree MCP server
+#   2. Generates project-level metadata (relationships, call graphs)
+#   3. Spawns parallel agents (one per file) using Ray
+#   4. Tracks progress and handles failures
+orchestrator:
+  # Enable orchestrator mode for project-level processing
+  # If false: Uses single-file mode (existing behavior)
+  # If true:  Processes entire project with parallel agents
+  enabled: false
 
-  # Show progress bars
-  show_progress: true
+  # Batch processing configuration
+  # Controls how files are grouped for parallel execution
+  batch:
+    # Batch mode
+    # Options:
+    #   - batch: Process files in batches (sequential batches, parallel within)
+    #   - all:   Process all files in a single batch (maximum parallelism)
+    mode: batch
 
+    # Number of files per batch (only used when mode = "batch")
+    # Recommended values:
+    #   - 10:  Conservative, lower memory usage
+    #   - 20:  Balanced (default)
+    #   - 30+: Aggressive, higher memory requirements
+    size: 10
 
-# ============================================================================
-# ADVANCED CONFIGURATION
-# ============================================================================
-advanced:
-  # Retry configuration for LLM calls
-  llm_retry:
-    max_retries: 3
-    retry_delay: 2  # seconds
+  # Ray distributed execution framework configuration
+  ray:
+    # Use local single-machine cluster
+    # If true:  Initialize local Ray cluster (recommended for most cases)
+    # If false: Connect to existing Ray cluster (for distributed setups)
+    local: true
 
-  # Timeout for external operations (seconds)
-  timeouts:
-    mcp_generation: 600  # 10 minutes for metadata generation
-    llm_call: 120        # 2 minutes per LLM call
-    docker_pull: 300     # 5 minutes for Docker image pull
+    # Number of CPUs to use (null = auto-detect all available)
+    num_cpus: null
 
-  # Cache configuration
-  cache:
-    # Enable caching of LLM responses
-    enable_llm_cache: false
+    # Number of GPUs to use (null = none, relevant for GPU-accelerated models)
+    num_gpus: null
 
-    # Cache directory
-    # cache_dir: ./.cache
+    # Memory limit per worker in GB (null = auto)
+    # Recommended: 2-4 GB per agent for large COBOL files
+    memory_per_worker_gb: null
 
-  # Section processing
-  sections:
-    # Skip certain sections (list of section IDs from template)
-    skip: []
+    # Object store memory in GB (null = auto)
+    # Used for sharing metadata between agents
+    object_store_memory_gb: null
 
-    # Process only specific sections
-    # only: ["executive-summary", "program-structure"]
+    # Ray cluster address (only used when local = false)
+    # Example: "ray://cluster-head:10001"
+    cluster_address: null
 
+  # Retry and error handling configuration
+  retry:
+    # Maximum retry attempts for failed agents
+    max_attempts: 3
 
-# ============================================================================
-# VALIDATION AND SAFETY
-# ============================================================================
-validation:
-  # Validate COBOL source files before processing
-  validate_cobol_syntax: false
+    # Initial delay before first retry (seconds)
+    initial_delay_seconds: 3
 
-  # Check for required metadata files before doc generation
-  check_metadata: true
+    # Backoff strategy: "exponential" or "fixed"
+    # exponential: delay doubles each retry (3s, 6s, 12s, ...)
+    # fixed: constant delay between retries
+    strategy: exponential
 
-  # Maximum file size to process (MB)
-  max_file_size: 10
+    # Maximum delay cap for exponential backoff (seconds)
+    max_delay_seconds: 60
 
+  # Circuit breaker configuration (prevents cascade failures)
+  circuit_breaker:
+    # Enable circuit breaker pattern
+    enabled: true
 
-# ============================================================================
-# EXPERIMENTAL FEATURES (Use with caution)
-# ============================================================================
-experimental:
-  # Use streaming for LLM responses
-  use_streaming: false
+    # Number of consecutive failures before opening circuit
+    failure_threshold: 5
 
-  # Enable multi-agent collaboration (if supported)
-  multi_agent: false
+    # Time to wait before attempting recovery (seconds)
+    recovery_timeout_seconds: 60
 
-  # Custom post-processing scripts
-  # post_process_script: ./custom_postprocess.py
+  # Progress tracking configuration
+  progress:
+    # Directory for progress tracking and reports
+    reports_dir: ./reports
+
+    # Enable real-time progress updates
+    realtime_updates: true
+
+    # Progress file format (markdown)
+    file_name: project_progress.md
+
+  # Output organization
+  output:
+    # Mirror source directory structure in output
+    # If true:  docs/subdir/PROG.md mirrors source/subdir/PROG.cbl
+    # If false: All docs in flat structure (docs/PROG.md)
+    mirror_structure: true
+
+    # Output directory for generated documentation
+    docs_dir: ./docs
+
+  # Project summary generation (after all files processed)
+  summary:
+    # Generate project-level summary document
+    enabled: true
+
+    # Output filename for project summary
+    file_name: PROJECT_SUMMARY.md
+
+    # Include dependency graph visualization (Mermaid)
+    include_dependency_graph: true
+
+    # Include business logic overview
+    include_business_logic: true
+
+# ----------------------------------------------------------------------------
+# TREE MCP SERVER CONFIGURATION
+# ----------------------------------------------------------------------------
+# Configuration for Tree MCP server (project directory scanning)
+# Only used when orchestrator.enabled = true
+tree_server:
+  # Docker image for Tree MCP server
+  docker_image: tree-mcp:test
+
+  # Tool to use for directory scanning
+  # Options: tree_basic, tree_json_output, tree_xml_output
+  # Recommended: tree_json_output (structured, machine-readable)
+  tool: tree_json_output
+
+  # Maximum directory depth to scan (null = unlimited)
+  max_depth: null
+
+  # File extensions to include (COBOL source files)
+  # Leave empty to include all files
+  extensions:
+    - .cbl
+    - .CBL
+    - .cob
+    - .COB
+    - .cpy
+    - .CPY
+    - .c74
+    - .C74
+
+  # Directories to exclude from scanning
+  exclude_dirs:
+    - .git
+    - node_modules
+    - __pycache__
+    - .venv
+
+# ----------------------------------------------------------------------------
+# ADVANCED OPTIONS (OPTIONAL)
+# ----------------------------------------------------------------------------
+# These options have sensible defaults and rarely need changing
+
+# # Override workspace path (for single-program mode via CLI)
+# workspace: ../cobol-source
+
+# # Override output directory (for CLI mode)
+# output_dir: ../output
+
+# # Override docs path (for CLI mode)
+# docs_path: ../documentation
+
+# # Force regenerate metadata even if it exists
+# # Overrides metadata.skip_existing
+# no_skip_existing: false
+
+# # Custom template path (overrides template.path)
+# template: ./custom-template.yaml
+
+# # LLM trace configuration (always enabled, cannot be disabled)
+# # Trace files are automatically generated:
+# #   - llm_trace_PROGRAM.jsonl (append-only log)
+# #   - llm_trace_PROGRAM.json (pretty JSON)
+# #   - llm_trace_PROGRAM_report.txt (human-readable summary)
+
+# ----------------------------------------------------------------------------
+# USAGE EXAMPLES
+# ----------------------------------------------------------------------------
+
+# Example 1: Single program, existing metadata
+# ----------------------------------------------
+# source:
+#   mode: single
+#   source_files: ../cobol-source/MAINPROG.cbl
+#   program_name: MAINPROG
+# metadata:
+#   generate: false
+# llm:
+#   provider: openai
+#   model: gpt-4o
+#   api_key: ${OPENAI_API_KEY}
+
+# Example 2: Single program, generate metadata
+# ----------------------------------------------
+# source:
+#   mode: single
+#   source_files: ../cobol-source/ACCTPROC.cbl
+#   program_name: ACCTPROC
+# metadata:
+#   generate: true
+#   skip_existing: true
+# servers:
+#   ctags:
+#     enabled: true
+#   gnuCobol:
+#     enabled: true
+#   superbol-lsp:
+#     enabled: true
+
+# Example 3: Batch processing entire directory
+# ----------------------------------------------
+# source:
+#   mode: batch
+#   source_files: ../cobol-source
+# metadata:
+#   generate: true
+#   skip_existing: true
+# output:
+#   create_dirs: true
+#   metadata_dir: ../metadata
+#   docs_path: ../docs
+
+# Example 4: Using Anthropic Claude
+# ----------------------------------------------
+# llm:
+#   provider: anthropic
+#   model: claude-3-5-sonnet-20241022
+#   api_key: ${ANTHROPIC_API_KEY}
+#   temperature: 0.2
+#   anthropic:
+#     max_tokens_to_sample: 4096
+
+# Example 5: Using local Ollama model
+# ----------------------------------------------
+# llm:
+#   provider: ollama
+#   model: codellama
+#   temperature: 0.2
+#   ollama:
+#     base_url: http://localhost:11434
+#     num_ctx: 8192
+
+# ----------------------------------------------------------------------------
+# NOTES
+# ----------------------------------------------------------------------------
+# 1. Environment variables: Use ${VAR_NAME} syntax to reference environment
+#    variables. They will be expanded at runtime.
+#
+# 2. Paths: Can be absolute or relative. Relative paths are resolved from
+#    the directory containing this config file.
+#
+# 3. Checksums: Enable for 10x faster regeneration on unchanged files.
+#    Checksums detect source changes and skip unnecessary processing.
+#
+# 4. MCP servers: Requires Docker. Servers must be built and available
+#    as Docker images before enabling metadata generation.
+#
+# 5. Token usage: Typical program uses ~1M-1.5M tokens total across all
+#    three passes. Monitor llm_trace_PROGRAM_report.txt for exact counts.
+#
+# 6. Costs: GPT-4o costs ~$5-8 per program (as of Nov 2024). Use cheaper
+#    models like gpt-3.5-turbo for testing ($0.50-1 per program).
+#
+# 7. Temperature: Keep at 0.1-0.3 for documentation. Higher values cause
+#    inconsistent output between runs.
+#
+# 8. Large files: Files >25K lines are automatically chunked. Chunking is
+#    transparent and requires no configuration.
+# ----------------------------------------------------------------------------

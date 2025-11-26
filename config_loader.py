@@ -151,6 +151,11 @@ class ConfigLoader:
         config = self._ensure_loaded()
         return config.get('servers', {})
 
+    def get_tree_server_config(self) -> Dict[str, Any]:
+        """Get Tree MCP server configuration"""
+        config = self._ensure_loaded()
+        return config.get('tree_server', {})
+
     def get_source_extraction_config(self) -> Dict[str, Any]:
         """Get source code extraction configuration (Phase 1)"""
         config = self._ensure_loaded()

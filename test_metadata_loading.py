@@ -74,14 +74,13 @@ def test_metadata_loading():
     print("METADATA LOADING RESULTS")
     print("="*80)
 
-    # Analyze GnuCOBOL
+    # Analyze GnuCOBOL (new format: relationships + cross_references)
     gnucobol = result_state["gnucobol_analysis"]
     print("\n📊 GnuCOBOL Analysis:")
     print(f"   Keys present: {list(gnucobol.keys())}")
-    print(f"   ✓ Essential field 'file_path': {'file_path' in gnucobol}")
-    print(f"   ✓ Essential field 'success': {'success' in gnucobol}")
-    print(f"   ✓ Bloat field 'listing' removed: {'listing' not in gnucobol}")
-    print(f"   ✓ Bloat field 'stdout' removed: {'stdout' not in gnucobol}")
+    # New format uses 'relationships' and 'cross_references' instead of deprecated analyze_cobol
+    print(f"   ✓ 'relationships' present: {'relationships' in gnucobol}")
+    print(f"   ✓ 'cross_references' present: {'cross_references' in gnucobol}")
 
     # Analyze SuperBol
     superbol = result_state["superbol_symbols"]
@@ -124,12 +123,12 @@ def test_metadata_loading():
     print("PHASE 2: SMART CONTEXT BUILDING TEST")
     print("="*80)
 
-    # Check if essential fields are present
+    # Check if essential fields are present (new format)
     print("\n✓ Testing essential field preservation:")
-    print(f"   file_path available: {gnucobol.get('file_path') is not None}")
-    print(f"   success flag available: {gnucobol.get('success') is not None}")
-    if gnucobol.get('file_path'):
-        print(f"   File path value: {gnucobol['file_path']}")
+    relationships = gnucobol.get('relationships', {})
+    cross_refs = gnucobol.get('cross_references', {})
+    print(f"   Relationships data available: {bool(relationships)}")
+    print(f"   Cross-references data available: {bool(cross_refs)}")
 
     # Test Phase 3: Reverse Call Graph
     print("\n" + "="*80)

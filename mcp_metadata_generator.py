@@ -221,10 +221,13 @@ class MCPMetadataGenerator:
 
     async def generate_gnucobol_metadata(self, cobol_files: List[str]):
         """
-        Generate GnuCOBOL analysis metadata
+        Generate GnuCOBOL metadata using extract_relationships and extract_cross_references_tool.
+
+        Note: analyze_cobol is deprecated - using new tools instead.
 
         Steps:
-        1. Batch analyze all COBOL files using directory parameter
+        1. Extract relationships for each file
+        2. Extract cross-references for each file
 
         Args:
             cobol_files: List of COBOL file names (e.g., ["MAINPROG.COB"])
@@ -234,45 +237,39 @@ class MCPMetadataGenerator:
         print("="*70)
 
         session = self.mcp_client.get_session("gnucobol")
-        is_single_file = len(cobol_files) == 1
 
-        if is_single_file:
-            print(f"  ℹ Single-file mode detected - skipping project-level tools")
-
-        # Batch analyze all files using directory (SKIP in single-file mode)
-        if not is_single_file:
-            print(f"\nBatch analyzing {len(cobol_files)} COBOL files...")
-            batch_result = await session.call_tool(
-                "batch_analyze",
-                {
-                    "directory": "/workspace"
-                }
-            )
-
-            # Write batch analysis
-            batch_path = self.output_base_dir / "gnucobol" / "gnucobol-batch-analyze-all.json"
-            self._write_json(batch_result, batch_path)
-            print(f"  ✓ Batch analysis written to {batch_path.name}")
-        else:
-            print(f"\nSkipping batch analysis (single-file mode)")
-
-        # Generate individual file analysis for each COBOL file
-        print(f"\nGenerating individual file analysis...")
+        # Generate relationships and cross-references for each COBOL file
+        print(f"\nGenerating relationships and cross-references for {len(cobol_files)} files...")
         for cobol_file in cobol_files:
             program_name = Path(cobol_file).stem
             file_path = f"/workspace/{Path(cobol_file).name}"
 
-            file_result = await session.call_tool(
-                "analyze_cobol",
+            # Extract relationships
+            rel_result = await session.call_tool(
+                "extract_relationships",
+                {
+                    "file_path": file_path,
+                    "copybook_paths": ["/workspace/copybooks"]
+                }
+            )
+
+            # Write relationships
+            rel_path_out = self.output_base_dir / "gnucobol" / f"gnucobol-{program_name}-relationships.json"
+            self._write_json(rel_result, rel_path_out)
+            print(f"  ✓ Relationships for {program_name}")
+
+            # Extract cross-references
+            xref_result = await session.call_tool(
+                "extract_cross_references_tool",
                 {
                     "file_path": file_path
                 }
             )
 
-            # Write individual analysis
-            file_path_out = self.output_base_dir / "gnucobol" / f"gnucobol-{program_name}-analysis.json"
-            self._write_json(file_result, file_path_out)
-            print(f"  ✓ Analysis for {program_name}")
+            # Write cross-references
+            xref_path_out = self.output_base_dir / "gnucobol" / f"gnucobol-{program_name}-cross-refs.json"
+            self._write_json(xref_result, xref_path_out)
+            print(f"  ✓ Cross-references for {program_name}")
 
     async def generate_superbol_metadata(self, cobol_files: List[str]):
         """

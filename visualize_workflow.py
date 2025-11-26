@@ -214,7 +214,7 @@ State Flow:
 
   Loaded Metadata:
     - superbol_symbols, superbol_cfg (control flow graph with calls[] and copybooks[])
-    - gnucobol_analysis, ctags_outline
+    - gnucobol_analysis (contains relationships and cross_references), ctags_outline
 
   Two-Pass Mode:
     - use_two_pass_mode (bool), current_pass (pass number)

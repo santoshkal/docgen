@@ -1,0 +1,191 @@
+
+======================================================================
+ COBOL Metadata Generation - End-to-End Test
+======================================================================
+
+Project: /home/santosh/cobol-test/cobol74
+Metadata: /home/santosh/cobol-work/agent/metadata
+Skip Tree: False
+Skip MCP: False
+
+======================================================================
+ Phase 1: Tree MCP Server Test
+======================================================================
+
+^C^CTraceback (most recent call last):
+  File "/home/santosh/cobol-work/agent/./test_metadata_e2e.py", line 510, in <module>
+    asyncio.run(main())
+  File "/home/santosh/.pyenv/versions/3.12.8/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/home/santosh/.pyenv/versions/3.12.8/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/santosh/.pyenv/versions/3.12.8/lib/python3.12/asyncio/base_events.py", line 673, in run_until_complete
+    self.run_forever()
+  File "/home/santosh/.pyenv/versions/3.12.8/lib/python3.12/asyncio/base_events.py", line 640, in run_forever
+    self._run_once()
+  File "/home/santosh/.pyenv/versions/3.12.8/lib/python3.12/asyncio/base_events.py", line 1992, in _run_once
+    handle._run()
+  File "/home/santosh/.pyenv/versions/3.12.8/lib/python3.12/asyncio/events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/santosh/cobol-work/agent/./test_metadata_e2e.py", line 461, in main
+❯ python ./test_metadata_e2e.py ~/cobol-test/cobol74 -v
+
+======================================================================
+ COBOL Metadata Generation - End-to-End Test
+======================================================================
+
+Project: /home/santosh/cobol-test/cobol74
+Metadata: /home/santosh/cobol-work/agent/metadata
+Skip Tree: False
+Skip MCP: False
+
+======================================================================
+ Phase 1: Tree MCP Server Test
+======================================================================
+
+Project path: /home/santosh/cobol-test/cobol74
+Docker image: tree-mcp-server:latest
+Extensions: ['.cbl', '.CBL', '.cob', '.COB', '.cpy', '.CPY', '.c74', '.C74']
+
+Starting Tree MCP scan...
+2025-11-26 20:07:31,679 - INFO - Scanning directory: /home/santosh/cobol-test/cobol74
+2025-11-26 20:07:31,679 - INFO - Initializing Tree MCP client for: /home/santosh/cobol-test/cobol74
+2025-11-26 20:07:31,679 - DEBUG - MCP Configuration: {
+  "mcpServers": {
+    "tree": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/home/santosh/cobol-test/cobol74:/workspace:ro",
+        "tree-mcp-server:latest"
+      ]
+    }
+  }
+}
+2025-11-26 20:07:31,679 - INFO - Creating MCP session (starting Docker container)...
+Unable to find image 'tree-mcp-server:latest' locally
+docker: Error response from daemon: pull access denied for tree-mcp-server, repository does not exist or may require 'docker login': denied: requested access to the resource is denied
+
+Run 'docker run --help' for more information
+2025-11-26 20:07:35,478 - ERROR - Error scanning directory: Connection closed
+2025-11-26 20:07:35,488 - INFO - File list written to: /home/santosh/cobol-work/agent/metadata/file_list.json
+❌ Tree MCP scan failed: Connection closed
+
+======================================================================
+ Phase 2: Metadata Generation Test
+======================================================================
+
+Project path: /home/santosh/cobol-test/cobol74
+Metadata dir: /home/santosh/cobol-work/agent/metadata
+Skip Tree MCP: False
+
+MCP Servers:
+  - ctags: ctags-mcp:latest
+  - gnuCobol: gnucobol-mcp-server:latest
+  - superbol-lsp: superbol-lsp-mcp-server:latest
+
+Running full metadata generation (with Tree MCP discovery)...
+2025-11-26 20:07:35,609 - INFO - Metadata directories created at: /home/santosh/cobol-work/agent/metadata
+2025-11-26 20:07:35,609 - INFO - Initializing MCP Metadata Generator...
+2025-11-26 20:07:35,610 - DEBUG - MCP Config: {
+  "mcpServers": {
+    "ctags": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/home/santosh/cobol-test/cobol74:/workspace:ro",
+        "-v",
+        "/home/santosh/cobol-work/agent/metadata/ctags:/output",
+        "ctags-mcp:latest"
+      ]
+    },
+    "gnucobol": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/home/santosh/cobol-test/cobol74:/workspace:ro",
+        "-v",
+        "/home/santosh/cobol-work/agent/metadata/gnucobol:/output",
+        "gnucobol-mcp-server:latest"
+      ]
+    },
+    "superbol": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/home/santosh/cobol-test/cobol74:/workspace:ro",
+        "-v",
+        "/home/santosh/cobol-work/agent/metadata/superbol:/output",
+        "superbol-lsp-mcp-server:latest"
+      ]
+    }
+  }
+}
+Unable to find image 'ctags-mcp:latest' locally
+docker: Error response from daemon: pull access denied for ctags-mcp, repository does not exist or may require 'docker login': denied: requested access to the resource is denied
+
+Run 'docker run --help' for more information
+2025-11-26 20:07:38,680 - ERROR - Metadata generation failed: Connection closed
+
+⚠️  Metadata generation completed with errors
+   Duration: 3.18s
+   Total files: 0
+   Successful: 0
+   Failed: 0
+
+   Errors:
+     - Connection closed
+
+   Project metadata files:
+
+======================================================================
+ Phase 3: Cache Manager Test
+======================================================================
+
+2025-11-26 20:07:38,791 - INFO - No existing cache found, starting fresh
+Cache file: /home/santosh/cobol-work/agent/metadata/metadata_cache.json
+Cache entries: 0
+Successful: 0
+Failed: 0
+Total metadata files: 0
+Last full generation: None
+
+✅ Cache manager test successful!
+
+======================================================================
+ Phase 4: Metadata File Verification
+======================================================================
+
+✅ All expected directories exist
+
+Verifying JSON files...
+JSON files found: 1
+Valid JSON: 1
+Invalid JSON: 0
+
+✅ All metadata files verified!
+
+======================================================================
+ Test Summary
+======================================================================
+
+  tree_mcp: ❌ FAIL
+  metadata_generation: ❌ FAIL
+  cache_manager: ✅ PASS
+  verification: ✅ PASS
+
+Results saved to: /home/santosh/cobol-work/agent/metadata/test_results.json
