@@ -66,6 +66,181 @@ sections:
       **External Program Dependencies:**
       {{dependencies_list}}
 
+  - id: business-purpose-explanation
+    title: Business Purpose Explanation
+    instruction: |
+      ═══════════════════════════════════════════════════════════════════════════
+      BUSINESS PERSPECTIVE ANALYSIS
+      ═══════════════════════════════════════════════════════════════════════════
+
+      Provide a COMPREHENSIVE explanation of this program from a PURE BUSINESS
+      PERSPECTIVE. This section is for business analysts, stakeholders, and
+      non-technical readers who need to understand WHAT this program does and
+      WHY it exists - without getting into technical implementation details.
+
+      **ANALYSIS APPROACH:**
+
+      1. **INFER THE BUSINESS DOMAIN**
+         - Analyze program name, data structures, and called programs
+         - Identify the business domain (banking, insurance, retail, manufacturing, etc.)
+         - Look for domain-specific terminology in variable names and copybooks
+         - Examples: ACCT → Account Management, CUST → Customer Service,
+                     TRAN → Transaction Processing, RPT → Reporting
+
+      2. **IDENTIFY BUSINESS FUNCTIONS**
+         From the metadata, determine what business operations this program performs:
+         - Data entry / validation
+         - Transaction processing
+         - Report generation
+         - Batch processing (EOD, month-end, etc.)
+         - Customer/account management
+         - Financial calculations
+         - Audit/compliance logging
+
+      3. **EXPLAIN THE BUSINESS VALUE**
+         Why does this program exist? What business problem does it solve?
+         - What would happen if this program didn't exist?
+         - Who are the business users/beneficiaries?
+         - What business process does it support?
+
+      4. **DESCRIBE BUSINESS WORKFLOWS**
+         How does this program fit into larger business processes?
+         - What triggers this program to run?
+         - What business outcomes result from its execution?
+         - What downstream processes depend on it?
+
+      5. **IDENTIFY BUSINESS RULES**
+         From the code structure and data validation, infer business rules:
+         - Validation requirements (what makes data valid/invalid)
+         - Calculation rules (interest rates, fees, discounts)
+         - Business constraints and limits
+         - Conditional processing logic
+
+      **DATA SOURCES TO ANALYZE:**
+      - Program name and ID (clues to business function)
+      - superbol_cfg.calls[] → What other programs it interacts with
+      - superbol_cfg.copybooks[] → Shared business data structures
+      - gnucobol_analysis.relationships → File I/O and dependencies
+      - ctags_outline → Paragraph names often reveal business steps
+
+      **OUTPUT FORMAT:**
+      Write in clear, business-friendly language. Avoid technical jargon.
+      Use concrete examples where possible. Structure the explanation so a
+      business stakeholder can understand the program's role in the organization.
+
+    sections:
+      - id: business-domain
+        title: Business Domain & Context
+        instruction: |
+          Identify and explain the business domain this program operates in.
+
+          Consider:
+          - What industry or business area does this serve?
+          - What department would own this functionality?
+          - What business terminology is used in the code?
+        template: |
+          **Industry/Domain**: {{business_domain}}
+
+          **Business Area**: {{business_area}}
+
+          {{domain_context_explanation}}
+
+      - id: business-functionality
+        title: Business Functionality
+        instruction: |
+          Explain what this program does in pure business terms.
+
+          Answer these questions:
+          - What business task does this program accomplish?
+          - What inputs does it need (in business terms, not technical)?
+          - What outputs or results does it produce?
+          - Who uses or benefits from this program's output?
+
+          Write as if explaining to a business manager who has never seen code.
+        template: |
+          ### What This Program Does
+
+          {{functionality_explanation}}
+
+          ### Business Inputs
+          {{business_inputs}}
+
+          ### Business Outputs
+          {{business_outputs}}
+
+          ### Business Users & Beneficiaries
+          {{business_users}}
+
+      - id: business-value
+        title: Business Value & Purpose
+        instruction: |
+          Explain WHY this program exists and what value it provides.
+
+          Consider:
+          - What business problem does it solve?
+          - What would happen if this program didn't exist?
+          - How does it contribute to business efficiency or compliance?
+          - What cost savings or revenue impact does it enable?
+        template: |
+          ### Business Problem Addressed
+          {{business_problem}}
+
+          ### Value Proposition
+          {{value_proposition}}
+
+          ### Business Impact
+          {{business_impact}}
+
+      - id: business-workflow
+        title: Business Workflow Integration
+        instruction: |
+          Explain how this program fits into larger business processes.
+
+          From the call graph and relationships, describe:
+          - What business event or process triggers this program?
+          - What business steps happen before this program runs?
+          - What business steps happen after this program completes?
+          - What business decisions depend on this program's output?
+
+          Use a workflow narrative or process flow description.
+        template: |
+          ### Process Trigger
+          {{process_trigger}}
+
+          ### Upstream Dependencies
+          {{upstream_processes}}
+
+          ### Downstream Processes
+          {{downstream_processes}}
+
+          ### Business Process Flow
+          {{business_process_flow}}
+
+      - id: business-rules
+        title: Business Rules & Logic
+        instruction: |
+          Identify and explain the business rules embedded in this program.
+
+          From the code structure and data validation patterns, infer:
+          - Validation rules (what makes data acceptable)
+          - Calculation formulas (how amounts are computed)
+          - Business constraints (limits, thresholds, conditions)
+          - Decision logic (when different paths are taken)
+
+          Express these as business policies, not code logic.
+        template: |
+          ### Validation Rules
+          {{validation_rules}}
+
+          ### Calculation Rules
+          {{calculation_rules}}
+
+          ### Business Constraints
+          {{business_constraints}}
+
+          ### Decision Criteria
+          {{decision_criteria}}
+
   - id: program-structure
     title: Program Structure
     instruction: |
