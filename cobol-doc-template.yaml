@@ -888,6 +888,173 @@ sections:
 
       {{code_reference_links}}
 
+  - id: inter-file-relationships
+    title: Inter-File Relationships
+    instruction: |
+      Document how this program relates to other programs in the project.
+      This section uses PROJECT-LEVEL metadata to show the bigger picture.
+
+      **DATA SOURCES:**
+      1. project_call_graph: From superbol/cfg/call_graph.json - shows all CALL relationships across the project
+      2. project_relationships: From gnucobol/project-relationships.json - shows program dependencies
+
+      **ANALYSIS GOALS:**
+      1. Show which programs CALL this program (callers/dependents)
+      2. Show which programs this program CALLS (callees/dependencies)
+      3. Identify shared copybooks across programs
+      4. Position this program in the overall system architecture
+    sections:
+      - id: callers-analysis
+        title: Programs That Call This Program
+        instruction: |
+          From project_call_graph (call_graph.json), find ALL entries where "to" matches this program name.
+
+          For each caller:
+          - Program name (the file that contains the CALL)
+          - Calling paragraph (the "from" field)
+          - Line number of the CALL statement
+
+          If no programs call this one, state: "This is a top-level/entry program - no callers found"
+
+          This shows who DEPENDS on this program.
+        template: |
+          {{#if callers}}
+          | Calling Program | Calling Paragraph | Line | Purpose |
+          |-----------------|-------------------|------|---------|
+          {{caller_table_rows}}
+          {{else}}
+          **This is a top-level/entry program** - No other programs call this program directly.
+          {{/if}}
+
+      - id: callees-analysis
+        title: Programs Called By This Program
+        instruction: |
+          From project_call_graph (call_graph.json), find the entry for this program's file.
+          List ALL programs in its calls array.
+
+          For each callee:
+          - Program name (the "to" field)
+          - Calling paragraph in THIS program (the "from" field)
+          - Line number
+
+          This shows what this program DEPENDS on.
+        template: |
+          {{#if callees}}
+          | Called Program | Called From Paragraph | Line | Purpose |
+          |----------------|----------------------|------|---------|
+          {{callee_table_rows}}
+          {{else}}
+          **This program makes no external calls** - It is self-contained.
+          {{/if}}
+
+      - id: dependency-graph
+        title: Program Dependency Graph
+        type: mermaid
+        mermaid_type: graph
+        instruction: |
+          Create a Mermaid diagram showing this program's position in the call hierarchy.
+
+          **CRITICAL:** Apply Mermaid sanitization rules:
+          - Node IDs: alphanumeric and underscores only
+          - Labels: use backtick syntax for special characters
+
+          Show THREE levels:
+          1. Programs that call THIS program (upstream/callers) - at top
+          2. THIS program (highlighted in center)
+          3. Programs that THIS program calls (downstream/callees) - at bottom
+
+          Use different arrow styles:
+          - Solid arrows (-->) for direct calls
+          - Different colors for different program types
+
+          Example:
+          ```
+          subgraph Callers
+            MAINPROG[MAINPROG]
+            BATCHJOB[BATCHJOB]
+          end
+
+          MAINPROG --> THISPROG
+          BATCHJOB --> THISPROG
+
+          THISPROG{{THIS_PROGRAM}}
+
+          subgraph Dependencies
+            LOGGER[LOGGER]
+            DBACCESS[DBACCESS]
+          end
+
+          THISPROG --> LOGGER
+          THISPROG --> DBACCESS
+          ```
+        template: |
+          ```mermaid
+          graph TD
+            subgraph Callers ["Programs That Call {{program_name}}"]
+              {{caller_nodes}}
+            end
+
+            {{caller_edges}}
+
+            {{program_name}}_NODE{{"{{program_name}}"}}
+
+            subgraph Dependencies ["Programs Called By {{program_name}}"]
+              {{callee_nodes}}
+            end
+
+            {{callee_edges}}
+
+            classDef current fill:#f9f,stroke:#333,stroke-width:4px
+            classDef caller fill:#bbf,stroke:#333,stroke-width:2px
+            classDef callee fill:#bfb,stroke:#333,stroke-width:2px
+            class {{program_name}}_NODE current
+            {{caller_styling}}
+            {{callee_styling}}
+          ```
+
+      - id: shared-copybooks
+        title: Shared Copybooks Analysis
+        instruction: |
+          From project_relationships (project-relationships.json), identify copybooks used by this program
+          that are also used by other programs.
+
+          For each shared copybook:
+          - Copybook name
+          - List of programs that use it (including this one)
+          - Inferred data sharing purpose
+
+          This shows data structure dependencies across the system.
+        template: |
+          {{#if shared_copybooks}}
+          | Copybook | Used By Programs | Purpose |
+          |----------|------------------|---------|
+          {{shared_copybook_rows}}
+          {{else}}
+          No shared copybooks identified in project metadata.
+          {{/if}}
+
+      - id: system-position
+        title: System Architecture Position
+        instruction: |
+          Based on the caller/callee analysis, describe this program's role:
+
+          1. **Entry Point**: If no callers exist, this is likely a main/entry program
+          2. **Utility/Service**: If many callers but few callees, this is a shared service
+          3. **Business Logic**: If balanced callers/callees, this is core business logic
+          4. **Data Access**: If it primarily calls DB programs, this is a data access layer
+
+          Provide a 2-3 sentence summary of where this program fits architecturally.
+        template: |
+          **Architectural Role**: {{architectural_role}}
+
+          **Position Summary**:
+          {{position_summary}}
+
+          **Integration Pattern**:
+          - Upstream Dependencies: {{caller_count}} programs depend on this
+          - Downstream Dependencies: {{callee_count}} programs are called by this
+          - Coupling Level: {{coupling_assessment}}
+
   - id: metadata-appendix
     title: Appendix - Metadata Summary
     instruction: |

@@ -161,6 +161,11 @@ class ConfigLoader:
         config = self._ensure_loaded()
         return config.get('source_extraction', {})
 
+    def get_project_overview_config(self) -> Dict[str, Any]:
+        """Get project overview generation configuration"""
+        config = self._ensure_loaded()
+        return config.get('project_overview', {})
+
     def to_agent_params(self) -> Dict[str, Any]:
         """
         Convert configuration to agent function parameters

@@ -1,0 +1,84 @@
+# ============================================================================
+# Test Configuration - COBOL74 Project (Single File Mode)
+# ============================================================================
+# This config uses pre-generated metadata from the cobol74 test project.
+# Metadata generation is disabled - reads from existing metadata files.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# SOURCE FILES CONFIGURATION
+# ----------------------------------------------------------------------------
+source:
+  mode: single
+  # Path to COBOL source file (relative to this config file)
+  source_files: /home/santosh/cobol-test/cobol74/programs/online/ACCTMAIN.cbl
+  # Program name (COBOL program-id)
+  program_name: ACCTMAIN
+
+# ----------------------------------------------------------------------------
+# CHECKSUM VALIDATION
+# ----------------------------------------------------------------------------
+validate_checksums:
+  source_checksum_file_path: /home/santosh/cobol-work/metadata/source-checksum.yaml
+  metadata_checksum_file_path: /home/santosh/cobol-work/metadata/metadata-checksum.yaml
+
+# ----------------------------------------------------------------------------
+# OUTPUT PATHS
+# ----------------------------------------------------------------------------
+output:
+  create_dirs: true
+  # Metadata directory (pre-generated)
+  metadata_dir: /home/santosh/cobol-work/metadata
+  # Output directory for generated documentation
+  docs_path: /home/santosh/cobol-work/docs
+
+# ----------------------------------------------------------------------------
+# MCP SERVERS (Not used - metadata already generated)
+# ----------------------------------------------------------------------------
+servers:
+  ctags:
+    enabled: true
+    docker_image: ctags-mcp:test
+  gnuCobol:
+    enabled: true
+    docker_image: gnucobol-mcp:test
+  superbol-lsp:
+    enabled: true
+    docker_image: superbol-mcp:test
+
+# ----------------------------------------------------------------------------
+# METADATA GENERATION - DISABLED
+# ----------------------------------------------------------------------------
+# We're using pre-generated metadata, so generation is disabled
+metadata:
+  generate: false
+  skip_existing: true
+
+# ----------------------------------------------------------------------------
+# TEMPLATE CONFIGURATION
+# ----------------------------------------------------------------------------
+template:
+  path: ./cobol-doc-template.yaml
+
+# ----------------------------------------------------------------------------
+# LLM CONFIGURATION
+# ----------------------------------------------------------------------------
+llm:
+  provider: openai
+  model: gpt-4o
+  api_key: ${OPENAI_API_KEY}
+  temperature: 0.2
+
+# ----------------------------------------------------------------------------
+# SOURCE CODE EXTRACTION
+# ----------------------------------------------------------------------------
+source_extraction:
+  enabled: true
+  compress: false
+
+# ----------------------------------------------------------------------------
+# LOGGING
+# ----------------------------------------------------------------------------
+logging:
+  level: info
+  verbose: true

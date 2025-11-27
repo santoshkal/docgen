@@ -243,11 +243,19 @@ def check_metadata_exists(state: AgentState) -> bool:
     # TODO: cross-check if all the metadata is captured?
 
     # Core required files (always needed)
-    required_files = [
-        metadata_dir / "superbol" / f"superbol-{program_name}-doc-symbols.json",
-        metadata_dir / "superbol" / "superbol-cfg" / f"{program_name}.json",
-        metadata_dir / "ctags" / f"ctags-{program_name}-outline.json"
-    ]
+    # Support both old naming (doc-symbols, superbol-cfg) and new naming (symbols, cfg)
+    superbol_symbols_new = metadata_dir / "superbol" / f"superbol-{program_name}-symbols.json"
+    superbol_symbols_old = metadata_dir / "superbol" / f"superbol-{program_name}-doc-symbols.json"
+    superbol_cfg_new = metadata_dir / "superbol" / "cfg" / f"{program_name}-cfg.json"
+    superbol_cfg_old = metadata_dir / "superbol" / "superbol-cfg" / f"{program_name}.json"
+    ctags_outline = metadata_dir / "ctags" / f"ctags-{program_name}-outline.json"
+
+    # Check if required files exist (support both naming conventions)
+    has_superbol_symbols = superbol_symbols_new.exists() or superbol_symbols_old.exists()
+    has_superbol_cfg = superbol_cfg_new.exists() or superbol_cfg_old.exists()
+    has_ctags = ctags_outline.exists()
+
+    required_files = [has_superbol_symbols, has_superbol_cfg, has_ctags]
 
     # GnuCOBOL: check for relationships file (new format) or batch file (legacy)
     # Note: analyze_cobol is deprecated, using extract_relationships and extract_cross_references_tool
@@ -257,7 +265,7 @@ def check_metadata_exists(state: AgentState) -> bool:
     # At least one GnuCOBOL file must exist (prefer relationships, fallback to batch)
     has_gnucobol = gnucobol_relationships.exists() or gnucobol_batch.exists()
 
-    return all(f.exists() for f in required_files) and has_gnucobol
+    return all(required_files) and has_gnucobol
 
 
 def should_generate_metadata(state: AgentState) -> str:
@@ -330,7 +338,10 @@ def load_metadata_node(state: AgentState) -> AgentState:
 
     try:
         # Load SuperBol Symbols with intelligent filtering for large files
-        superbol_symbols_path = metadata_dir / "superbol" / f"superbol-{program_name}-doc-symbols.json"
+        # Support both old naming (doc-symbols) and new naming (symbols)
+        superbol_symbols_path = metadata_dir / "superbol" / f"superbol-{program_name}-symbols.json"
+        if not superbol_symbols_path.exists():
+            superbol_symbols_path = metadata_dir / "superbol" / f"superbol-{program_name}-doc-symbols.json"
         with open(superbol_symbols_path, 'r') as f:
             superbol_data = json.load(f)
 
@@ -383,7 +394,10 @@ def load_metadata_node(state: AgentState) -> AgentState:
             state["superbol_symbols"] = superbol_data
 
         # Load SuperBol CFG
-        superbol_cfg_path = metadata_dir / "superbol" / "superbol-cfg" / f"{program_name}.json"
+        # Support both old naming (superbol-cfg/PROGRAM.json) and new naming (cfg/PROGRAM-cfg.json)
+        superbol_cfg_path = metadata_dir / "superbol" / "cfg" / f"{program_name}-cfg.json"
+        if not superbol_cfg_path.exists():
+            superbol_cfg_path = metadata_dir / "superbol" / "superbol-cfg" / f"{program_name}.json"
         with open(superbol_cfg_path, 'r') as f:
             state["superbol_cfg"] = json.load(f)
 
@@ -2762,6 +2776,262 @@ def create_documentation_agent() -> StateGraph:
 
 
 # ============================================================================
+# PROJECT OVERVIEW GENERATION
+# ============================================================================
+
+def generate_project_overview(
+    template_path: str,
+    output_dir: str,
+    metadata_dir: str,
+    call_graph_path: str,
+    project_relationships_path: str,
+    file_list_path: str,
+    llm_config: Optional[Dict[str, Any]] = None,
+    generated_docs: Optional[List[Tuple[str, str]]] = None
+) -> str:
+    """
+    Generate Project Overview document after batch processing completes.
+
+    This creates a high-level summary document that describes the entire
+    COBOL project, including architecture, call graphs, and relationships.
+
+    Uses MetadataContextManager for:
+    - Exact token counting with tiktoken
+    - Intelligent context management for large projects
+    - Automatic strategy selection (single_request, hybrid, hierarchical, chunked)
+
+    Args:
+        template_path: Path to project-overview-template.yaml
+        output_dir: Directory to save the generated PROJECT-OVERVIEW.md
+        metadata_dir: Directory containing metadata files
+        call_graph_path: Path to call_graph.json
+        project_relationships_path: Path to project-relationships.json
+        file_list_path: Path to file_list.json
+        llm_config: LLM configuration (provider, model, api_key, temperature)
+        generated_docs: List of (program_name, doc_path) tuples for successfully generated docs
+
+    Returns:
+        Path to generated PROJECT-OVERVIEW.md
+    """
+    from datetime import datetime
+    from metadata_context_manager import MetadataContextManager, TokenBudget
+
+    print(f"\n{'='*70}")
+    print(f"PROJECT OVERVIEW GENERATION")
+    print(f"{'='*70}\n")
+
+    # Determine model for token counting
+    model_name = llm_config.get('model', 'gpt-4') if llm_config else 'gpt-4'
+
+    # Initialize MetadataContextManager with tiktoken
+    # GPT-4.1 has 1M context, but we configure budget conservatively
+    budget = TokenBudget(
+        total_context=1_000_000,      # GPT-4.1 context window
+        system_prompt_reserve=2_000,   # System prompt
+        template_reserve=5_000,        # Template instructions per section
+        response_reserve=100_000,      # Reserve for LLM responses (10 sections * 10K each)
+        safety_margin=10_000           # Safety buffer
+    )
+
+    context_manager = MetadataContextManager(
+        model=model_name,
+        budget=budget,
+        verbose=True
+    )
+
+    # Add metadata files with priorities (1=highest priority)
+    context_manager.add_metadata_file("call_graph", call_graph_path, priority=1)
+    context_manager.add_metadata_file("relationships", project_relationships_path, priority=2)
+    context_manager.add_metadata_file("file_list", file_list_path, priority=3)
+
+    # Prepare context with automatic strategy selection
+    strategy, metadata_context, context_stats = context_manager.prepare_context()
+
+    print(f"\n📊 Token Analysis:")
+    print(f"   Strategy: {context_stats['strategy']}")
+    print(f"   Total metadata tokens: {context_stats['total_metadata_tokens']:,}")
+    print(f"   Context tokens: {context_stats['context_tokens']:,}")
+    print(f"   Budget available: {context_stats['budget_available']:,}")
+    print(f"   Budget used: {context_stats['budget_used_percent']:.1f}%")
+
+    # Load template
+    template_file = Path(template_path)
+    if not template_file.exists():
+        print(f"✗ Error: Project overview template not found: {template_path}")
+        return ""
+
+    try:
+        with open(template_file, 'r') as f:
+            template = yaml.safe_load(f)
+        print(f"✓ Loaded template: {template_path}")
+    except Exception as e:
+        print(f"✗ Error loading template: {e}")
+        return ""
+
+    # Initialize LLM
+    if llm_config:
+        llm = create_llm(llm_config)
+    else:
+        llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
+
+    # Extract project info from loaded metadata
+    file_list_data = context_manager.metadata_files.get('file_list')
+    file_list_content = file_list_data.content if file_list_data and file_list_data.is_loaded else {}
+
+    # Infer project name
+    project_name = "COBOL Project"
+    if isinstance(file_list_content, dict) and 'files' in file_list_content:
+        files = file_list_content['files']
+        if files:
+            first_file = files[0] if isinstance(files[0], str) else files[0].get('path', '')
+            parts = first_file.split('/')
+            for part in parts:
+                if part and part not in ['.', '..', 'programs', 'copybooks', 'batch', 'online', 'workspace']:
+                    project_name = part
+                    break
+
+    # Count programs and copybooks
+    total_programs = 0
+    total_copybooks = 0
+    if isinstance(file_list_content, dict) and 'files' in file_list_content:
+        for f in file_list_content.get('files', []):
+            fname = f if isinstance(f, str) else f.get('name', f.get('path', ''))
+            fname_lower = fname.lower()
+            if fname_lower.endswith(('.cbl', '.cob', '.c74', '.cobol')):
+                total_programs += 1
+            elif fname_lower.endswith(('.cpy', '.copy')):
+                total_copybooks += 1
+
+    # Build project summary header (small, always included)
+    project_header = f"""
+PROJECT METADATA SUMMARY
+========================
+Project Name: {project_name}
+Total Programs: {total_programs}
+Total Copybooks: {total_copybooks}
+Generated Documentation Files: {len(generated_docs) if generated_docs else 0}
+Generation Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Context Strategy: {context_stats['strategy']}
+Metadata Tokens: {context_stats['context_tokens']:,}
+"""
+
+    # Combine header with metadata context
+    full_project_context = project_header + "\n" + metadata_context
+
+    # Calculate tokens for the full context
+    full_context_tokens = context_manager.count_tokens(full_project_context)
+    print(f"\n📦 Full context prepared: {full_context_tokens:,} tokens")
+
+    # Process each section from the template
+    template_sections = template.get('sections', [])
+    generated_sections = []
+
+    # Track token usage
+    total_input_tokens = 0
+    total_output_tokens = 0
+
+    print(f"\nProcessing {len(template_sections)} sections...")
+
+    for idx, section in enumerate(template_sections, 1):
+        section_id = section.get('id', f'section-{idx}')
+        section_title = section.get('title', section_id)
+        section_instruction = section.get('instruction', '')
+
+        print(f"\n  [{idx}/{len(template_sections)}] Processing: {section_title}")
+
+        # Build prompt for this section
+        prompt = f"""You are generating a Project Overview document for a COBOL project.
+
+SECTION: {section_title}
+SECTION ID: {section_id}
+
+INSTRUCTIONS:
+{section_instruction}
+
+{full_project_context}
+
+GENERATED DOCUMENTATION FILES:
+{chr(10).join([f"- {name}: {path}" for name, path in (generated_docs or [])[:50]])}
+
+Generate the content for this section following the instructions above.
+Use Markdown formatting. Be concise but comprehensive.
+If creating Mermaid diagrams, ensure node IDs use only alphanumeric characters and underscores.
+"""
+
+        # Calculate input tokens
+        system_prompt = "You are a technical documentation expert generating a COBOL project overview document."
+        input_tokens = context_manager.count_tokens(system_prompt + prompt)
+        total_input_tokens += input_tokens
+        print(f"    → Input: {input_tokens:,} tokens")
+
+        try:
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=prompt)
+            ]
+
+            response = llm.invoke(messages)
+            section_content = response.content
+
+            # Calculate output tokens
+            output_tokens = context_manager.count_tokens(section_content)
+            total_output_tokens += output_tokens
+
+            generated_sections.append({
+                'id': section_id,
+                'title': section_title,
+                'content': section_content
+            })
+
+            print(f"    ✓ Generated {len(section_content)} chars ({output_tokens:,} tokens)")
+
+        except Exception as e:
+            print(f"    ✗ Error generating section: {e}")
+            generated_sections.append({
+                'id': section_id,
+                'title': section_title,
+                'content': f"*Error generating section: {e}*"
+            })
+
+    # Assemble final document
+    print(f"\nAssembling final document...")
+
+    document_parts = [
+        f"# {project_name} - Project Overview\n",
+        f"*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n",
+        f"*Context Strategy: {context_stats['strategy']} | Metadata: {context_stats['context_tokens']:,} tokens*\n",
+        "---\n"
+    ]
+
+    for section in generated_sections:
+        document_parts.append(f"\n## {section['title']}\n\n")
+        document_parts.append(section['content'])
+        document_parts.append("\n")
+
+    final_document = "\n".join(document_parts)
+
+    # Save document
+    output_path = Path(output_dir) / "PROJECT-OVERVIEW.md"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, 'w') as f:
+        f.write(final_document)
+
+    print(f"\n{'='*70}")
+    print(f"✓ Project Overview generated successfully!")
+    print(f"  Output: {output_path}")
+    print(f"  Size: {len(final_document):,} characters")
+    print(f"  Sections: {len(generated_sections)}")
+    print(f"\n📊 Token Usage Summary:")
+    print(f"  Total input tokens: {total_input_tokens:,}")
+    print(f"  Total output tokens: {total_output_tokens:,}")
+    print(f"  Total tokens: {total_input_tokens + total_output_tokens:,}")
+    print(f"{'='*70}\n")
+
+    return str(output_path)
+
+
+# ============================================================================
 # MAIN EXECUTION
 # ============================================================================
 
@@ -3108,6 +3378,14 @@ Examples:
         copybook_search_paths = source_extraction_config.get('copybook_search_paths', [])
         program_search_paths = source_extraction_config.get('program_search_paths', [])
 
+        # Project Overview configuration
+        project_overview_config = config_loader.get_project_overview_config()
+        project_overview_enabled = project_overview_config.get('enabled', False)
+        project_overview_template = template_config.get('project_overview_path', './project-overview-template.yaml')
+        project_overview_call_graph = project_overview_config.get('call_graph', '')
+        project_overview_relationships = project_overview_config.get('project_relationships', '')
+        project_overview_file_list = project_overview_config.get('file_list', '')
+
     else:
         # Use CLI arguments only (backward compatibility)
         program_name = args.program_name
@@ -3132,6 +3410,13 @@ Examples:
         resolve_called_programs = False
         copybook_search_paths = []
         program_search_paths = []
+
+        # Project Overview defaults (disabled by default)
+        project_overview_enabled = False
+        project_overview_template = './project-overview-template.yaml'
+        project_overview_call_graph = ''
+        project_overview_relationships = ''
+        project_overview_file_list = ''
 
     # Validation: either program_name or source_files must be provided
     if not program_name and not source_files_arg:
@@ -3231,6 +3516,33 @@ Examples:
                 print(f"  - {prog_name}: {error}")
 
         print(f"\n{'='*70}\n")
+
+        # Generate Project Overview document if enabled
+        if project_overview_enabled and successful:
+            print(f"Project Overview generation enabled - generating summary document...")
+
+            # Use default paths if not specified in config
+            call_graph_path = project_overview_call_graph or f"{metadata_dir}/superbol/cfg/call_graph.json"
+            relationships_path = project_overview_relationships or f"{metadata_dir}/gnucobol/project-relationships.json"
+            file_list_path = project_overview_file_list or f"{metadata_dir}/file_list.json"
+
+            try:
+                overview_path = generate_project_overview(
+                    template_path=project_overview_template,
+                    output_dir=docs_path,
+                    metadata_dir=metadata_dir,
+                    call_graph_path=call_graph_path,
+                    project_relationships_path=relationships_path,
+                    file_list_path=file_list_path,
+                    llm_config=llm_config,
+                    generated_docs=successful
+                )
+                if overview_path:
+                    print(f"✓ Project Overview generated: {overview_path}")
+            except Exception as e:
+                print(f"✗ Failed to generate Project Overview: {e}")
+                import traceback
+                traceback.print_exc()
 
     else:
         # Single program mode (original behavior)

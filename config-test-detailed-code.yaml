@@ -1,8 +1,9 @@
 # Test Configuration for Detailed Code-Block Explanation with Chunking
 source:
   mode: single
-  source_files: ../TDAS-MINDISTCALC.c74
-  program_name: MINDISTCALC
+  # Using cobol74 test project - ACCTMAIN (Account Management main program)
+  source_files: /home/santosh/cobol-test/cobol74/programs/online/ACCTMAIN.cbl
+  program_name: ACCTMAIN
 
 output:
   metadata_dir: ../metadata
