@@ -156,6 +156,97 @@ class ConfigLoader:
         config = self._ensure_loaded()
         return config.get('source_extraction', {})
 
+    def get_program_map_config(self) -> Dict[str, Any]:
+        """
+        Get program map configuration.
+
+        Returns configuration for program map generation including:
+        - top_n_paragraphs: Number of top paragraphs to include (-1 for all)
+        - top_n_data_items: Number of top data items to include (-1 for all)
+        - show_all: Whether to show all elements (overrides top_n settings)
+        - dynamic_limits: Configuration for automatic size-based limits
+        - tiered_details: Configuration for tiered detail levels
+
+        Returns:
+            Dictionary with program map configuration, or defaults if not set
+        """
+        config = self._ensure_loaded()
+        pm_config = config.get('program_map', {})
+
+        # Build result with defaults
+        result = {
+            'top_n_paragraphs': pm_config.get('top_n_paragraphs', 30),
+            'top_n_data_items': pm_config.get('top_n_data_items', 20),
+            'show_all': pm_config.get('show_all', False)
+        }
+
+        # Include dynamic_limits if present
+        if 'dynamic_limits' in pm_config:
+            result['dynamic_limits'] = pm_config['dynamic_limits']
+
+        # Include tiered_details if present
+        if 'tiered_details' in pm_config:
+            result['tiered_details'] = pm_config['tiered_details']
+
+        # Include mandatory_elements if present
+        if 'mandatory_elements' in pm_config:
+            result['mandatory_elements'] = pm_config['mandatory_elements']
+
+        return result
+
+    def get_full_context_config(self) -> Dict[str, Any]:
+        """
+        Get full context mode configuration.
+
+        Full context mode sends complete source code + metadata + program map
+        to the LLM for each section, enabling more comprehensive documentation.
+
+        Returns configuration for full context mode including:
+        - enabled: Whether full context mode is enabled (default: False)
+        - sections: List of section IDs that should use full context
+
+        Returns:
+            Dictionary with full context configuration, with defaults if not set
+        """
+        config = self._ensure_loaded()
+        fc_config = config.get('full_context', {})
+
+        # Default sections for full context mode
+        default_sections = [
+            'executive-summary',
+            'key-responsibilities',
+            'business-logic',
+            'overview',
+            'data-flow-analysis',
+        ]
+
+        # Build result with defaults
+        enabled = fc_config.get('enabled', False)
+
+        result = {
+            'enabled': enabled,
+            # If enabled but no sections specified, use defaults
+            # If disabled, use empty list
+            'sections': fc_config.get('sections', default_sections if enabled else []),
+        }
+
+        # Include program_map_overrides if present
+        if 'program_map_overrides' in fc_config:
+            result['program_map_overrides'] = fc_config['program_map_overrides']
+
+        # Include context_chaining configuration (US-4.1)
+        chaining_config = fc_config.get('context_chaining', {})
+        result['context_chaining'] = {
+            'enabled': chaining_config.get('enabled', False),
+            'max_tokens': chaining_config.get('max_tokens', None),
+        }
+
+        # Include max_message_chars for API limit protection
+        # OpenAI API has ~10MB message limit, default to 9MB for safety
+        result['max_message_chars'] = fc_config.get('max_message_chars', 9000000)
+
+        return result
+
     def to_agent_params(self) -> Dict[str, Any]:
         """
         Convert configuration to agent function parameters
@@ -174,6 +265,9 @@ class ConfigLoader:
         program_name = source_config.get('program_name')
         source_files = source_config.get('source_files')
 
+        # Get full context config
+        full_context_config = self.get_full_context_config()
+
         # Build parameters
         params = {
             'program_name': program_name,
@@ -185,6 +279,9 @@ class ConfigLoader:
             'skip_existing_metadata': metadata_config.get('skip_existing', True),
             'source_checksum_path': checksum_config.get('source_checksum_file_path', './source-checksum.yaml'),
             'metadata_checksum_path': checksum_config.get('metadata_checksum_file_path', './metadata-checksum.yaml'),
+            # Full context mode parameters
+            'use_full_context_mode': full_context_config['enabled'],
+            'full_context_sections': full_context_config['sections'],
         }
 
         return params

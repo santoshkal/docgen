@@ -42,6 +42,29 @@ except ImportError as e:
     MULTI_FILE_AVAILABLE = False
     print(f"⚠ Warning: Source extraction modules not found: {e}")
 
+# Import Full Context Mode modules (Epic 2 & 3)
+try:
+    from full_context_builder import FullContextBuilder
+    from context_strategy import should_use_full_context, get_strategy_for_state
+    from full_context_prompts import build_full_context_prompt
+    FULL_CONTEXT_AVAILABLE = True
+except ImportError as e:
+    FULL_CONTEXT_AVAILABLE = False
+    print(f"⚠ Warning: Full context modules not found: {e}")
+
+# Import Context Chaining modules (Epic 4)
+try:
+    from context_chain import (
+        ContextChain,
+        build_chained_context,
+        should_use_chaining,
+        FULL_CONTEXT_SECTION_ORDER
+    )
+    CONTEXT_CHAINING_AVAILABLE = True
+except ImportError as e:
+    CONTEXT_CHAINING_AVAILABLE = False
+    print(f"⚠ Warning: Context chaining modules not found: {e}")
+
 # ============================================================================
 # STATE DEFINITION
 # ============================================================================
@@ -97,6 +120,15 @@ class AgentState(TypedDict):
     program_search_paths: Optional[List[str]]  # Paths to search for called programs
     copybook_resolver: Optional[Any]  # CopybookResolver instance (initialized at runtime)
     called_program_resolver: Optional[Any]  # CalledProgramResolver instance (initialized at runtime)
+
+    # Full Context Mode (Epic 2: Section-Specific Full Context Generation)
+    use_full_context_mode: bool  # Whether to use full context mode (default: False)
+    full_context_sections: List[str]  # List of section IDs that use full context
+    max_message_chars: int  # Max chars for LLM prompt (OpenAI API limit ~10MB, default 9MB)
+
+    # Context Chaining (Epic 4: Cross-Section Consistency)
+    context_chaining_enabled: bool  # Whether context chaining is enabled (default: False)
+    context_chain_data: Dict[str, str]  # Stored previous section outputs for chaining
 
     # Processing State
     current_section: str
@@ -278,6 +310,13 @@ def should_generate_metadata(state: AgentState) -> str:
     if not state.get("generate_metadata", False):
         print("\nℹ Metadata generation disabled in config, loading existing metadata")
         return "skip_checksums_valid"
+
+    # Check if force regeneration is requested (skip_existing_metadata = False means force regenerate)
+    skip_existing = state.get("skip_existing_metadata", True)
+    if not skip_existing:
+        print("\nℹ Force metadata regeneration requested (skip_existing: false)")
+        state["metadata_generation_reason"] = "Force regeneration requested"
+        return "generate_via_checksum"
 
     # Get paths from state
     workspace_path = Path(state["workspace_path"])
@@ -1236,17 +1275,212 @@ def filter_metadata_for_section_enhanced(section: Dict[str, Any], full_metadata:
     return filtered
 
 
+# ============================================================================
+# FULL CONTEXT MODE HELPER (Epic 2-3)
+# ============================================================================
+
+def _build_full_context_for_section(state: AgentState, section: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Build full context (source + metadata + program map) for a section.
+
+    This function is called when a section is configured to use full context mode.
+    It uses the FullContextBuilder to assemble complete context without filtering.
+
+    Args:
+        state: Current agent state with program info and configuration
+        section: Section configuration from template
+
+    Returns:
+        Context dictionary with full source, metadata, and program map
+    """
+    section_id = section.get("id", "")
+    program_name = state["program_name"]
+    cobol_file_path = state.get("cobol_file_path")
+    metadata_dir = state.get("metadata_dir")
+
+    print(f"  ✓ FULL CONTEXT MODE activated for section: {section_id}")
+
+    # Initialize result context
+    context = {
+        "program_name": program_name,
+        "timestamp": datetime.now().isoformat(),
+        "full_context_mode": True,  # Flag to indicate full context is being used
+        "section_id": section_id,
+    }
+
+    # Check if we can build full context
+    if not cobol_file_path or not metadata_dir:
+        print(f"  ⚠ Full context mode requires cobol_file_path and metadata_dir")
+        print(f"    cobol_file_path: {cobol_file_path}")
+        print(f"    metadata_dir: {metadata_dir}")
+        # Fall back to existing metadata from state
+        context["superbol_symbols"] = state.get("superbol_symbols", {})
+        context["superbol_cfg"] = state.get("superbol_cfg", {})
+        context["gnucobol_analysis"] = state.get("gnucobol_analysis", {})
+        context["ctags_outline"] = state.get("ctags_outline", {})
+        return context
+
+    try:
+        # Build full context using FullContextBuilder
+        builder = FullContextBuilder(
+            program_name=program_name,
+            source_file_path=cobol_file_path,
+            metadata_dir=metadata_dir
+        )
+
+        # Get full context with line numbers for source code reference
+        full_context = builder.build_full_context(
+            top_n_paragraphs=100,  # Higher limits for full context
+            top_n_data_items=50,
+            include_line_numbers=True
+        )
+
+        # Add source code to context
+        source_code = full_context.get("source_code", "")
+        if source_code:
+            context["source_code"] = source_code
+            source_lines = len(source_code.split('\n'))
+            print(f"    → Source code loaded: {source_lines} lines")
+
+        # Add full metadata (unfiltered)
+        metadata = full_context.get("metadata", {})
+        context["superbol_symbols"] = metadata.get("superbol_symbols", state.get("superbol_symbols", {}))
+        context["superbol_cfg"] = metadata.get("superbol_cfg", state.get("superbol_cfg", {}))
+        context["gnucobol_analysis"] = metadata.get("gnucobol_analysis", state.get("gnucobol_analysis", {}))
+        context["ctags_outline"] = metadata.get("ctags_outline", state.get("ctags_outline", {}))
+
+        # Add program map
+        program_map = full_context.get("program_map", "")
+        if program_map:
+            context["program_map"] = program_map
+            print(f"    → Program map generated (~{len(program_map)//4} tokens)")
+
+        # Check if serialized context exceeds max_message_chars limit (OpenAI API limit)
+        # The LLM call uses json.dumps(context), so we need to check that size
+        max_message_chars = state.get("max_message_chars", 9000000)  # Default 9MB
+        context_json = json.dumps(context)
+        context_len = len(context_json)
+
+        print(f"    → Context size: {context_len:,} chars (limit: {max_message_chars:,})")
+
+        if context_len > max_message_chars:
+            print(f"    ⚠ Context exceeds limit: {context_len:,} chars > {max_message_chars:,} max")
+
+            # Calculate how much to truncate
+            excess_chars = context_len - max_message_chars
+            # Add buffer for safety (20% extra to account for JSON overhead)
+            truncate_chars = int(excess_chars * 1.2)
+
+            # Strategy: Truncate source_code first (largest component)
+            if source_code and len(source_code) > truncate_chars:
+                # Truncate source code from the middle (keep beginning and end)
+                keep_chars = len(source_code) - truncate_chars
+                half_keep = keep_chars // 2
+
+                truncated_source = (
+                    source_code[:half_keep] +
+                    f"\n\n... [TRUNCATED {truncate_chars:,} characters to fit API limit] ...\n\n" +
+                    source_code[-half_keep:]
+                )
+
+                print(f"    → Truncated source: {len(source_code):,} → {len(truncated_source):,} chars")
+                context["source_code"] = truncated_source
+                source_code = truncated_source
+
+                # Verify new size
+                context_json = json.dumps(context)
+                print(f"    → New context size: {len(context_json):,} chars")
+            else:
+                # If source isn't enough, also trim metadata
+                print(f"    → Source too small, trimming metadata...")
+
+                # Remove large metadata items to reduce size
+                if "superbol_symbols" in context and context["superbol_symbols"]:
+                    symbols = context["superbol_symbols"]
+                    if isinstance(symbols, list) and len(symbols) > 500:
+                        context["superbol_symbols"] = symbols[:500]
+                        print(f"    → Trimmed superbol_symbols: {len(symbols)} → 500")
+
+                if "superbol_cfg" in context and context["superbol_cfg"]:
+                    # Keep only essential CFG info
+                    cfg = context["superbol_cfg"]
+                    if isinstance(cfg, dict):
+                        if "nodes" in cfg and len(cfg.get("nodes", [])) > 100:
+                            cfg["nodes"] = cfg["nodes"][:100]
+                        if "edges" in cfg and len(cfg.get("edges", [])) > 200:
+                            cfg["edges"] = cfg["edges"][:200]
+                        context["superbol_cfg"] = cfg
+                        print(f"    → Trimmed superbol_cfg")
+
+                # Verify new size
+                context_json = json.dumps(context)
+                print(f"    → New context size after metadata trim: {len(context_json):,} chars")
+
+        # Store the full context prompt for this section
+        instruction = section.get("instruction", "")
+        full_context_prompt = build_full_context_prompt(
+            section_id=section_id,
+            source_code=source_code,
+            metadata=metadata,
+            program_map=program_map,
+            instruction=instruction,
+            program_name=program_name
+        )
+        context["full_context_prompt"] = full_context_prompt
+        print(f"    → Full context prompt built for {section_id}")
+
+        # Epic 4: Add context chaining if enabled
+        if CONTEXT_CHAINING_AVAILABLE and state.get("context_chaining_enabled", False):
+            chain_data = state.get("context_chain_data", {})
+            chain = ContextChain.from_dict(chain_data)
+
+            chained_context = build_chained_context(
+                current_section=section_id,
+                chain=chain,
+                enabled=True
+            )
+
+            if chained_context:
+                context["chained_context"] = chained_context
+                print(f"    → Context chaining: included {len(chain.get_all_sections())} previous sections")
+
+    except Exception as e:
+        print(f"  ⚠ Error building full context: {e}")
+        # Fall back to existing metadata from state
+        context["superbol_symbols"] = state.get("superbol_symbols", {})
+        context["superbol_cfg"] = state.get("superbol_cfg", {})
+        context["gnucobol_analysis"] = state.get("gnucobol_analysis", {})
+        context["ctags_outline"] = state.get("ctags_outline", {})
+
+    return context
+
+
 def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract relevant metadata for the current section.
 
-    Two modes:
+    Three modes (in priority order):
+    - Full context mode: Complete source + metadata + program map for target sections
     - Two-pass mode: Uses pass-based conservative filtering (preserves quality)
     - Single-pass mode: Uses aggressive section-based filtering (saves tokens)
 
     Phase 1 Integration: Also extracts source code if enabled
+    Epic 2-3: Full context mode for executive-summary, business-logic, etc.
     """
-    # Build full metadata
+    section_id = section.get("id", "")
+
+    # Epic 2-3: Check if this section should use full context mode
+    if FULL_CONTEXT_AVAILABLE and state.get("use_full_context_mode", False):
+        full_context_sections = state.get("full_context_sections", [])
+
+        if should_use_full_context(
+            section_id=section_id,
+            use_full_context_mode=True,
+            full_context_sections=full_context_sections
+        ):
+            return _build_full_context_for_section(state, section)
+
+    # Build full metadata (for filtered modes)
     full_metadata = {
         "program_name": state["program_name"],
         "timestamp": datetime.now().isoformat(),
@@ -1688,7 +1922,51 @@ OUTPUT FORMAT:
     # Build user prompt with metadata
     # CRITICAL: Use compact JSON (no indent) to reduce token count
     # indent=2 adds ~50% overhead (800K → 1.2M tokens)
-    metadata_str = json.dumps(context)
+
+    # TRUNCATION: Check context size before serialization (OpenAI API limit ~10MB)
+    MAX_MESSAGE_CHARS = 9000000  # 9MB safe limit (API limit is ~10MB)
+    context_json = json.dumps(context)
+    context_len = len(context_json)
+
+    if context_len > MAX_MESSAGE_CHARS:
+        print(f"  ⚠ TRUNCATION NEEDED: Context {context_len:,} chars exceeds {MAX_MESSAGE_CHARS:,} limit")
+
+        # Calculate how much to truncate
+        excess_chars = context_len - MAX_MESSAGE_CHARS
+        truncate_chars = int(excess_chars * 1.3)  # 30% buffer
+
+        # Strategy 1: Truncate source_code if present
+        if "source_code" in context and context["source_code"]:
+            source = context["source_code"]
+            if len(source) > truncate_chars:
+                keep_chars = len(source) - truncate_chars
+                half = keep_chars // 2
+                context["source_code"] = (
+                    source[:half] +
+                    f"\n\n... [TRUNCATED {truncate_chars:,} chars] ...\n\n" +
+                    source[-half:]
+                )
+                print(f"    → Truncated source_code: {len(source):,} → {len(context['source_code']):,}")
+
+        # Strategy 2: Trim large metadata arrays
+        for key in ["superbol_symbols", "superbol_cfg", "gnucobol_analysis", "ctags_outline"]:
+            if key in context and context[key]:
+                item = context[key]
+                if isinstance(item, list) and len(item) > 500:
+                    context[key] = item[:500]
+                    print(f"    → Trimmed {key}: {len(item)} → 500 items")
+                elif isinstance(item, dict):
+                    for subkey in ["nodes", "edges", "symbols", "paragraphs", "data_items"]:
+                        if subkey in item and isinstance(item[subkey], list) and len(item[subkey]) > 300:
+                            original_len = len(item[subkey])
+                            item[subkey] = item[subkey][:300]
+                            print(f"    → Trimmed {key}.{subkey}: {original_len} → 300 items")
+
+        # Re-serialize and check
+        context_json = json.dumps(context)
+        print(f"    → New context size: {len(context_json):,} chars")
+
+    metadata_str = context_json
 
     # RETRY ENHANCEMENT: Build retry emphasis to insert RIGHT AFTER code block
     # This creates stronger proximity/association between source code and instruction
@@ -2793,7 +3071,11 @@ def generate_documentation(
     resolve_copybooks: bool = False,  # Phase 3: Resolve and include copybook content
     resolve_called_programs: bool = False,  # Phase 3: Resolve called program information
     copybook_search_paths: Optional[List[str]] = None,  # Phase 3: Directories to search for copybooks
-    program_search_paths: Optional[List[str]] = None  # Phase 3: Directories to search for called programs
+    program_search_paths: Optional[List[str]] = None,  # Phase 3: Directories to search for called programs
+    # Epic 2: Full Context Mode parameters
+    use_full_context_mode: bool = False,  # Epic 2: Enable full context mode (default: False)
+    full_context_sections: Optional[List[str]] = None,  # Epic 2: Sections that use full context
+    max_message_chars: int = 9000000  # Epic 2: Max chars for LLM prompt (API limit ~10MB)
 ) -> str:
     """
     Main entry point for documentation generation.
@@ -2819,6 +3101,8 @@ def generate_documentation(
         resolve_called_programs: Enable Phase 3 called program resolution (default: False)
         copybook_search_paths: Directories to search for copybook files (default: None)
         program_search_paths: Directories to search for called program files (default: None)
+        use_full_context_mode: Enable Epic 2 full context mode (default: False)
+        full_context_sections: List of section IDs that use full context (default: None)
 
     Returns:
         Path to generated documentation file
@@ -2920,6 +3204,7 @@ def generate_documentation(
         superbol_cfg={},
         gnucobol_analysis={},
         ctags_outline={},
+        called_by_graph={},  # PHASE 3: Reverse call graph (populated during metadata loading)
         use_two_pass_mode=use_two_pass_mode,  # NEW: Two-pass mode flag
         current_pass=None,  # NEW: Current pass number
         passes=None,  # NEW: Passes list (populated during template structure extraction)
@@ -2934,6 +3219,10 @@ def generate_documentation(
         program_search_paths=program_search_paths,  # Phase 3: Program search paths
         copybook_resolver=copybook_resolver,  # Phase 3: CopybookResolver instance
         called_program_resolver=called_program_resolver,  # Phase 3: CalledProgramResolver instance
+        # Epic 2: Full Context Mode
+        use_full_context_mode=use_full_context_mode,  # Epic 2: Full context mode flag
+        full_context_sections=full_context_sections or [],  # Epic 2: Sections using full context
+        max_message_chars=max_message_chars,  # Epic 2: Max chars for LLM prompt (API limit)
         current_section="",
         section_ids=[],  # Initialize section IDs list
         current_section_index=0,  # Initialize index
@@ -3115,6 +3404,17 @@ Examples:
         copybook_search_paths = source_extraction_config.get('copybook_search_paths', [])
         program_search_paths = source_extraction_config.get('program_search_paths', [])
 
+        # Epic 2: Full Context Mode configuration
+        full_context_config = config_loader.get_full_context_config()
+        use_full_context_mode = full_context_config.get('enabled', False)
+        full_context_sections = full_context_config.get('sections', [])
+        max_message_chars = full_context_config.get('max_message_chars', 9000000)
+
+        if use_full_context_mode:
+            print(f"\n  Full Context Mode: ENABLED")
+            print(f"  Full Context Sections: {full_context_sections}")
+            print(f"  Max Message Chars: {max_message_chars:,}")
+
     else:
         # Use CLI arguments only (backward compatibility)
         program_name = args.program_name
@@ -3139,6 +3439,11 @@ Examples:
         resolve_called_programs = False
         copybook_search_paths = []
         program_search_paths = []
+
+        # Epic 2: Full Context Mode defaults (disabled by default)
+        use_full_context_mode = False
+        full_context_sections = []
+        max_message_chars = 9000000  # Default 9MB
 
     # Validation: either program_name or source_files must be provided
     if not program_name and not source_files_arg:
@@ -3212,7 +3517,11 @@ Examples:
                     resolve_copybooks=resolve_copybooks,
                     resolve_called_programs=resolve_called_programs,
                     copybook_search_paths=copybook_search_paths,
-                    program_search_paths=program_search_paths
+                    program_search_paths=program_search_paths,
+                    # Epic 2: Full Context Mode
+                    use_full_context_mode=use_full_context_mode,
+                    full_context_sections=full_context_sections,
+                    max_message_chars=max_message_chars
                 )
                 successful.append((prog_name, output_path))
                 print(f"✓ Successfully generated documentation for {prog_name}")
@@ -3260,7 +3569,11 @@ Examples:
             resolve_copybooks=resolve_copybooks,
             resolve_called_programs=resolve_called_programs,
             copybook_search_paths=copybook_search_paths,
-            program_search_paths=program_search_paths
+            program_search_paths=program_search_paths,
+            # Epic 2: Full Context Mode
+            use_full_context_mode=use_full_context_mode,
+            full_context_sections=full_context_sections,
+            max_message_chars=max_message_chars
         )
 
         print(f"\n{'='*70}")

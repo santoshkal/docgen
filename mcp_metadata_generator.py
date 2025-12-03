@@ -265,7 +265,8 @@ class MCPMetadataGenerator:
             file_result = await session.call_tool(
                 "analyze_cobol",
                 {
-                    "file_path": file_path
+                    "file_path": file_path,
+                    "include_source": False,
                 }
             )
 

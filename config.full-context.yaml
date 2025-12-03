@@ -1,0 +1,142 @@
+# ============================================================================
+# FULL CONTEXT MODE EXAMPLE CONFIGURATION
+# ============================================================================
+#
+# This configuration enables Full Context Mode for COBOL documentation
+# generation. Full context mode sends complete source code + metadata +
+# enhanced program map to the LLM for key sections, producing higher
+# quality, more comprehensive documentation.
+#
+# Key Features Enabled:
+# - Full Context Mode: Complete source visibility for target sections
+# - Context Chaining: Cross-section consistency
+# - Enhanced Program Map: More elements for better LLM understanding
+#
+# Note: This mode uses more tokens but produces superior documentation.
+# Recommended for programs where documentation quality is critical.
+
+# ============================================================================
+# SOURCE CONFIGURATION
+# ============================================================================
+source:
+  mode: single
+  # Update these paths for your environment:
+  source_files: ../TDAS-MINDISTCALC.c74
+  program_name: TDAS-MINDISTCALC
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+output:
+  metadata_dir: ../output
+  docs_path: ../docs
+
+# ============================================================================
+# FULL CONTEXT MODE CONFIGURATION (ENABLED)
+# ============================================================================
+full_context:
+  # Enable full context mode for enhanced documentation
+  enabled: true
+
+  # Sections using full context mode
+  # These sections receive complete source code + metadata + program map
+  sections:
+    - executive-summary      # Program summary with author info, purpose
+    - key-responsibilities   # Main functions derived from code structure
+    - business-logic         # Business rules from comments and code flow
+    - overview               # Program structure overview
+    - data-flow-analysis     # Data transformation tracking
+
+  # Enhanced program map limits for full context
+  program_map_overrides:
+    top_n_paragraphs: 100
+    top_n_data_items: 50
+
+  # Context chaining for cross-section consistency
+  # Previous section outputs are included in subsequent prompts
+  context_chaining:
+    enabled: true
+    max_tokens: null  # No limit - include all previous outputs
+
+# ============================================================================
+# ENHANCED PROGRAM MAP CONFIGURATION
+# ============================================================================
+program_map:
+  # Higher limits for full context mode
+  top_n_paragraphs: 100
+  top_n_data_items: 50
+  show_all: false
+
+  # Enable dynamic limits based on program size
+  dynamic_limits:
+    enabled: true
+    small_threshold: 100
+    large_threshold: 500
+    small:
+      paragraphs: -1    # Show all for small programs
+      data_items: -1
+    medium:
+      paragraphs: 200
+      data_items: 100
+    large:
+      paragraphs: 300
+      data_items: 150
+
+  # Enable tiered detail levels
+  tiered_details:
+    enabled: true
+    tier1_limit: 50   # Full details for top 50
+    tier2_limit: 200  # Names/scores for next 150
+
+  # Mandatory elements (always included)
+  mandatory_elements:
+    enabled: true
+    entry_point_patterns:
+      - MAIN
+      - START
+      - INIT
+      - BEGIN
+      - ENTRY
+      - "0000-"
+    error_handler_patterns:
+      - ERROR
+      - ERR
+      - EXCEPTION
+      - ABEND
+      - FAIL
+
+# ============================================================================
+# LLM CONFIGURATION
+# ============================================================================
+llm:
+  provider: openai
+  model: gpt-4o
+  api_key: ${OPENAI_API_KEY}
+  temperature: 0.2
+
+# ============================================================================
+# METADATA GENERATION
+# ============================================================================
+metadata:
+  generate: true
+  skip_existing: true
+
+# ============================================================================
+# TEMPLATE CONFIGURATION
+# ============================================================================
+template:
+  path: ./cobol-doc-template.yaml
+
+# ============================================================================
+# CHECKSUM VALIDATION
+# ============================================================================
+validate_checksums:
+  source_checksum_file_path: ./source-checksum.yaml
+  metadata_checksum_file_path: ./metadata-checksum.yaml
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

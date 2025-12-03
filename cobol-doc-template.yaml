@@ -1,10 +1,15 @@
-# COBOL Code Documentation Template (BMAD-METHOD Inspired)
-# This template ensures consistent documentation generation across COBOL projects
+# COBOL Code Documentation Template (BMAD-METHOD Inspired, v4)
+# v4 highlights:
+# - Environment-aware dependency categorization (XGEN/UNISYS examples, still generic)
+# - Executive Summary tied to PROGRAM NARRATIVE / OPERATING INSTRUCTIONS
+# - Diagrams are HIGH-LEVEL, HUMAN-READABLE (not full CFG/DFG dumps)
+# - Mermaid syntax constrained to a VSCode-friendly subset
+# - Works for any COBOL dialect (COBOL-68/74/85, Enterprise, GnuCOBOL, Unisys, etc.)
 
 template:
-  id: cobol-documentation-template-v1
+  id: cobol-documentation-template-v4
   name: COBOL Code Documentation
-  version: 1.0
+  version: 4.0
   output:
     format: markdown
     filename: "docs/{{program_name}}-documentation.md"
@@ -18,16 +23,223 @@ workflow:
     - gnucobol_analysis
     - ctags_outline
 
+#######################################################################################
+# GLOBAL ENVIRONMENT-AWARE DEPENDENCY CATEGORIZATION HEURISTICS
+#######################################################################################
+
+dependency_categorization_heuristics:
+  # These patterns guide classification of external calls into:
+  # - Runtime/Platform/Generator
+  # - Shared Utility
+  # - Business/Application
+  #
+  # They are examples; you can extend them for your own environment.
+
+  runtime_platform_patterns:
+    # Vendor/generator/runtime indicators (XGEN/UNISYS-style)
+    - "XGEN"
+    - "UNISYS"
+    - "GENERALSUPPORT"
+    - "GENLIB"
+    - "RUNTIME"
+    - "RTLIB"
+    - "COBOLRT"
+    - "SUPPORTLIB"
+    # Generic runtime-ish names (still just hints, not absolute)
+    - "DATE"
+    - "TIME"
+    - "STRING"
+    - "PRINTER"
+    - "PRINT"
+    - "FORMAT"
+
+  shared_utility_patterns:
+    # Cross-application helper components
+    - "ERR"
+    - "ERROR"
+    - "LOG"
+    - "MSG"
+    - "VALID"
+    - "VALD"
+    - "CONVERT"
+    - "CNV"
+    - "LOOKUP"
+    - "LKP"
+
+  business_prefixes:
+    # Your environment (TDAS/TDAR/CSI-style)
+    - "TDAS"
+    - "TDAR"
+    - "TDD"
+    - "CSI"
+    - "CUST"
+    - "ACCT"
+    # Generic examples for other shops
+    - "POLICY"
+    - "CLAIM"
+    - "PAYROLL"
+    - "PAY"
+    - "FIN"
+    - "BILL"
+
+  fallback_rules:
+    treat_numeric_only_as_utility: true
+    default_category: "Shared Utility"
+
+#######################################################################################
+# GLOBAL MERMAID SYNTAX GUIDELINES (VSCode-FRIENDLY SUBSET)
+#######################################################################################
+mermaid_syntax_guidelines:
+  # All Mermaid diagrams MUST follow this **strict, VSCode-tested subset**.
+  # The goal is: “always render, never parse-error” in the common VSCode Mermaid
+  # preview extensions.
+  #
+  # GENERAL:
+  # - Diagrams must be SIMPLE, HIGH-LEVEL, and use only the constructs described here.
+  # - If information cannot be expressed safely in a diagram (e.g., long line lists,
+  #   complex labels), put it in normal markdown text near the diagram instead.
+  #
+  # 1. FENCING & PLACEMENT
+  #    - Always fence diagrams as:
+  #        ```mermaid
+  #        graph LR
+  #          ...
+  #        ```
+  #      or:
+  #        ```mermaid
+  #        flowchart TD
+  #          ...
+  #        ```
+  #        ```mermaid
+  #        sequenceDiagram
+  #          ...
+  #        ```
+  #    - The opening fence MUST be at column 0 and exactly "```mermaid".
+  #    - The closing fence MUST be at column 0 and exactly "```".
+  #    - Do NOT put extra backticks inside the diagram content.
+  #    - Only ONE diagram per fenced block.
+  #
+  # 2. NODE IDS (LEFT SIDE OF DEFINITIONS / EDGES)
+  #    - Node IDs must be **simple identifiers**:
+  #        - Allowed characters: A–Z, a–z, 0–9, underscore (_).
+  #        - MUST NOT contain spaces, hyphens, asterisks, quotes, slashes,
+  #          parentheses, or other punctuation.
+  #        - Examples of valid IDs: A, A1, INIT_MAIN, Z_RPT_1_NEWPAGE.
+  #        - Examples of invalid IDs: "000026*REMARKS", "L-S/GENL", "CURRENT-DATE".
+  #    - If you need to represent a complex name (e.g., "000026*REMARKS"), put that
+  #      only in the LABEL, never in the ID.
+  #
+  # 3. NODE LABELS (INSIDE [ "..." ] OR ( "..." ) )
+  #    - Always use the explicit label form:
+  #        ID["Label text"]
+  #        ID("Label text")
+  #    - Labels are for humans and MAY contain:
+  #        - Letters, digits, spaces
+  #        - Hyphens (-), slashes (/), underscores (_)
+  #    - To avoid parser issues, labels MUST **NOT** contain:
+  #        - HTML tags (no <br/>, <b>, <i>, etc.)
+  #        - Backticks (`) or any template fences
+  #        - Double quotes (") or single quotes (') inside the label
+  #        - Angle brackets (<, >)
+  #        - Colons (:), commas (,), or parentheses ((, )) if they can be avoided
+  #    - For line breaks inside labels:
+  #        - Use the literal newline escape `\n` inside the label string:
+  #            A1["Initialize Date Registers\nZ-DATE-INITIALIZE-REGS"]
+  #        - Do NOT use `<br/>` or `<br>`.
+  #    - If you must show line numbers or counts, prefer a simple style like:
+  #        A1["CURRENT_DATE OF GENERALSUPPORT\n16 calls"]
+  #      rather than including long, comma-separated lists.
+  #
+  # 4. EDGE DEFINITIONS & EDGE LABELS
+  #    - Allowed edge forms:
+  #        A --> B
+  #        A -.-> B
+  #        A -->|LABEL| B
+  #        A -.->|LABEL| B
+  #
+  #    - Edge labels MUST be extremely simple to avoid parse errors:
+  #        - Allowed characters: A–Z, a–z, 0–9, underscore (_), lowercase "x".
+  #        - NO spaces, NO parentheses, NO commas, NO colons, NO slashes.
+  #        - If you want "16x CURRENT_DATE (lines ...)", convert to e.g.:
+  #            A -.->|16x_CURRENT_DATE| RUNTIME_SERVICES
+  #        - Use surrounding markdown text to explain detailed line lists; do NOT
+  #          embed them in the label itself.
+  #
+  # 5. CLASS DEFINITIONS & STYLING
+  #    - Class definitions are allowed in this form:
+  #        classDef runtime fill:#ddd,stroke:#333,stroke-width:1px;
+  #        classDef utility fill:#fc9,stroke:#333,stroke-width:1px;
+  #        class NODE_ID runtime;
+  #    - Class definition names and class usage must:
+  #        - Use only A–Z, a–z, 0–9, underscore (_).
+  #        - Not contain template variables directly.
+  #    - Colors and stroke-widths are allowed as in standard Mermaid, but keep them
+  #      simple; avoid advanced theme features.
+  #
+  # 6. SUBGRAPHS (WHEN USED)
+  #    - Use sanitized IDs for subgraphs:
+  #        subgraph SG_000026 ["000026*REMARKS"]
+  #          ...
+  #        end
+  #    - The subgraph ID (e.g. SG_000026) follows node ID rules.
+  #    - The subgraph label in brackets follows the same LABEL rules (no HTML,
+  #      no quotes, minimal punctuation).
+  #
+  # 7. SEQUENCE DIAGRAMS
+  #    - Use:
+  #        ```mermaid
+  #        sequenceDiagram
+  #          participant USER
+  #          participant PROG as "{{program_name}}"
+  #          USER->>PROG: Start job
+  #        ```
+  #    - Participant IDs (left of "as") MUST follow node ID rules (A–Z, a–z, 0–9, _).
+  #    - If program_name may contain hyphens or spaces, use it ONLY in the label:
+  #        participant PROG as "{{program_name}}"
+  #    - Message syntax:
+  #        A->>B: Text
+  #      where "Text":
+  #        - May contain spaces.
+  #        - Must NOT contain backticks, HTML, or template fences.
+  #
+  # 8. TEMPLATE VARIABLE SAFETY
+  #    - NEVER use a raw template variable (like {{program_name}}) directly as a node ID.
+  #      Instead:
+  #        - Use a fixed ID and put the template variable in the label:
+  #            CURRENT_PROG["{{program_name}}"]
+  #        - Or for sequenceDiagram:
+  #            participant PROG as "{{program_name}}"
+  #    - Any injected templated content must still obey LABEL rules.
+  #
+  # 9. SCOPE & COMPLEXITY
+  #    - Diagrams must be **high-level**:
+  #        - 5–20 nodes total (typical).
+  #        - Focus on main drivers, key dependencies, core data flows.
+  #    - DO NOT attempt full paragraph-by-paragraph CFGs or DFGs in Mermaid.
+  #      Use tables and prose for detailed coverage.
+  #
+  # 10. ERROR PREVENTION STRATEGY
+  #    - If you are about to include any of the following in a Mermaid diagram,
+  #      remove or simplify them:
+  #        - `<br/>`, `<br>`, or other HTML tags
+  #        - `\"` or any escaped quotes
+  #        - Parenthesized line lists (e.g., `(lines: 12840, 14104, ...)`)
+  #        - Long, comma-separated lists
+  #        - Colons `:` inside labels
+  #    - Prefer to show such details in adjacent markdown text instead.
+
+#######################################################################################
+# DOCUMENT HEADER
+#######################################################################################
+
 sections:
   - id: document-header
     title: "Document Header"
     instruction: |
-      Extract program name from metadata and create document header.
-      Include generation timestamp and metadata sources used.
+      Extract program name and generate header.
+      Include timestamp and metadata sources.
 
-      **IMPORTANT:** Replace ALL template variables with actual values:
-      - {{program_name}} must be replaced with the actual program ID
-      - Do NOT leave any {{placeholder}} text in the output
+      Replace ALL template variables (no placeholders allowed).
     sections:
       - id: metadata-info
         title: Document Information
@@ -37,87 +249,102 @@ sections:
           **Source File**: {{source_file_path}}
           **Metadata Sources**: Static code analysis, semantic analysis, and symbol parsing
 
+#######################################################################################
+# EXECUTIVE SUMMARY
+#######################################################################################
+
   - id: executive-summary
     title: Executive Summary
     instruction: |
-      Analyze all metadata to create a 3-5 sentence high-level overview:
-      1. What does this program do? (infer from program calls and structure)
-      2. Where does it fit in the system? (check gnucobol program_calls)
-      3. Key responsibilities (analyze main paragraphs from ctags)
-      4. External dependencies (list programs called)
+      Produce a 3–7 sentence high-level summary.
 
-      **CRITICAL - Extract External Program Calls:**
-      Look in superbol_cfg JSON for the "calls" array:
-      - superbol_cfg.calls[] contains external program calls
-      - Each call has: from (calling paragraph), to (program name), line (line number)
-      - If calls[] array exists and has entries, list ALL programs called
-      - Format: "PROGRAM-NAME (called from paragraph-name at line N)"
-      - If calls[] is empty or missing, state "None found in metadata"
+      PURPOSE PRIORITY (do NOT violate this order):
+      1. PROGRAM NARRATIVE / DESCRIPTION / OPERATING INSTRUCTIONS / REMARKS blocks
+         (they are authoritative: do not contradict them)
+      2. Key file/record/variable names (especially business terms)
+      3. Main driver paragraphs (core PERFORM chains)
+      4. Program-ID/source name (may be ambiguous; use with caution)
 
-      Example:
-      If superbol_cfg.calls = [{"from": "PARA-1", "to": "PROG-A", "line": 123}]
-      Then output: "PROG-A (called from PARA-1 at line 123)"
+      CONTENT:
+      - Clearly state what the program does, in domain terms.
+      - Where it fits in the system (high-level context, not a call dump).
+      - 3–7 **specific** key responsibilities derived from:
+        - Narrative comments AND
+        - Main driver paragraphs
+      - High-level summary of external dependencies grouped into:
+        - Runtime/Platform/Generator
+        - Shared Utility
+        - Business/Application
+
+      ANTI-HALLUCINATION:
+      - If comments explicitly say "minimum distribution calculation", you MUST NOT
+        reinterpret as "minimum distance calculation".
+      - If meaning is unclear, say so explicitly.
+
     template: |
       {{summary_paragraph}}
 
       **Key Responsibilities:**
       {{responsibilities_list}}
 
-      **External Program Dependencies:**
+      **External Program Dependencies (Categorized):**
       {{dependencies_list}}
+
+#######################################################################################
+# PROGRAM STRUCTURE
+#######################################################################################
 
   - id: program-structure
     title: Program Structure
     instruction: |
-      Parse ctags outline JSON to extract and document COBOL divisions and sections.
-      For each division, list contained sections and data items.
+      Use ctags metadata to list divisions, sections, and important structures.
+      For each, infer purpose using:
+      - Narrative comments (preferred)
+      - Names and usage
+      - Generator patterns (label clearly if generator-produced)
+
     sections:
       - id: divisions-overview
         title: COBOL Division Structure
         type: table
         columns: [Division, Section/Element, Line Number, Purpose]
-        instruction: |
-          Extract from ctags-outline.json:
-          - IDENTIFICATION DIVISION → PROGRAM-ID, AUTHOR
-          - ENVIRONMENT DIVISION → CONFIGURATION SECTION
-          - DATA DIVISION → WORKING-STORAGE SECTION (data items)
-          - PROCEDURE DIVISION → Paragraphs
         template: |
           | {{division}} | {{section_name}} | {{line_number}} | {{inferred_purpose}} |
 
       - id: copybooks-referenced
         title: Referenced Copybooks
         instruction: |
-          **CRITICAL - Extract Copybook Information:**
-          Look in superbol_cfg JSON for the "copybooks" array:
-          - superbol_cfg.copybooks[] contains all COPY statements
-          - Each copybook has: name, line (where COPY appears), context (section name)
+          Use superbol_cfg.copybooks[] to list all COPY statements.
 
-          For EACH copybook in the array, create documentation:
-          1. Copybook name
-          2. Line number where COPY statement appears
-          3. Context (which DIVISION/SECTION: WORKING-STORAGE, LINKAGE, etc.)
-          4. Inferred purpose based on name
+          For each copybook:
+          - Identify context (section/division).
+          - Categorize as Business / Shared Utility / Runtime/Generator using
+            dependency_categorization_heuristics.
+          - Describe its purpose briefly; if it's clearly generator-provided, say so.
 
-          If copybooks[] array is empty or missing, output: "No copybooks referenced"
-          If copybooks[] has entries, list ALL copybooks found
-
-          Example output for copybook:
-          ### CUSTOMER-RECORD (Line 27)
-          **Context**: WORKING-STORAGE SECTION
-          **Purpose**: Customer data structure with ID, name, address fields
+          If no copybooks, say: "No copybooks referenced".
         repeatable: true
         template: |
           ### {{copybook_name}} (Line {{copybook_line}})
 
           **Context**: {{copybook_context}}
+          **Category**: {{copybook_category}}
           **Purpose**: {{copybook_purpose}}
 
       - id: data-structures
         title: Data Structures
         instruction: |
           Extract all data items (kind: "data") from ctags outline.
-          Group by level (01, 05, 88, etc.) and explain purpose.
+
+          For FILE SECTION / report-like structures with many FILLERs:
+          - Treat them as "Generator-driven report layouts" or "Report buffers".
+          - Mention that the true layout may be defined in XGEN/UNISYS (or equivalent)
+            rather than hand-written COBOL.
+
+          Spend more explanation effort on:
+          - Core business records (accounts, policies, distributions, claims, etc.).
+          - Control totals and key flags.
+
         repeatable: true
         template: |
           ### {{data_item_name}} (Line {{line_number}})
@@ -127,6 +354,10 @@ sections:
           **Purpose**: {{inferred_purpose}}
           **Used In**: {{usage_locations}}
 
+#######################################################################################
+# DETAILED CODE EXPLANATION (FULL, DIALECT-AGNOSTIC)
+#######################################################################################
+
   - id: detailed-code-explanation
     title: Detailed Code-Block Explanation
     instruction: |
@@ -134,7 +365,7 @@ sections:
       ⚠️  CRITICAL MASTER INSTRUCTIONS — READ CAREFULLY
       ═══════════════════════════════════════════════════════════════════════════
 
-      You will receive *raw COBOL-74 source code* from lines {{start_line}} to 
+      You will receive *raw COBOL source code* (any dialect) from lines {{start_line}} to 
       {{end_line}} exactly as it appears in the input.
 
       You have **TWO CRITICAL JOBS**.  
@@ -225,15 +456,15 @@ sections:
       ## Coverage Self-Assessment
 
       **Code Blocks Generated:**
-      1. Block 1: [NAME] (Lines X-Y) - N lines
-      2. Block 2: [NAME] (Lines A-B) - M lines
+      1. Block 1: [NAME] (Lines X–Y) - N lines
+      2. Block 2: [NAME] (Lines A–B) - M lines
       ... (list all blocks)
 
       **Total Lines in My Code Blocks:** [NUMBER]
 
       **Lines I Intentionally Excluded:**
-      - Comment lines (marked with * in column 7): [COUNT]
-      - Page breaks (marked with / in column 7): [COUNT]
+      - Comment lines (marked with * or *> or *>* in area A/column 7): [COUNT]
+      - Page breaks (marked with / in column 7, if present): [COUNT]
       - Total excluded: [NUMBER]
 
       **My Calculation:**
@@ -243,7 +474,7 @@ sections:
       - Expected executable: {{line_count}} – [excluded count]
       - My self-assessed coverage: [NUMBER]%
 
-      ⚠️ This section must appear LAST. No text may follow it.
+      ⚠️ This section must appear LAST in this chunk. No text may follow it.
       ---
 
       ═══════════════════════════════════════════════════════════════════════════
@@ -338,181 +569,148 @@ sections:
 
       {{paragraph_checklist}}
 
+#######################################################################################
+# CONTROL FLOW ANALYSIS (CFG – HIGH-LEVEL ONLY)
+#######################################################################################
+
   - id: control-flow-analysis
     title: Control Flow Analysis
     instruction: |
-      Use SuperBol CFG JSON to create detailed control flow documentation with external call context.
+      Use SuperBol CFG JSON to describe control flow.
 
-      **PROGRAM MAP CONTEXT:**
-      A program_map is provided showing the entire program structure with ranked paragraphs.
-      Use this to understand the overall control flow and identify the most important paragraphs.
-      The map shows which paragraphs are most frequently called (highest importance scores).
+      IMPORTANT:
+      - Do NOT attempt to render the **full** CFG in Mermaid. It will be unreadable
+        and likely break VSCode preview.
+      - The diagrams MUST show a **high-level view**:
+        - Initialization
+        - Main business driver(s)
+        - Key loops/branches
+        - Error handling
+        - Cleanup
 
-      **CRITICAL - MUST EXTRACT EXTERNAL CALLS:**
-      The superbol_cfg JSON has a "calls" array that you MUST extract:
+      All full detail (paragraph-by-paragraph) belongs in tables and textual sections,
+      not in Mermaid diagrams.
 
-      1. Look for superbol_cfg.calls[] array in the metadata
-      2. If calls[] exists and has entries, you MUST include them in the diagram
-      3. Each call object has: {"from": "paragraph", "to": "program-name", "line": number}
-      4. Show calls as DASHED ARROWS (-.->|"call line N"|) in Mermaid diagrams
-      5. If calls[] is empty, state "No external calls found"
-
-      CRITICAL: Extract from superbol_cfg:
-      - nodes[]: All paragraphs with name, type, line
-      - edges[]: Internal flow (perform relationships)
-      - **calls[]: External program calls with from/to/line** ← MUST USE THIS
-      - performs[]: Explicit perform statements with from/to/line
-
-      Create visualizations showing:
-      1. Internal control flow (performs between paragraphs) - solid arrows
-      2. External calls WITH line numbers and calling context - dashed arrows
-      3. Integration of both in a comprehensive diagram
-
-      Example:
-      If calls = [{"from": "PARA-1", "to": "EXTERNAL-PROG", "line": 100}]
-      Then diagram MUST include:
-      PARA_1 -.->|"call line 100"| EXTERNAL_PROG["`EXTERNAL-PROG<br/>(External)`"]
     sections:
       - id: cfg-with-calls-diagram
-        title: Control Flow with External Calls
+        title: High-Level Control Flow with External Calls
         type: mermaid
         mermaid_type: graph
         instruction: |
-          Generate enhanced Mermaid flowchart from SuperBol CFG showing BOTH internal flow AND external calls:
+          Generate a **simplified** Mermaid `graph LR` diagram.
 
-          **CRITICAL - Mermaid Syntax Sanitization:**
-          COBOL paragraph names may contain special characters that break Mermaid syntax.
-          You MUST sanitize ALL paragraph names before using them in Mermaid diagrams:
+          CONTENT RULES:
+          - Include:
+            - 1–3 entry/initialization paragraphs
+            - 3–10 main business paragraphs
+            - 1–3 error/cleanup paragraphs
+          - Aggregate many small generator/library paragraphs into ONE node
+            (e.g., LIBRARY_SUPPORT["Library / Runtime Routines"]).
 
-          Sanitization Rules:
-          1. Node IDs (before brackets): Use only alphanumeric and underscores [A-Za-z0-9_]
-             - Remove or replace: * / " ' \ - and other special chars
-             - Example: "L\"S\"/\"GENL\"" becomes LSGENL
-          2. Node Labels (inside brackets): Use backtick syntax for any text with special chars
-             - Replace " with ' (single quotes)
-             - Replace / with - (hyphen)
-             - Replace * with - (hyphen)
-             - Wrap in backticks: ["`label here`"]
-             - Example: L"S"/"GENL" becomes ["`L'S'-'GENL'`"]
+          MERMAID SYNTAX RULES (SEE GLOBAL GUIDELINES, MUST OBEY):
+          - Use:
+              ```mermaid
+              graph LR
+                NODE_ID["Label"]
+                NODE_A --> NODE_B
+              ```
+          - NODE_ID must be alphanumeric + underscore only.
+          - Labels must NOT contain HTML, backticks, or quotes.
+          - Line numbers, counts, and details MUST be simplified; if necessary,
+            move detailed lists into surrounding markdown text instead of labels.
+          - Edge labels (if used) must be compact tokens like 16x_CURRENT_DATE
+            (letters/digits/underscores only; no spaces, commas, or parentheses).
 
-          Sanitization Examples:
-          - Original: L"S"/"GENL"/"PRINTER-PR"
-            Node ID: LSGENLPRINTERPR
-            Full syntax: LSGENLPRINTERPR["`L'S'-'GENL'-'PRINTER-PR'`"]
+          External calls:
+          - Represent external programs as nodes with category-based classes:
+            - runtime, utility, business
+          - Use dashed edges for calls:
+            - PARA_MAIN -.->|16x_CURRENT_DATE| RUNTIME_DATE
+          - Keep the total number of nodes and edges small and readable.
 
-          - Original: 000026*REMARKS
-            Node ID: REMARKS_000026
-            Full syntax: REMARKS_000026["`000026-REMARKS`"]
-
-          **CRITICAL - EXTRACT superbol_cfg.calls[] array:**
-          You MUST look in the metadata for superbol_cfg.calls[]
-          If this array exists and has entries, extract EACH call and show in diagram
-
-          From superbol_cfg.calls[], create a diagram showing:
-          1. Each paragraph as a node (SANITIZED node ID, original name in backtick label)
-          2. PERFORM relationships as solid arrows (-->|perform|)
-          3. **CALL relationships as DASHED arrows (-.->|"call line N"|) WITH line numbers**
-          4. External programs as nodes with special styling (classDef external)
-          5. Group related paragraphs (e.g., INITIALIZE-SYSTEM with its calls)
-
-          Mandatory: If calls[] has entries, you MUST add them to the diagram
-          Each call in calls[] array must appear as a dashed arrow in the diagram
-
-          Example structure with sanitization:
-          ```
-          PARAGRAPH1["`PARAGRAPH-1`"]
-          PARAGRAPH1 -->|perform| PARAGRAPH2
-          PARAGRAPH1 -.->|"call line 33"| EXTERNALPRG1
-          PARAGRAPH1 -.->|"call line 38"| EXTERNALPRG2
-          ```
-
-          Use different styles:
-          - Solid arrows (-->) for PERFORM
-          - Dashed arrows (-.->)for CALL
-          - Labels with line numbers
-          - Different colors for external programs
         template: |
           ```mermaid
           graph LR
             {{paragraph_nodes_with_calls}}
 
-            classDef external fill:#aff,stroke:#06c,stroke-width:2px
-            classDef paragraph fill:#fff,stroke:#333,stroke-width:1px
+            classDef external fill:#aff,stroke:#06c,stroke-width:2px;
+            classDef paragraph fill:#fff,stroke:#333,stroke-width:1px;
+            classDef library fill:#eee,stroke:#999,stroke-width:1px,font-style:italic;
             {{styling_classes}}
           ```
 
       - id: external-call-context
         title: External Call Context
         instruction: |
-          **CRITICAL - Extract External Calls:**
-          Look in superbol_cfg JSON for the "calls" array
+          Use superbol_cfg.calls[].
 
-          For EACH entry in superbol_cfg.calls[], document:
-          - from: calling paragraph name
-          - to: external program name
-          - line: exact line number where CALL appears
+          For each call:
+          - Determine category using dependency_categorization_heuristics:
+            Runtime/Platform/Generator, Shared Utility, Business/Application.
+          - Group calls by calling paragraph.
 
-          Create a table or list showing ALL external calls found.
-
-          If calls[] is empty or missing: output "No external calls found in metadata"
-          If calls[] has entries: list ALL of them with full details
-
-          Format for each call:
-          **Program-Name** (called at line N)
-          - Called from: paragraph-name
-          - Purpose: [infer from context]
-
-          Document the context: what the calling paragraph does, why it calls this program.
         template: |
           ### External Calls by Paragraph
 
           {{external_calls_by_paragraph}}
 
       - id: paragraph-complexity
-        title: Paragraph Complexity Analysis
+        title: Paragraph Complexity & Business Role
         type: table
-        columns: [Paragraph, Line, Performs, External Calls, Total Edges, Complexity]
+        columns: [Paragraph, Line, Performs, External Calls, Total Edges, Complexity, Role]
         instruction: |
-          Analyze each paragraph's complexity based on:
-          - Number of PERFORM statements (from performs[])
-          - Number of external CALLs (from calls[]) ← Count calls where "from" matches paragraph
-          - Total edges in/out (from edges[])
+          Complexity (Low/Medium/High) is structural.
+          Role is semantic:
+          - Main business driver
+          - Supporting business logic
+          - Error/validation
+          - Generator/library
 
-          **CRITICAL:** For "External Calls" column:
-          Count how many entries in superbol_cfg.calls[] have "from" matching this paragraph
-          Example: If paragraph is "PARA-1" and calls = [{"from":"PARA-1", ...}], then call_count = 1
+          Generator/library paragraphs (ENDIF stubs, XGEN boilerplate, etc.) MUST be
+          marked as "Generator/library" even if they have many edges.
 
-          Classify complexity as: Low (<3), Medium (3-5), High (>5)
         template: |
-          | {{paragraph}} | {{line}} | {{perform_count}} | {{call_count}} | {{total_edges}} | {{complexity_level}} |
+          | {{paragraph}} | {{line}} | {{perform_count}} | {{call_count}} | {{total_edges}} | {{complexity_level}} | {{role}} |
+
+#######################################################################################
+# DATA FLOW ANALYSIS (DFG – HIGH-LEVEL ONLY)
+#######################################################################################
 
   - id: data-flow-analysis
     title: Data Flow Analysis
     instruction: |
-      Analyze how data flows through the program:
-      1. Identify input data (ACCEPT statements, LINKAGE SECTION)
-      2. Track data transformations (MOVE, COMPUTE)
-      3. Identify output data (DISPLAY, output files)
-      4. Document data passing to external programs
+      Treat this as a high-level DFG.
 
-      **PROGRAM MAP CONTEXT:**
-      A program_map is provided showing the most frequently used data items (ranked by reference count).
-      Focus on these high-importance data items when analyzing data flow, as they are central to the program's operation.
+      Focus on 5–15 key business data elements (e.g., distribution amounts, balances,
+      statuses, dates) and show how they flow:
+      - Inputs (files, LINKAGE, ACCEPT)
+      - Processing paragraphs
+      - Outputs (files, reports, external calls)
+
+      Do NOT attempt to include every minor variable in diagrams.
+
     sections:
       - id: dfa-diagram
-        title: Data Flow Diagram
+        title: Data Flow Diagram (Key Items)
         type: mermaid
         mermaid_type: graph
         instruction: |
-          Create Mermaid diagram showing:
-          - Data sources (input)
-          - Processing steps (paragraphs that modify data)
-          - Data sinks (output/external calls)
+          Generate a Mermaid `graph LR` diagram that shows:
 
-          **CRITICAL:** Apply Mermaid sanitization rules (see cfg-with-calls-diagram section):
-          - Node IDs: alphanumeric and underscores only
-          - Labels: use backtick syntax ["`label`"] for special characters
-          - Replace " with ', / with -, * with -
+          - Source nodes: input files, linkage records, constants.
+          - Process nodes: main paragraphs where key data is computed or transformed.
+          - Sink nodes: output files, reports, external calls.
+
+          Follow global Mermaid syntax rules:
+          - IDs: letters/digits/underscore only.
+          - Node definitions:
+              ID["Human-readable label\noptional second line"]
+          - NO HTML tags, NO `<br/>`, NO quotes inside labels.
+          - If you need to show call counts or line numbers, keep labels short
+            (e.g., "CURRENT_DATE\n16 calls") and explain detailed line lists
+            in normal markdown text outside the diagram.
+          - Edge labels, if used, must be compact tokens like 1x_MOVE or 3x_COMPUTE.
+
         template: |
           ```mermaid
           graph LR
@@ -522,8 +720,11 @@ sections:
       - id: data-transformations
         title: Data Transformations
         instruction: |
-          Document key data transformations in the program.
-          Look for COMPUTE, MOVE, STRING, UNSTRING operations.
+          For each key transformation:
+          - Identify source and target data items.
+          - Note operation type (MOVE, COMPUTE, STRING, UNSTRING, etc.).
+          - Explain business purpose briefly.
+
         repeatable: true
         template: |
           **{{transformation_step}}**: {{source_data}} → {{target_data}}
@@ -531,260 +732,147 @@ sections:
           - Operation: {{operation_type}}
           - Purpose: {{inferred_purpose}}
 
+#######################################################################################
+# INTER-PROGRAM COMMUNICATION (DEPENDENCY-AWARE)
+#######################################################################################
+
   - id: inter-program-communication
     title: Inter-Program Communication
     instruction: |
-      **CRITICAL - Document External Program Calls:**
-      This section MUST document all external CALL statements found in metadata.
+      Use superbol_cfg.calls[] and gnucobol_analysis (if available).
 
-      PRIMARY SOURCE: superbol_cfg.calls[] array
-      - Look in superbol_cfg JSON for the "calls" array
-      - Each entry has: {"from": "paragraph", "to": "program-name", "line": number}
-      - This is the PRIMARY source for external call documentation
+      For EACH external program:
+      - Classify as Runtime/Platform/Generator, Shared Utility, or Business/Application
+        using dependency_categorization_heuristics.
+      - Make this classification explicit; this is crucial for modernization projects.
 
-      SECONDARY SOURCE: gnucobol_analysis (if available and success=true)
-      - program_calls[program_name]: List of ALL programs this program calls
-      - call_summary.call_counts: Frequency of each program call across entire system
-      - per_file_analysis: Detailed call information
-
-      **If superbol_cfg.calls[] has entries, you MUST document them**
-      **If gnucobol_analysis has program_calls, use for additional context**
-      **If BOTH are empty/missing, state: "No external program calls found"**
-
-      Create THREE levels of documentation:
-      1. This program's direct dependencies (from superbol_cfg.calls[])
-      2. System-wide call frequency (from gnucobol if available)
-      3. Detailed call context from each paragraph (from superbol_cfg.calls[])
     sections:
       - id: call-frequency-heatmap
-        title: Call Frequency Analysis
+        title: Call Frequency & Category
         type: table
-        columns: [Program Called, Call Count, Called From Paragraphs, Category]
+        columns: [Program, Category, Call Count, Called From, Importance]
         instruction: |
-          **PRIMARY SOURCE: superbol_cfg.calls[]**
-          Extract ALL entries from superbol_cfg.calls[] array
-          For each unique program name in "to" field, count occurrences
+          Importance:
+          - 🔥 Critical – high call count OR central to business purpose
+          - ⚠️ High – frequent but not strictly core
+          - ℹ️ Medium – occasional use
 
-          Steps:
-          1. Get all calls from superbol_cfg.calls[]
-          2. Group by "to" (program name)
-          3. Count how many times each program appears
-          4. List "from" paragraphs that call each program
-          5. Categorize by frequency
-
-          If superbol_cfg.calls[] is empty: output "No external calls found"
-          If superbol_cfg.calls[] has entries: create table with ALL programs
-
-          Categorize by frequency:
-          - 🔥 Critical: >5 calls
-          - ⚠️ High: 3-5 calls
-          - ℹ️ Medium: 1-2 calls
-
-          Sort by call count descending.
         template: |
-          | {{program_name}} | {{call_count}} | {{calling_paragraphs}} | {{category_icon}} {{category}} |
+          | {{program_name}} | {{category}} | {{call_count}} | {{calling_paragraphs}} | {{importance}} |
 
       - id: program-call-diagram
         title: Program Call Hierarchy
         type: mermaid
         mermaid_type: graph
         instruction: |
-          Create Mermaid diagram showing this program's dependencies.
+          Create a high-level dependency diagram only (no internal CFG here).
 
-          **PRIMARY SOURCE: superbol_cfg.calls[]**
-          Extract program names from superbol_cfg.calls[] array
-          Create diagram with current program calling external programs
+          - Center node: current program as a single fixed ID (e.g., CURRENT_PROG)
+            with the label set to {{program_name}}.
+          - One node per external program (optionally aggregate many runtime libs into
+            a single node like RUNTIME_SERVICES).
+          - Use dashed edges with simple, compact edge labels for call frequency
+            (e.g., 16x_CURRENT_DATE, 2x_XSTRPAT).
+          - Edge labels must not contain spaces, commas, parentheses, or colons.
 
-          **CRITICAL:** Apply Mermaid sanitization rules:
-          - Program names must be sanitized for use as node IDs
-          - Use backtick syntax for labels with special characters
-          - Replace " with ', / with -, * with -
+          Follow Mermaid syntax guidelines:
+          - Use:
+              ```mermaid
+              graph LR
+                CURRENT_PROG["{{program_name}}"]
+                RUNTIME_SERVICES["Runtime/Platform Services"]
+                CURRENT_PROG -.->|16x_CURRENT_DATE| RUNTIME_SERVICES
+              ```
+          - Node IDs (CURRENT_PROG, RUNTIME_SERVICES, etc.) must be safe identifiers.
 
-          Steps:
-          1. Current program as central node (styled prominently, sanitized ID)
-          2. For EACH entry in superbol_cfg.calls[], create a dashed arrow to "to" program
-          3. Add line number labels from "line" field: -.->|"line N"|
-          4. Color-code external programs (use classDef external)
-
-          If superbol_cfg.calls[] is empty: output "No external calls to display"
-          If superbol_cfg.calls[] has entries: show ALL calls in diagram
-
-          Example:
-          ```
-          MAINPROG((MAINPROG))
-          MAINPROG -.->|"line 33"| LOGGER
-          MAINPROG -.->|"line 45"| DBCONNECT
-          ```
         template: |
           ```mermaid
           graph LR
-            CURRENT{{{{program_name}}}}
+            CURRENT_PROG["{{program_name}}"]
             {{called_program_nodes}}
             {{call_relationships_with_frequency}}
 
-            classDef current fill:#f9f,stroke:#333,stroke-width:4px
-            classDef critical fill:#f66,stroke:#333,stroke-width:2px
-            classDef high fill:#fc9,stroke:#333,stroke-width:2px
-            classDef medium fill:#9cf,stroke:#333,stroke-width:1px
-            class CURRENT current
+            classDef current fill:#f9f,stroke:#333,stroke-width:4px;
+            classDef runtime fill:#ddd,stroke:#333,stroke-width:1px;
+            classDef utility fill:#fc9,stroke:#333,stroke-width:1px;
+            classDef business fill:#9cf,stroke:#333,stroke-width:2px;
+            class CURRENT_PROG current;
             {{frequency_styling}}
-          ```
-
-      - id: system-wide-dependencies
-        title: System-Wide Program Dependencies
-        type: mermaid
-        mermaid_type: graph
-        instruction: |
-          From gnucobol_analysis.program_calls (ALL programs), create a system architecture view.
-
-          **CRITICAL:** Apply Mermaid sanitization rules:
-          - All program names must be sanitized for node IDs
-          - Subgraph IDs must be valid alphanumeric identifiers (no spaces, special chars)
-          - Use backtick syntax for labels with special characters
-
-          Show:
-          1. Current program highlighted (sanitized ID)
-          2. Programs it calls (1 level deep, sanitized IDs)
-          3. Programs those call (2 levels deep if not too complex, sanitized IDs)
-          4. Identify architectural layers (valid subgraph IDs)
-
-          This gives context of where this program fits in the system.
-        template: |
-          ```mermaid
-          graph TD
-            subgraph "Entry Layer"
-              {{entry_programs}}
-            end
-
-            subgraph "Business Logic Layer"
-              {{business_programs}}
-              {{current_program_highlighted}}
-            end
-
-            subgraph "Data Access Layer"
-              {{data_programs}}
-            end
-
-            subgraph "Utility Services"
-              {{utility_programs}}
-            end
-
-            {{layer_relationships}}
           ```
 
       - id: call-details-with-context
         title: Detailed Call Analysis
         instruction: |
-          **CRITICAL - Document Each External Program:**
-          Use superbol_cfg.calls[] as PRIMARY source
+          For each external program:
+          - List calling paragraphs + line numbers.
+          - Show category and likely purpose.
+          - Explain how critical it is to the business function of this program.
 
-          For EACH unique program name in superbol_cfg.calls[] "to" field:
-          1. List ALL paragraphs that call it (from "from" field)
-          2. List ALL line numbers (from "line" field)
-          3. Count total calls to this program
-          4. Infer purpose from program name and context
-
-          If superbol_cfg.calls[] is empty: output "No external programs called"
-          If superbol_cfg.calls[] has entries: create subsection for EACH unique program
-
-          Optional: From gnucobol_analysis.call_summary.call_counts (if available):
-          - Add system-wide usage statistics
-          - Show how many other programs call this
-
-          Explain the purpose and integration pattern for each called program.
         repeatable: true
         template: |
-          ### {{called_program_name}}
+          ### {{called_program_name}} ({{category}})
 
           **This Program's Usage**:
           - Call Count: {{local_call_count}}
-          - Called From Paragraphs:
+          - Called From:
             {{paragraph_and_line_list}}
-
-          **System-Wide Context** (if available):
-          - Total Calls Across System: {{system_wide_call_count}}
-          - Called By {{programs_calling_count}} different programs
-          - Classification: {{program_role}}
 
           **Purpose & Integration**:
           {{inferred_purpose_and_integration}}
 
+#######################################################################################
+# BUSINESS LOGIC EXPLANATION
+#######################################################################################
+
   - id: business-logic
     title: Business Logic Explanation
     instruction: |
-      Synthesize all metadata to explain business logic with execution flow.
+      Synthesize narrative comments, CFG, DFG, and dependency analysis to explain
+      how the program actually does its job.
 
-      CRITICAL: Use superbol_cfg.performs[] AND superbol_cfg.calls[] to create accurate sequence:
+      Explicitly identify:
+      - Initialization chain
+      - Main business processing
+      - Error/exception handling
+      - Cleanup and reporting
 
-      From performs[]:
-      - Build paragraph execution order
-      - Identify loops (PERFORM UNTIL patterns)
-      - Track conditional branching
-
-      From calls[]:
-      - Show external program interactions IN SEQUENCE
-      - Include line numbers in sequence flow
-      - Show bi-directional communication patterns
-
-      Create realistic execution flow showing:
-      1. Initialization sequence
-      2. Main business logic with branches
-      3. Error handling paths
-      4. Cleanup sequence
     sections:
       - id: execution-flow-sequence
         title: Execution Flow Sequence
         type: mermaid
         mermaid_type: sequence
         instruction: |
-          Create detailed sequence diagram from metadata showing REALISTIC execution flow.
+          Create a sequence diagram for the main path only (no full CFG).
 
-          **CRITICAL - Mermaid Sequence Diagram Sanitization:**
-          Participant names in sequence diagrams must be sanitized:
-          1. Replace spaces with underscores or remove them
-          2. Remove or replace special characters: " ' / \ * -
-          3. Use only alphanumeric and underscores
-          4. Keep names short (under 20 chars if possible)
+          Participants:
+          - User (or Upstream Job/System)
+          - Current program
+          - Key external programs (at most 3–7)
 
-          Sanitization Examples for Sequence Diagrams:
-          - Original: L"S"/"GENL" → Sanitized: LSGENL
-          - Original: INIT-SYSTEM → Sanitized: INITSYSTEM
-          - Original: 000026*REMARKS → Sanitized: REMARKS_000026
+          Mermaid sequence syntax and global guidelines:
+          - Use:
+              ```mermaid
+              sequenceDiagram
+                participant USER
+                participant PROG as "{{program_name}}"
+                participant RUNTIME_SVC as "Runtime Services"
+                USER->>PROG: Start batch
+                PROG->>RUNTIME_SVC: 16x CURRENT_DATE
+              ```
+          - Participant IDs (USER, PROG, RUNTIME_SVC, etc.) must be safe identifiers
+            (letters/digits/underscore only).
+          - Use `as "Label"` if the label (e.g., {{program_name}}) may contain spaces
+            or hyphens.
+          - Message text:
+            - May contain spaces.
+            - MUST NOT contain backticks, `<br/>`, or template fences.
+            - Keep it short and descriptive.
 
-          Use superbol_cfg to build sequence:
-          1. Start with MAIN-PROGRAM or entry paragraph (sanitized name)
-          2. Follow performs[] to show internal paragraph calls (sanitized names)
-          3. Integrate calls[] to show external program interactions (sanitized names)
-          4. Include line numbers as notes
-          5. Show loops, conditionals, and error paths
-
-          Example structure with sanitization:
-          ```
-          User->>MAINPROG: Start
-          MAINPROG->>INITSYSTEM: PERFORM (line 21)
-          INITSYSTEM->>DBCONNECT: CALL (line 33)
-          Note over DBCONNECT: Establishes DB connection
-          DBCONNECT-->>INITSYSTEM: Return
-          INITSYSTEM->>LOGGER: CALL (line 38)
-          LOGGER-->>INITSYSTEM: Return
-          loop User Operations
-              MAINPROG->>PROCESSSELECTION: PERFORM
-              alt Customer Operations
-                  PROCESSSELECTION->>CUSTMGMT: CALL (line 71)
-              alt Account Operations
-                  PROCESSSELECTION->>ACCTOPER: CALL (line 82)
-              alt Transactions
-                  PROCESSSELECTION->>TRANPROC: CALL (line 96)
-              end
-          end
-          ```
-
-          Be comprehensive but realistic - show actual execution path.
         template: |
           ```mermaid
           sequenceDiagram
-            participant User
-            participant {{program_name}}
+            participant USER
+            participant PROG as "{{program_name}}"
             {{external_program_participants}}
 
             {{detailed_execution_sequence}}
@@ -793,18 +881,14 @@ sections:
       - id: business-operations-catalog
         title: Business Operations Catalog
         instruction: |
-          Identify and document distinct business operations by analyzing paragraph patterns.
+          Group related paragraphs into business operations (e.g., "Calculate RMD",
+          "Generate control report").
 
-          Group related paragraphs (e.g., all HANDLE-* paragraphs are operations).
+          Use:
+          - Program narrative
+          - Paragraph names
+          - CFG/DFG context
 
-          For each operation:
-          - Purpose (what business function)
-          - Paragraphs involved (from ctags)
-          - Data used (from ctags data items)
-          - External programs called (from superbol_cfg.calls)
-          - Success/error flows
-
-          This creates a catalog of what this program CAN DO.
         repeatable: true
         template: |
           ### {{operation_name}}
@@ -827,14 +911,19 @@ sections:
           **Error Handling**:
           {{error_handling_approach}}
 
+#######################################################################################
+# ERROR HANDLING
+#######################################################################################
+
   - id: error-handling
     title: Error Handling Strategy
     instruction: |
-      Document error handling approach:
-      1. Identify error codes (WS-RETURN-CODE, etc.)
-      2. Find error handling paragraphs
-      3. Document ERRHANDL program calls
-      4. Identify validation points
+      Document:
+      - Error/status variables
+      - Dedicated error paragraphs
+      - External error handlers (if any)
+      - Validation points and outcomes
+
     template: |
       **Error Code Variables**: {{error_variables}}
 
@@ -847,42 +936,39 @@ sections:
       **Error Handler Invocations**:
       {{error_handler_calls}}
 
+#######################################################################################
+# TECHNICAL DETAILS
+#######################################################################################
+
   - id: technical-details
     title: Technical Details
     instruction: |
-      Document technical implementation details for developers.
+      Provide concise technical metrics and dependency overview.
+
     sections:
       - id: code-metrics
         title: Code Metrics
         type: table
         columns: [Metric, Value]
-        instruction: |
-          Calculate from metadata:
-          - Total lines (from superbol location ranges)
-          - Number of paragraphs (from ctags)
-          - Number of data items (from ctags)
-          - Number of external calls (from gnucobol)
-          - Cyclomatic complexity (estimate from CFG edges)
         template: |
           | {{metric_name}} | {{metric_value}} |
 
       - id: dependencies-matrix
         title: Dependencies Matrix
         type: table
-        columns: [Dependency Type, Name, Count, Lines]
-        instruction: |
-          List all dependencies:
-          - External programs called
-          - Data structures used
-          - Files accessed (if any)
+        columns: [Dependency Type, Name, Category, Count, Lines]
         template: |
-          | {{dependency_type}} | {{dependency_name}} | {{usage_count}} | {{line_numbers}} |
+          | {{dependency_type}} | {{dependency_name}} | {{dependency_category}} | {{usage_count}} | {{line_numbers}} |
+
+#######################################################################################
+# CODE REFERENCES & METADATA APPENDIX
+#######################################################################################
 
   - id: code-references
     title: Code References
     instruction: |
-      Provide easy navigation references to source code locations.
-      All line numbers should link back to source file.
+      Provide quick links to important areas of the source (by line range or paragraph).
+
     template: |
       ### Quick Reference Links
 
@@ -891,8 +977,8 @@ sections:
   - id: metadata-appendix
     title: Appendix - Metadata Summary
     instruction: |
-      Include summary of metadata used for documentation generation.
-      This provides transparency and debugging capability.
+      Summarize analysis metadata for transparency and debugging.
+
     sections:
       - id: superbol-summary
         title: Control Flow Analysis Metadata

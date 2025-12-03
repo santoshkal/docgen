@@ -1,0 +1,187 @@
+# ============================================================================
+# TDAS-MINDISTCALC TEST CONFIGURATION (CORRECTED)
+# ============================================================================
+#
+# This configuration is specifically set up for testing the TDAS-MINDISTCALC
+# program with Full Context Mode enabled.
+#
+# Key Corrections:
+# - Correct metadata_dir path (../metadata)
+# - Source file path for chunked processing
+# - detailed-code-explanation added to full_context sections
+
+# ============================================================================
+# SOURCE CONFIGURATION
+# ============================================================================
+source:
+  mode: single
+  # COBOL source file location (relative to agent directory)
+  source_files: ../TDAS-MINDISTCALC.c74
+  program_name: TDAS-MINDISTCALC
+  # Workspace directory containing COBOL source files (required for checksum calculations)
+  workspace: /home/santosh/cobol-work
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+output:
+  # CORRECTED: Point to the correct metadata directory
+  metadata_dir: ../metadata
+  docs_path: ../docs
+  create_dirs: true
+
+# ============================================================================
+# FULL CONTEXT MODE CONFIGURATION
+# ============================================================================
+full_context:
+  enabled: true
+
+  # Sections using full context mode - ADDED detailed-code-explanation
+  sections:
+    - executive-summary
+    - key-responsibilities
+    - business-logic
+    - overview
+    - data-flow-analysis
+    - detailed-code-explanation   # ADDED: Enables full source for code explanation
+
+  # Enhanced program map limits for full context
+  program_map_overrides:
+    top_n_paragraphs: 100
+    top_n_data_items: 50
+
+  # OpenAI API message size limit is 10,485,760 chars (~10MB)
+  # GPT-4.1 has 1M context window, so API limit is the constraint
+  max_message_chars: 9500000  # 9.0MB
+
+  # Context chaining for cross-section consistency
+  context_chaining:
+    enabled: true
+    max_tokens: null
+
+# ============================================================================
+# PROGRAM MAP CONFIGURATION
+# ============================================================================
+program_map:
+  top_n_paragraphs: 50
+  top_n_data_items: 30
+  show_all: false
+
+  dynamic_limits:
+    enabled: true
+    small_threshold: 100
+    large_threshold: 500
+    small:
+      paragraphs: -1
+      data_items: -1
+    medium:
+      paragraphs: 200
+      data_items: 100
+    large:
+      paragraphs: 300
+      data_items: 150
+
+  tiered_details:
+    enabled: true
+    tier1_limit: 50
+    tier2_limit: 200
+
+  mandatory_elements:
+    enabled: true
+    entry_point_patterns:
+      - MAIN
+      - START
+      - INIT
+      - BEGIN
+      - ENTRY
+      - "0000-"
+    error_handler_patterns:
+      - ERROR
+      - ERR
+      - EXCEPTION
+      - ABEND
+      - FAIL
+
+# ============================================================================
+# LLM CONFIGURATION
+# ============================================================================
+llm:
+  provider: openai
+  model: gpt-4.1
+  api_key: ${OPENAI_API_KEY}
+  temperature: 0.2
+  max_tokens: 4096
+
+# ============================================================================
+# METADATA GENERATION
+# ============================================================================
+metadata:
+  generate: true    # Set to true if you need to regenerate metadata
+  skip_existing: false  # Set to false to FORCE regeneration even if checksums are valid
+
+# ============================================================================
+# MCP SERVERS CONFIGURATION
+# ============================================================================
+# Docker-based metadata generators for COBOL analysis
+servers:
+  ctags:
+    enabled: true
+    docker_image: ctags-mcp:test
+  gnuCobol:
+    enabled: true
+    docker_image: gnucobol-mcp:test
+  superbol-lsp:
+    enabled: true
+    docker_image: superbol-mcp:test
+
+# ============================================================================
+# SOURCE CODE EXTRACTION (Phases 1-3)
+# ============================================================================
+source_extraction:
+  # Phase 1: Basic extraction
+  enabled: true  # Enable source code extraction for documentation sections
+  compress: true  # Remove comments and blank lines to reduce token usage
+
+  # Phase 2: RipGrep search (pattern-based extraction)
+  use_ripgrep: true  # Use ripgrep for pattern-based extraction
+  ripgrep_patterns:
+    sql: true  # Extract SQL statements
+    comments: true  # Extract significant comments
+    error_handling: true  # Extract error handling blocks
+    calls: true  # Extract CALL statements
+
+  # Phase 3: Multi-file support
+  resolve_copybooks: true  # Follow COPY statements to resolve copybooks
+  resolve_called_programs: true  # Identify and document called programs
+  copybook_search_paths:
+    - ./copybooks
+    - ./COPY
+    - ../copybooks
+  program_search_paths:
+    - ./programs
+    - ./src
+    - .
+  max_copybook_depth: 3  # Maximum depth for nested copybooks
+  max_call_depth: 2  # Maximum depth for call hierarchy
+
+# ============================================================================
+# TEMPLATE CONFIGURATION
+# ============================================================================
+template:
+  path: ./cobol-doc-template.yaml
+
+# ============================================================================
+# CHECKSUM VALIDATION
+# ============================================================================
+validate_checksums:
+  source_checksum_file_path: ./source-checksum.yaml
+  metadata_checksum_file_path: ./metadata-checksum.yaml
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  verbose: true
+  show_progress: true

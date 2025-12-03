@@ -85,6 +85,152 @@ template:
 
 
 # ============================================================================
+# PROGRAM MAP CONFIGURATION
+# ============================================================================
+# Program map provides a lightweight hierarchical summary of COBOL programs
+# for efficient LLM context. Configure limits to balance detail vs token usage.
+program_map:
+  # Number of top paragraphs to include in program map
+  # Set to -1 to include all paragraphs (useful for large context windows)
+  # Default: 30
+  top_n_paragraphs: 30
+
+  # Number of top data items to include in program map
+  # Set to -1 to include all data items (useful for large context windows)
+  # Default: 20
+  top_n_data_items: 20
+
+  # Show all elements regardless of limits (overrides top_n settings)
+  # Default: false
+  show_all: false
+
+  # Dynamic limits based on program size
+  # When enabled, limits automatically adjust based on paragraph count:
+  # - SMALL (< 100 paragraphs): Show all elements
+  # - MEDIUM (100-499 paragraphs): Top 200 paragraphs, top 100 data items
+  # - LARGE (500+ paragraphs): Top 300 paragraphs, top 150 data items
+  dynamic_limits:
+    # Enable automatic size-based limit adjustment
+    # Default: false
+    enabled: false
+
+    # Threshold for small programs (below this = SMALL)
+    # Default: 100
+    small_threshold: 100
+
+    # Threshold for large programs (at or above this = LARGE)
+    # Default: 500
+    large_threshold: 500
+
+    # Limits for small programs (show all by default)
+    small:
+      paragraphs: -1
+      data_items: -1
+
+    # Limits for medium programs
+    medium:
+      paragraphs: 200
+      data_items: 100
+
+    # Limits for large programs
+    large:
+      paragraphs: 300
+      data_items: 150
+
+  # Tiered detail levels for program map
+  # Shows different levels of detail based on element importance rank:
+  # - Tier 1: Full details (line numbers, scores, relationships)
+  # - Tier 2: Names and scores only
+  # - Tier 3: Summary count ("...and N more paragraphs")
+  tiered_details:
+    # Enable tiered detail levels
+    # Default: false
+    enabled: false
+
+    # Number of elements to show with full details (Tier 1)
+    # Default: 50
+    tier1_limit: 50
+
+    # Number of elements to show with names/scores (Tier 1 + Tier 2)
+    # Elements beyond this show as summary count
+    # Default: 200
+    tier2_limit: 200
+
+  # Mandatory elements configuration
+  # Ensures critical elements are always included regardless of importance rank:
+  # - Entry points: MAIN, START, INIT patterns
+  # - Call sites: Paragraphs that make external CALL statements
+  # - Error handlers: ERROR, ERR, EXCEPTION, ABEND patterns
+  mandatory_elements:
+    # Enable mandatory element inclusion
+    # Default: true
+    enabled: true
+
+    # Patterns to identify entry points (case-insensitive substring match)
+    # Elements matching any pattern will be included in Critical Elements section
+    entry_point_patterns:
+      - MAIN
+      - START
+      - INIT
+      - BEGIN
+      - ENTRY
+      - "0000-"
+
+    # Patterns to identify error handlers (case-insensitive substring match)
+    error_handler_patterns:
+      - ERROR
+      - ERR
+      - EXCEPTION
+      - ABEND
+      - FAIL
+
+
+# ============================================================================
+# FULL CONTEXT MODE CONFIGURATION
+# ============================================================================
+# Full context mode sends complete source code + metadata + program map
+# to the LLM for each section, enabling more comprehensive documentation.
+# This is more expensive (more tokens) but produces higher quality output.
+full_context:
+  # Enable full context mode (default: false for backward compatibility)
+  # When disabled, uses filtered/chunked context (original behavior)
+  enabled: false
+
+  # Sections that should use full context when enabled
+  # These sections benefit most from having access to complete source code
+  # and metadata for generating comprehensive documentation.
+  # If not specified when enabled=true, defaults to these sections:
+  sections:
+    - executive-summary      # High-level program summary
+    - key-responsibilities   # Main functions/responsibilities
+    - business-logic         # Business rules and logic explanation
+    - overview               # Program structure overview
+    - data-flow-analysis     # Data transformation tracking
+
+  # Program map configuration for full context mode
+  # These override the program_map settings above when full context is active
+  program_map_overrides:
+    # Show more elements when using full context (larger context window)
+    top_n_paragraphs: 100
+    top_n_data_items: 50
+
+  # Context chaining configuration
+  # When enabled, previous section outputs are included in subsequent section prompts
+  # This enables cross-section consistency (e.g., key responsibilities referencing
+  # the executive summary terminology)
+  context_chaining:
+    # Enable context chaining (default: false)
+    # Requires full_context.enabled: true to take effect
+    enabled: false
+
+    # Maximum tokens for chained context (optional)
+    # Limits the size of previous section outputs included in prompts
+    # Set to null for no limit (include all previous outputs)
+    # Default: null (no limit)
+    max_tokens: null
+
+
+# ============================================================================
 # LLM CONFIGURATION
 # ============================================================================
 llm:

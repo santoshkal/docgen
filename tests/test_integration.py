@@ -112,8 +112,8 @@ class TestAllSectionsExtraction:
         """Test extracting source for all sections"""
         sources = extract_source_for_all_sections(test_cobol_program)
 
-        # Should have 11 sections
-        assert len(sources) == 11
+        # Should have 43 sections (updated template)
+        assert len(sources) == 43
 
         # Sections requiring source should have it
         assert sources['2_data_structures'] is not None
@@ -129,7 +129,7 @@ class TestAllSectionsExtraction:
         sources = extract_source_for_all_sections(test_cobol_program)
         stats = get_extraction_stats(sources)
 
-        assert stats['total_sections'] == 11
+        assert stats['total_sections'] == 43
         assert stats['sections_with_source'] >= 5  # At least data structures, business logic, etc.
         assert stats['sections_without_source'] >= 3  # Overview, dependencies, maintenance
         assert stats['total_characters'] > 0
