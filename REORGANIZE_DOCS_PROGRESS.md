@@ -141,28 +141,42 @@ Refactor the documentation generation to use a two-phase approach:
 
 ---
 
-## New Feature: Mermaid Validation (Phase 2.5)
+## New Feature: Mermaid Validation (Per-Section in Phase 2)
 
 **Added**: 2025-12-16
+**Updated**: 2025-12-18 - Moved from Phase 2.5 to per-section validation in Phase 2
 
 **Flow**:
 ```
 Phase 1: Generate Code Explanation → Extract Prose
-Phase 2: Generate Other Sections
-Phase 2.5 (NEW): Validate/Fix Mermaid Diagrams ← NEW
+Phase 2: For each section:
+         1. Generate section document
+         2. If has mermaid → Validate via MCP
+         3. If invalid → LLM fix with section context
+         4. Write fixed mermaid back to section
 Phase 3: Assemble Final Document
 ```
+
+**Key Improvement (2025-12-18)**:
+- Mermaid validation now happens INSIDE Phase 2 loop, not after
+- Full section document passed as context to LLM for fixing
+- This allows LLM to understand diagram's purpose from surrounding content
 
 **New Files**:
 - `mermaid_validator.py` - Mermaid validation using MCP server + LLM fix
 - `tests/test_mermaid_validator.py` - 9 unit tests (all passing)
 
+**Key Functions**:
+- `validate_section_mermaid_sync()` - Called per-section in Phase 2
+- `fix_mermaid_with_llm(code, error, section_content)` - Uses section context
+
 **How it works**:
-1. Extract all ```mermaid blocks from generated content
+1. After generating each section, check for ```mermaid blocks
 2. Validate each block via MCP server (Docker: `mermaid-mcp:test`)
-3. If invalid: Use LLM to fix, re-validate (max 3 retries)
-4. Replace fixed blocks at exact positions in markdown
-5. Proceed to assembly
+3. If invalid: Pass (mermaid + error + FULL section doc) to LLM for fix
+4. Write fixed mermaid back to section at exact position
+5. Continue to next section
+6. Summary printed at end of Phase 2
 
 ---
 
@@ -172,5 +186,5 @@ Phase 3: Assemble Final Document
 2. ~~Write unit test for `extract_prose_from_explanation()` (P1-4)~~ Done (16/16 passed)
 3. ~~Bug fixes for chunking and context size~~ Done (16/16 tests pass)
 4. ~~LLM tracer integration~~ Done (init at start, finalize after doc saved)
-5. ~~Mermaid validation (Phase 2.5)~~ Done (9/9 tests pass)
+5. ~~Mermaid validation~~ Done (25/25 tests pass, moved to per-section in Phase 2)
 6. End-to-end test with TDAS-MINDISTCALC (I-3) - Ready to test

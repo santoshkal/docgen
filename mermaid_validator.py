@@ -15,6 +15,7 @@ Flow:
 import asyncio
 import json
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -134,13 +135,14 @@ class MermaidValidator:
         except Exception as e:
             return False, f"MCP validation failed: {str(e)}"
 
-    def fix_mermaid_with_llm(self, invalid_code: str, error: str) -> str:
+    def fix_mermaid_with_llm(self, invalid_code: str, error: str, section_content: str = None) -> str:
         """
         Use LLM to fix invalid mermaid diagram.
 
         Args:
             invalid_code: The invalid mermaid code
             error: Error message from validator
+            section_content: Optional section document for additional context
 
         Returns:
             Fixed mermaid code
@@ -155,7 +157,8 @@ class MermaidValidator:
             temperature=0.1  # Low temperature for deterministic fixes
         )
 
-        system_prompt = """You are a Mermaid diagram syntax expert. Your task is to fix invalid Mermaid diagram code so it renders in VSCode Mermaid preview.
+        # Base system prompt for mermaid syntax fixing
+        base_system_prompt = """You are a Mermaid diagram syntax expert. Your task is to fix invalid Mermaid diagram code so it renders in VSCode Mermaid preview.
 
 INPUTS PROVIDED TO YOU:
 - Mermaid code (possibly invalid)
@@ -207,7 +210,50 @@ FINAL CHECK BEFORE OUTPUT:
 Output: Return ONLY the corrected Mermaid code.
 """
 
-        user_prompt = f"""Fix this invalid Mermaid diagram:
+        # Prepend section context if provided
+        if section_content:
+            context_prefix = """ADDITIONAL CONTEXT:
+You are also provided with the FULL SECTION DOCUMENT where this Mermaid diagram belongs.
+Use this context to understand:
+- What the diagram is supposed to represent
+- The correct node names, relationships, and labels
+- The business/technical domain of the diagram
+
+The section document helps you fix the diagram while preserving its intended meaning.
+Do NOT change the diagram's purpose - only fix the syntax errors.
+
+---
+
+"""
+            system_prompt = context_prefix + base_system_prompt
+        else:
+            system_prompt = base_system_prompt
+
+        # Build user prompt
+        if section_content:
+            # Truncate section content if too long (keep first 8000 chars for context)
+            max_section_length = 8000
+            if len(section_content) > max_section_length:
+                truncated_section = section_content[:max_section_length] + "\n\n... [truncated for brevity] ..."
+            else:
+                truncated_section = section_content
+
+            user_prompt = f"""SECTION DOCUMENT (for context):
+---
+{truncated_section}
+---
+
+Fix this invalid Mermaid diagram from the above section:
+
+ERROR:
+{error}
+
+INVALID CODE:
+{invalid_code}
+
+Return ONLY the corrected Mermaid code:"""
+        else:
+            user_prompt = f"""Fix this invalid Mermaid diagram:
 
 ERROR:
 {error}
@@ -222,8 +268,29 @@ Return ONLY the corrected Mermaid code:"""
             HumanMessage(content=user_prompt)
         ]
 
-        response = llm.invoke(messages)
-        fixed_code = response.content.strip()
+        # Invoke LLM with exponential backoff retry for rate limit (429) errors
+        max_retries = 5
+        base_delay = 2  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                response = llm.invoke(messages)
+                fixed_code = response.content.strip()
+                break  # Success, exit retry loop
+            except Exception as e:
+                error_str = str(e).lower()
+                # Check for rate limit error (429)
+                if '429' in str(e) or 'rate' in error_str or 'too many' in error_str:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential: 2, 4, 8, 16, 32 seconds
+                        print(f"        ⚠ Rate limit hit, waiting {delay}s before retry ({attempt + 1}/{max_retries})...")
+                        time.sleep(delay)
+                    else:
+                        print(f"        ✗ Rate limit exceeded after {max_retries} retries")
+                        raise
+                else:
+                    # Non-rate-limit error, re-raise immediately
+                    raise
 
         # Remove any markdown fences if LLM included them
         if fixed_code.startswith('```mermaid'):
@@ -235,12 +302,13 @@ Return ONLY the corrected Mermaid code:"""
 
         return fixed_code.strip()
 
-    async def validate_and_fix_block(self, block: MermaidBlock) -> Tuple[MermaidBlock, bool, str]:
+    async def validate_and_fix_block(self, block: MermaidBlock, section_content: str = None) -> Tuple[MermaidBlock, bool, str]:
         """
         Validate a mermaid block and fix if invalid.
 
         Args:
             block: MermaidBlock to validate
+            section_content: Optional full section document for context when fixing
 
         Returns:
             Tuple of (fixed_block, was_fixed, status_message)
@@ -266,7 +334,8 @@ Return ONLY the corrected Mermaid code:"""
 
             if attempt < self.max_retries + 1:
                 print(f"      Attempt {attempt}/{self.max_retries}: Fixing with LLM...")
-                current_code = self.fix_mermaid_with_llm(current_code, error)
+                # Pass section_content for additional context
+                current_code = self.fix_mermaid_with_llm(current_code, error, section_content)
 
         # Max retries exceeded - return original with warning
         print(f"      ⚠ Max retries exceeded, marking as invalid")
@@ -443,6 +512,8 @@ def validate_mermaid_sync(
     Synchronous wrapper for mermaid validation.
 
     Can be called from generate_documentation().
+
+    DEPRECATED: Use validate_section_mermaid_sync() instead for per-section validation.
     """
     return asyncio.run(validate_all_mermaid_in_sections(
         code_explanation=code_explanation,
@@ -450,3 +521,108 @@ def validate_mermaid_sync(
         llm_config=llm_config,
         docker_image=docker_image
     ))
+
+
+# ============================================================================
+# PER-SECTION MERMAID VALIDATION (Called from Phase 2 loop)
+# ============================================================================
+
+async def validate_section_mermaid(
+    section_id: str,
+    section_content: str,
+    validator: MermaidValidator
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Validate and fix mermaid diagrams in a single section.
+
+    Called immediately after each section is generated in Phase 2.
+    Uses the full section content as context for LLM fixes.
+
+    Args:
+        section_id: Section identifier
+        section_content: Full section markdown content
+        validator: Initialized MermaidValidator instance
+
+    Returns:
+        Tuple of (fixed_section_content, stats_dict)
+    """
+    stats = {
+        'total': 0,
+        'valid': 0,
+        'fixed': 0,
+        'failed': 0
+    }
+
+    # Extract mermaid blocks
+    blocks = validator.extract_mermaid_blocks(section_content, section_id)
+
+    if not blocks:
+        return section_content, stats
+
+    print(f"    → Found {len(blocks)} mermaid diagram(s), validating...")
+
+    fixed_blocks = []
+    for i, block in enumerate(blocks, 1):
+        print(f"      [{i}/{len(blocks)}] Validating...")
+        # Pass section_content as context for fixing
+        fixed_block, was_fixed, status = await validator.validate_and_fix_block(
+            block,
+            section_content=section_content
+        )
+        fixed_blocks.append(fixed_block)
+        stats['total'] += 1
+
+        if status == "valid":
+            stats['valid'] += 1
+            print(f"        ✓ Valid")
+        elif "fixed" in status:
+            stats['fixed'] += 1
+            print(f"        ✓ {status}")
+        else:
+            stats['failed'] += 1
+            print(f"        ✗ {status}")
+
+    # Replace blocks in section content
+    fixed_content = validator.replace_blocks_in_markdown(
+        section_content, blocks, fixed_blocks
+    )
+
+    return fixed_content, stats
+
+
+def validate_section_mermaid_sync(
+    section_id: str,
+    section_content: str,
+    llm_config: Dict[str, Any],
+    mcp_client: "MCPClient" = None,
+    docker_image: str = "mermaid-mcp:test"
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Synchronous wrapper for per-section mermaid validation.
+
+    Called from run_phase2_sections() after each section is generated.
+
+    Args:
+        section_id: Section identifier
+        section_content: Full section markdown content
+        llm_config: LLM configuration
+        mcp_client: Optional existing MCP client (to reuse connection)
+        docker_image: Mermaid MCP Docker image name
+
+    Returns:
+        Tuple of (fixed_section_content, stats_dict)
+    """
+    async def _validate():
+        validator = MermaidValidator(docker_image=docker_image, llm_config=llm_config)
+
+        # Check if section has any mermaid blocks first (quick check)
+        if '```mermaid' not in section_content:
+            return section_content, {'total': 0, 'valid': 0, 'fixed': 0, 'failed': 0}
+
+        try:
+            await validator.initialize()
+            return await validate_section_mermaid(section_id, section_content, validator)
+        finally:
+            await validator.cleanup()
+
+    return asyncio.run(_validate())

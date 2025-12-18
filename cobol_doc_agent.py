@@ -3224,6 +3224,15 @@ def run_phase2_sections(
     section_outputs = {}
     failed_sections = []
 
+    # Mermaid validation stats for summary
+    mermaid_stats = {
+        'total': 0,
+        'valid': 0,
+        'fixed': 0,
+        'failed': 0,
+        'sections_with_mermaid': []
+    }
+
     # Build base context with prose instead of source code
     base_context = build_prose_based_context(state, explanation_prose)
 
@@ -3250,8 +3259,29 @@ def run_phase2_sections(
                 llm_config=llm_config
             )
 
-            section_outputs[section_id] = content
             print(f"      ✓ Generated ({len(content):,} chars)")
+
+            # ─────────────────────────────────────────────────────────────
+            # MERMAID VALIDATION: Validate and fix mermaid diagrams in this section
+            # Uses full section content as context for LLM fixes
+            # ─────────────────────────────────────────────────────────────
+            if '```mermaid' in content:
+                from mermaid_validator import validate_section_mermaid_sync
+                content, section_mermaid_stats = validate_section_mermaid_sync(
+                    section_id=section_id,
+                    section_content=content,
+                    llm_config=llm_config,
+                    docker_image="mermaid-mcp:test"
+                )
+                # Update overall stats
+                mermaid_stats['total'] += section_mermaid_stats['total']
+                mermaid_stats['valid'] += section_mermaid_stats['valid']
+                mermaid_stats['fixed'] += section_mermaid_stats['fixed']
+                mermaid_stats['failed'] += section_mermaid_stats['failed']
+                if section_mermaid_stats['total'] > 0:
+                    mermaid_stats['sections_with_mermaid'].append(section_id)
+
+            section_outputs[section_id] = content
 
             # Save to tmp
             save_to_tmp(content, program_name, f"section_{section_id}.md")
@@ -3275,10 +3305,19 @@ Please regenerate this section manually or check the logs for details.
 
     # Summary
     print(f"\n  → Phase 2 Summary:")
-    print(f"    Successful: {len(other_sections) - len(failed_sections)}")
-    print(f"    Failed: {len(failed_sections)}")
+    print(f"    Sections generated: {len(other_sections) - len(failed_sections)}/{len(other_sections)}")
     if failed_sections:
         print(f"    Failed sections: {', '.join(failed_sections)}")
+
+    # Mermaid validation summary
+    if mermaid_stats['total'] > 0:
+        print(f"\n  → Mermaid Validation Summary:")
+        print(f"    Total diagrams: {mermaid_stats['total']}")
+        print(f"    Already valid:  {mermaid_stats['valid']}")
+        print(f"    Fixed by LLM:   {mermaid_stats['fixed']}")
+        print(f"    Failed:         {mermaid_stats['failed']}")
+        if mermaid_stats['sections_with_mermaid']:
+            print(f"    Sections with mermaid: {', '.join(mermaid_stats['sections_with_mermaid'])}")
 
     print(f"\n✓ Phase 2 complete")
 
@@ -3551,20 +3590,11 @@ def generate_documentation(
         code_explanation, prose = run_phase1_code_explanation(state, llm_config)
 
         # ═══════════════════════════════════════════════════════════════
-        # PHASE 2: Generate Other Sections
+        # PHASE 2: Generate Other Sections (includes Mermaid validation)
         # ═══════════════════════════════════════════════════════════════
+        # Note: Mermaid validation is now done per-section inside run_phase2_sections()
+        # This provides section context for LLM to fix invalid diagrams
         section_outputs = run_phase2_sections(state, prose, llm_config)
-
-        # ═══════════════════════════════════════════════════════════════
-        # PHASE 2.5: Validate and Fix Mermaid Diagrams
-        # ═══════════════════════════════════════════════════════════════
-        from mermaid_validator import validate_mermaid_sync
-        code_explanation, section_outputs, mermaid_stats = validate_mermaid_sync(
-            code_explanation=code_explanation,
-            section_outputs=section_outputs,
-            llm_config=llm_config,
-            docker_image="mermaid-mcp:test"
-        )
 
         # ═══════════════════════════════════════════════════════════════
         # PHASE 3: Assemble Final Document
