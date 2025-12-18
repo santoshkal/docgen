@@ -116,7 +116,7 @@ llm:
 # METADATA GENERATION
 # ============================================================================
 metadata:
-  generate: true    # Set to true if you need to regenerate metadata
+  generate: false    # Set to true if you need to regenerate metadata
   skip_existing: false  # Set to false to FORCE regeneration even if checksums are valid
 
 # ============================================================================

@@ -10,6 +10,8 @@ This agent ensures consistent documentation across COBOL projects by:
 """
 
 import json
+import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
@@ -1923,48 +1925,66 @@ OUTPUT FORMAT:
     # CRITICAL: Use compact JSON (no indent) to reduce token count
     # indent=2 adds ~50% overhead (800K → 1.2M tokens)
 
-    # TRUNCATION: Check context size before serialization (OpenAI API limit ~10MB)
-    MAX_MESSAGE_CHARS = 9000000  # 9MB safe limit (API limit is ~10MB)
+    # TRUNCATION: Check TOKEN count before sending (model context limits)
+    # Import tiktoken-based token counter
+    from source_chunker import estimate_tokens
+
+    # Model token limits (leave room for system prompt + output)
+    MODEL_TOKEN_LIMITS = {
+        "gpt-4.1": 900000,       # 1M context → 900K input max
+        "gpt-4o": 100000,        # 128K context → 100K input max
+        "gpt-4-turbo": 100000,   # 128K context → 100K input max
+        "gpt-4": 6000,           # 8K context → 6K input max
+    }
+    MAX_INPUT_TOKENS = MODEL_TOKEN_LIMITS.get(model_name, 100000)  # Default 100K
+
     context_json = json.dumps(context)
-    context_len = len(context_json)
+    context_tokens = estimate_tokens(context_json, model=model_name)
 
-    if context_len > MAX_MESSAGE_CHARS:
-        print(f"  ⚠ TRUNCATION NEEDED: Context {context_len:,} chars exceeds {MAX_MESSAGE_CHARS:,} limit")
+    print(f"  → Context: {context_tokens:,} tokens (limit: {MAX_INPUT_TOKENS:,} for {model_name})")
 
-        # Calculate how much to truncate
-        excess_chars = context_len - MAX_MESSAGE_CHARS
-        truncate_chars = int(excess_chars * 1.3)  # 30% buffer
+    if context_tokens > MAX_INPUT_TOKENS:
+        print(f"  ⚠ TRUNCATION NEEDED: {context_tokens:,} tokens exceeds {MAX_INPUT_TOKENS:,} limit")
 
-        # Strategy 1: Truncate source_code if present
+        # Calculate reduction ratio needed
+        reduction_ratio = MAX_INPUT_TOKENS / context_tokens
+        target_chars = int(len(context_json) * reduction_ratio * 0.8)  # 80% of target for safety
+
+        # Strategy 1: Truncate source_code (largest component)
         if "source_code" in context and context["source_code"]:
             source = context["source_code"]
-            if len(source) > truncate_chars:
-                keep_chars = len(source) - truncate_chars
-                half = keep_chars // 2
+            source_tokens = estimate_tokens(source, model=model_name)
+
+            # Calculate target source size
+            target_source_tokens = int(source_tokens * reduction_ratio * 0.7)  # Aggressive reduction
+            target_source_chars = int(len(source) * (target_source_tokens / source_tokens))
+
+            if target_source_chars > 1000:  # Keep at least 1000 chars
+                half = target_source_chars // 2
+                truncated_tokens = source_tokens - target_source_tokens
                 context["source_code"] = (
                     source[:half] +
-                    f"\n\n... [TRUNCATED {truncate_chars:,} chars] ...\n\n" +
+                    f"\n\n... [TRUNCATED ~{truncated_tokens:,} tokens to fit model limit] ...\n\n" +
                     source[-half:]
                 )
-                print(f"    → Truncated source_code: {len(source):,} → {len(context['source_code']):,}")
+                print(f"    → Truncated source_code: {source_tokens:,} → ~{target_source_tokens:,} tokens")
 
-        # Strategy 2: Trim large metadata arrays
-        for key in ["superbol_symbols", "superbol_cfg", "gnucobol_analysis", "ctags_outline"]:
+        # Strategy 2: Remove large metadata (keep only essential)
+        for key in ["superbol_symbols", "gnucobol_analysis"]:
             if key in context and context[key]:
                 item = context[key]
-                if isinstance(item, list) and len(item) > 500:
-                    context[key] = item[:500]
-                    print(f"    → Trimmed {key}: {len(item)} → 500 items")
-                elif isinstance(item, dict):
-                    for subkey in ["nodes", "edges", "symbols", "paragraphs", "data_items"]:
-                        if subkey in item and isinstance(item[subkey], list) and len(item[subkey]) > 300:
-                            original_len = len(item[subkey])
-                            item[subkey] = item[subkey][:300]
-                            print(f"    → Trimmed {key}.{subkey}: {original_len} → 300 items")
+                if isinstance(item, dict) and len(json.dumps(item)) > 50000:
+                    # Keep minimal info
+                    context[key] = {"_truncated": True, "_reason": "Token limit exceeded"}
+                    print(f"    → Removed {key} (too large)")
+                elif isinstance(item, list) and len(item) > 100:
+                    context[key] = item[:100]
+                    print(f"    → Trimmed {key}: {len(item)} → 100 items")
 
-        # Re-serialize and check
+        # Re-check token count
         context_json = json.dumps(context)
-        print(f"    → New context size: {len(context_json):,} chars")
+        new_tokens = estimate_tokens(context_json, model=model_name)
+        print(f"    → New context: {new_tokens:,} tokens")
 
     metadata_str = context_json
 
@@ -2983,6 +3003,612 @@ def save_document_node(state: AgentState) -> AgentState:
 
 
 # ============================================================================
+# REORGANIZE-DOCS: TWO-PHASE DOCUMENTATION GENERATION
+# ============================================================================
+# Phase 1: Generate detailed code explanation (chunked) → Extract prose
+# Phase 2: Generate other sections using prose + metadata (no raw source)
+# Phase 3: Assemble final document
+# ============================================================================
+
+def get_tmp_dir(program_name: str) -> Path:
+    """Get the tmp directory path for a program."""
+    return Path("./tmp") / program_name
+
+
+def save_to_tmp(content: str, program_name: str, filename: str) -> Path:
+    """
+    Save content to tmp directory.
+
+    Args:
+        content: Content to save
+        program_name: Program name (used as subdirectory)
+        filename: Filename to save as
+
+    Returns:
+        Path to saved file
+    """
+    tmp_dir = get_tmp_dir(program_name)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = tmp_dir / filename
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+    print(f"  → Saved to tmp: {file_path}")
+    return file_path
+
+
+def load_from_tmp(program_name: str, filename: str) -> Optional[str]:
+    """
+    Load content from tmp directory.
+
+    Args:
+        program_name: Program name (subdirectory)
+        filename: Filename to load
+
+    Returns:
+        Content if file exists, None otherwise
+    """
+    file_path = get_tmp_dir(program_name) / filename
+
+    if file_path.exists():
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return None
+
+
+def cleanup_tmp(program_name: str) -> None:
+    """
+    Remove tmp directory for a program after successful assembly.
+
+    Args:
+        program_name: Program name (subdirectory to remove)
+    """
+    tmp_dir = get_tmp_dir(program_name)
+
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+        print(f"  → Cleaned up tmp directory: {tmp_dir}")
+
+
+def extract_prose_from_explanation(explanation_md: str) -> str:
+    """
+    Extract prose from generated code explanation by stripping code blocks.
+
+    This removes all ```cobol ... ``` blocks while preserving:
+    - ## Chunk N/M headers
+    - ### Block N: headers
+    - **Purpose:** sections
+    - **Detailed Explanation:** sections
+    - **Technical Details:** sections
+
+    Args:
+        explanation_md: Full markdown with code blocks
+
+    Returns:
+        Prose-only markdown without code blocks
+    """
+    # Remove all code blocks (```cobol ... ``` or ``` ... ```)
+    prose = re.sub(r'```[\w]*\n.*?```', '', explanation_md, flags=re.DOTALL)
+
+    # Clean up excessive whitespace (more than 2 newlines)
+    prose = re.sub(r'\n{3,}', '\n\n', prose)
+
+    # Remove "## COBOL Code (Complete Verbatim Copy)" headers since code is removed
+    prose = re.sub(r'## COBOL Code \(Complete Verbatim Copy\)\s*\n*', '', prose)
+
+    return prose.strip()
+
+
+def run_phase1_code_explanation(
+    state: AgentState,
+    llm_config: Dict[str, Any]
+) -> Tuple[str, str]:
+    """
+    Phase 1: Generate detailed code explanation using chunked processing.
+
+    This function:
+    1. Finds the detailed-code-explanation section from template
+    2. Calls existing chunk processing logic
+    3. Extracts prose from the generated explanation
+    4. Saves both full explanation and prose to tmp
+
+    Args:
+        state: Agent state with program info and metadata
+        llm_config: LLM configuration
+
+    Returns:
+        Tuple of (full_explanation_md, extracted_prose)
+    """
+    program_name = state["program_name"]
+    print(f"\n{'='*60}")
+    print(f"PHASE 1: Generating Detailed Code Explanation")
+    print(f"{'='*60}")
+
+    # Find the detailed-code-explanation section from template
+    template = state.get("template", {})
+    sections = template.get("sections", [])
+
+    code_explanation_section = None
+    for section in sections:
+        if section.get("id") == "detailed-code-explanation":
+            code_explanation_section = section
+            break
+
+    if not code_explanation_section:
+        raise ValueError("Template missing 'detailed-code-explanation' section")
+
+    # Build context for the section
+    context = build_section_context(state, code_explanation_section)
+
+    # Check if this is a large file requiring chunked processing
+    if 'chunked_file_info' in context:
+        print(f"  → Large file detected - using chunked processing")
+
+        full_explanation = process_large_file_in_chunks(
+            section_id=code_explanation_section.get("id", ""),
+            section_title=code_explanation_section.get("title", "Detailed Code Explanation"),
+            instruction=code_explanation_section.get("instruction", ""),
+            template=code_explanation_section.get("template", ""),
+            context=context,
+            chunked_file_info=context['chunked_file_info'],
+            llm_config=llm_config,
+            pass_number=1,
+            state=state
+        )
+    else:
+        # Small file - process normally
+        print(f"  → Small file - processing in single pass")
+        full_explanation = process_section_recursive(state, code_explanation_section)
+
+    # Extract prose from the explanation
+    print(f"\n  → Extracting prose from explanation...")
+    extracted_prose = extract_prose_from_explanation(full_explanation)
+
+    # Calculate sizes for logging
+    full_size = len(full_explanation)
+    prose_size = len(extracted_prose)
+    reduction = ((full_size - prose_size) / full_size * 100) if full_size > 0 else 0
+
+    print(f"    Full explanation: {full_size:,} chars")
+    print(f"    Extracted prose:  {prose_size:,} chars")
+    print(f"    Reduction: {reduction:.1f}%")
+
+    # Save to tmp
+    save_to_tmp(full_explanation, program_name, "detailed_code_explanation.md")
+    save_to_tmp(extracted_prose, program_name, "explanation_prose.txt")
+
+    print(f"\n✓ Phase 1 complete")
+
+    return full_explanation, extracted_prose
+
+
+def run_phase2_sections(
+    state: AgentState,
+    explanation_prose: str,
+    llm_config: Dict[str, Any]
+) -> Dict[str, str]:
+    """
+    Phase 2: Generate remaining sections using prose + metadata context.
+
+    This function:
+    1. Gets all sections except detailed-code-explanation
+    2. Builds prose-based context for each section
+    3. Generates each section sequentially
+    4. Handles failures gracefully (continues with other sections)
+
+    Args:
+        state: Agent state with program info and metadata
+        explanation_prose: Extracted prose from Phase 1
+        llm_config: LLM configuration
+
+    Returns:
+        Dict mapping section_id to generated content
+    """
+    program_name = state["program_name"]
+    print(f"\n{'='*60}")
+    print(f"PHASE 2: Generating Remaining Sections")
+    print(f"{'='*60}")
+
+    # Get all sections from template
+    template = state.get("template", {})
+    sections = template.get("sections", [])
+
+    # Filter out detailed-code-explanation (handled in Phase 1)
+    other_sections = [s for s in sections if s.get("id") != "detailed-code-explanation"]
+
+    print(f"  → Sections to generate: {len(other_sections)}")
+    for s in other_sections:
+        print(f"    - {s.get('id')}")
+
+    section_outputs = {}
+    failed_sections = []
+
+    # Build base context with prose instead of source code
+    base_context = build_prose_based_context(state, explanation_prose)
+
+    # Process each section sequentially
+    for i, section in enumerate(other_sections, 1):
+        section_id = section.get("id", "unknown")
+        section_title = section.get("title", section_id)
+
+        print(f"\n  [{i}/{len(other_sections)}] Generating: {section_title}")
+
+        try:
+            # Build section-specific context
+            section_context = base_context.copy()
+            section_context["section_id"] = section_id
+
+            # Generate content using existing function
+            content = generate_section_content(
+                section_id=section_id,
+                section_title=section_title,
+                instruction=section.get("instruction", ""),
+                template=section.get("template", ""),
+                context=section_context,
+                section_config=section,
+                llm_config=llm_config
+            )
+
+            section_outputs[section_id] = content
+            print(f"      ✓ Generated ({len(content):,} chars)")
+
+            # Save to tmp
+            save_to_tmp(content, program_name, f"section_{section_id}.md")
+
+        except Exception as e:
+            print(f"      ✗ Failed: {e}")
+            failed_sections.append(section_id)
+
+            # Create failure placeholder
+            section_outputs[section_id] = f"""## {section_title}
+
+**Generation Failed**
+
+This section could not be generated due to an error:
+```
+{str(e)}
+```
+
+Please regenerate this section manually or check the logs for details.
+"""
+
+    # Summary
+    print(f"\n  → Phase 2 Summary:")
+    print(f"    Successful: {len(other_sections) - len(failed_sections)}")
+    print(f"    Failed: {len(failed_sections)}")
+    if failed_sections:
+        print(f"    Failed sections: {', '.join(failed_sections)}")
+
+    print(f"\n✓ Phase 2 complete")
+
+    return section_outputs
+
+
+def build_prose_based_context(
+    state: AgentState,
+    explanation_prose: str
+) -> Dict[str, Any]:
+    """
+    Build context using explanation prose instead of raw source code.
+
+    This replaces _build_full_context_for_section() for the new approach.
+
+    IMPORTANT: This function intentionally does NOT include raw metadata
+    (ctags_outline, superbol_cfg, superbol_symbols, gnucobol_analysis)
+    because they are massive JSON blobs (7+ MB). The prose from Phase 1
+    already contains all the important information extracted from the code.
+
+    Args:
+        state: Agent state with program info and metadata
+        explanation_prose: Extracted prose from Phase 1
+
+    Returns:
+        Context dict with prose + program_map (no raw metadata)
+    """
+    from source_chunker import estimate_tokens
+
+    program_name = state["program_name"]
+
+    # Build program map from metadata (text representation, not raw JSON)
+    program_map = ""
+    try:
+        from cobol_program_map import generate_cobol_program_map
+        program_map = generate_cobol_program_map(
+            ctags_outline=state.get("ctags_outline", {}),
+            superbol_cfg=state.get("superbol_cfg", {}),
+            top_n_paragraphs=50,
+            top_n_data_items=30
+        )
+    except Exception as e:
+        print(f"  ⚠ Could not generate program map: {e}")
+
+    # Context contains ONLY prose + program_map (no raw metadata)
+    # This keeps context size manageable (~130K tokens instead of 2.6M)
+    context = {
+        "program_name": program_name,
+        "timestamp": datetime.now().isoformat(),
+
+        # Prose from Phase 1 (contains all extracted code explanations)
+        "explanation_prose": explanation_prose,
+
+        # Program map for structure reference (text, not JSON)
+        "program_map": program_map,
+    }
+
+    # Log context size
+    context_json = json.dumps(context, default=str)
+    tokens = estimate_tokens(context_json)
+    print(f"    Context size: {len(context_json):,} chars (~{tokens:,} tokens)")
+
+    return context
+
+
+def assemble_final_document(
+    program_name: str,
+    code_explanation: str,
+    section_outputs: Dict[str, str],
+    template: Dict[str, Any]
+) -> str:
+    """
+    Phase 3: Assemble all sections into final markdown document.
+
+    Combines sections in the order specified by the template.
+
+    Args:
+        program_name: Program name for title
+        code_explanation: Full code explanation from Phase 1
+        section_outputs: Section outputs from Phase 2
+        template: Template dict with section order
+
+    Returns:
+        Complete markdown document
+    """
+    print(f"\n{'='*60}")
+    print(f"PHASE 3: Assembling Final Document")
+    print(f"{'='*60}")
+
+    sections = template.get("sections", [])
+
+    # Build document header
+    doc_parts = [
+        f"# {program_name} - Code Documentation\n",
+        f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+        f"**Program**: {program_name}\n",
+        "\n---\n"
+    ]
+
+    # Add sections in template order
+    for section in sections:
+        section_id = section.get("id", "")
+        section_title = section.get("title", section_id)
+
+        if section_id == "detailed-code-explanation":
+            # Use Phase 1 output
+            content = code_explanation
+            print(f"  → Adding: {section_title} (from Phase 1)")
+        elif section_id in section_outputs:
+            # Use Phase 2 output
+            content = section_outputs[section_id]
+            print(f"  → Adding: {section_title} (from Phase 2)")
+        else:
+            # Section not generated
+            content = f"## {section_title}\n\n*Section not generated*\n"
+            print(f"  → Skipping: {section_title} (not generated)")
+
+        doc_parts.append(f"\n{content}\n")
+
+    final_doc = "\n".join(doc_parts)
+
+    print(f"\n  → Final document: {len(final_doc):,} chars")
+    print(f"✓ Phase 3 complete")
+
+    return final_doc
+
+
+def generate_documentation(
+    program_name: str,
+    workspace_path: str,
+    metadata_dir: str,
+    template_path: str,
+    output_dir: str,
+    llm_config: Dict[str, Any],
+    cobol_file_path: Optional[str] = None,
+    generate_metadata: bool = True,
+    servers_config: Optional[Dict[str, Any]] = None,
+    preloaded_metadata: Optional[Dict[str, Any]] = None,
+    enable_source_extraction: bool = True,
+) -> Optional[str]:
+    """
+    Generate documentation using the two-phase approach.
+
+    This is the main entry point for documentation generation:
+    - Phase 1: Generate detailed code explanation (chunked) → Extract prose
+    - Phase 2: Generate other sections using prose + metadata
+    - Phase 3: Assemble final document
+
+    Args:
+        program_name: Name of the COBOL program
+        workspace_path: Path to source files
+        metadata_dir: Path to metadata directory
+        template_path: Path to YAML template
+        output_dir: Path for output
+        llm_config: LLM configuration
+        cobol_file_path: Optional path to specific COBOL file
+        generate_metadata: Whether to generate metadata first
+        servers_config: MCP servers configuration
+        preloaded_metadata: Optional pre-loaded metadata dict with keys:
+            ctags_outline, superbol_symbols, superbol_cfg, gnucobol_analysis
+        enable_source_extraction: Enable source code extraction for chunked processing
+
+    Returns:
+        Path to generated documentation file, or None on failure
+    """
+    print(f"\n{'#'*60}")
+    print(f"# REORGANIZED DOCUMENTATION GENERATION")
+    print(f"# Program: {program_name}")
+    print(f"{'#'*60}")
+
+    # Convert paths
+    workspace_path = Path(workspace_path)
+    metadata_dir = Path(metadata_dir)
+    template_path = Path(template_path)
+    output_dir = Path(output_dir)
+
+    try:
+        # Initialize LLM call tracer for this program
+        from llm_tracer import init_tracer
+        tracer = init_tracer(f"llm_trace_{program_name}.jsonl")
+        print(f"\n→ LLM tracer initialized: llm_trace_{program_name}.jsonl")
+
+        # Load template
+        print(f"\n→ Loading template: {template_path}")
+        with open(template_path, 'r') as f:
+            template = yaml.safe_load(f)
+
+        # Load metadata (use preloaded if provided)
+        if preloaded_metadata:
+            print(f"→ Using preloaded metadata")
+            metadata = preloaded_metadata
+            for key in ["ctags_outline", "superbol_symbols", "superbol_cfg", "gnucobol_analysis"]:
+                if key in metadata and metadata[key]:
+                    print(f"  ✓ {key}: loaded")
+                else:
+                    metadata[key] = {}
+                    print(f"  ⚠ {key}: missing")
+        else:
+            print(f"→ Loading metadata from: {metadata_dir}")
+            metadata = {}
+
+            # Try multiple file structure patterns
+            # Pattern 1: Subdirectory structure (ctags/, superbol/, gnucobol/)
+            # Pattern 2: Flat structure (ctags_outline.json, etc.)
+            metadata_patterns = {
+                "ctags_outline": [
+                    f"ctags/ctags-{program_name}-outline.json",
+                    "ctags_outline.json",
+                ],
+                "superbol_symbols": [
+                    f"superbol/superbol-{program_name}-doc-symbols.json",
+                    "superbol_symbols.json",
+                ],
+                "superbol_cfg": [
+                    f"superbol/superbol-cfg/{program_name}.json",
+                    "superbol_cfg.json",
+                ],
+                "gnucobol_analysis": [
+                    f"gnucobol/gnucobol-{program_name}-analysis.json",
+                    "gnucobol_analysis.json",
+                ],
+            }
+
+            for key, patterns in metadata_patterns.items():
+                loaded = False
+                for pattern in patterns:
+                    file_path = metadata_dir / pattern
+                    if file_path.exists():
+                        with open(file_path, 'r') as f:
+                            metadata[key] = json.load(f)
+                        print(f"  ✓ Loaded {key}: {pattern}")
+                        loaded = True
+                        break
+                if not loaded:
+                    metadata[key] = {}
+                    print(f"  ⚠ Missing {key}")
+
+        # Determine COBOL file path
+        if not cobol_file_path:
+            # Try to find it in workspace
+            for ext in ['.cbl', '.cob', '.CBL', '.COB', '.c74']:
+                potential_path = workspace_path / f"{program_name}{ext}"
+                if potential_path.exists():
+                    cobol_file_path = str(potential_path)
+                    break
+
+        if cobol_file_path:
+            print(f"→ COBOL source: {cobol_file_path}")
+        else:
+            print(f"⚠ COBOL source file not found")
+
+        # Build initial state
+        state: AgentState = {
+            "program_name": program_name,
+            "workspace_path": workspace_path,
+            "metadata_dir": metadata_dir,
+            "template_path": template_path,
+            "output_dir": output_dir,
+            "template": template,
+            "cobol_file_path": cobol_file_path,
+            "llm_config": llm_config,
+            # Enable source extraction for chunked processing of large files
+            "enable_source_extraction": enable_source_extraction,
+            **metadata
+        }
+
+        # ═══════════════════════════════════════════════════════════════
+        # PHASE 1: Generate Detailed Code Explanation
+        # ═══════════════════════════════════════════════════════════════
+        code_explanation, prose = run_phase1_code_explanation(state, llm_config)
+
+        # ═══════════════════════════════════════════════════════════════
+        # PHASE 2: Generate Other Sections
+        # ═══════════════════════════════════════════════════════════════
+        section_outputs = run_phase2_sections(state, prose, llm_config)
+
+        # ═══════════════════════════════════════════════════════════════
+        # PHASE 2.5: Validate and Fix Mermaid Diagrams
+        # ═══════════════════════════════════════════════════════════════
+        from mermaid_validator import validate_mermaid_sync
+        code_explanation, section_outputs, mermaid_stats = validate_mermaid_sync(
+            code_explanation=code_explanation,
+            section_outputs=section_outputs,
+            llm_config=llm_config,
+            docker_image="mermaid-mcp:test"
+        )
+
+        # ═══════════════════════════════════════════════════════════════
+        # PHASE 3: Assemble Final Document
+        # ═══════════════════════════════════════════════════════════════
+        final_doc = assemble_final_document(
+            program_name=program_name,
+            code_explanation=code_explanation,
+            section_outputs=section_outputs,
+            template=template
+        )
+
+        # Save final document
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%d-%m-%Y")
+        output_filename = f"{program_name}-documentation-{timestamp}.md"
+        output_path = output_dir / output_filename
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(final_doc)
+
+        print(f"\n{'='*60}")
+        print(f"✓ Documentation saved to: {output_path}")
+        print(f"{'='*60}")
+
+        # Finalize LLM tracer and write reports (AFTER final document is saved)
+        from llm_tracer import finalize_tracer
+        finalize_tracer(
+            doc_path=str(output_path),
+            source_path=cobol_file_path
+        )
+
+        # Cleanup tmp files
+        cleanup_tmp(program_name)
+
+        return str(output_path)
+
+    except Exception as e:
+        print(f"\n✗ Documentation generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+# ============================================================================
 # GRAPH CONSTRUCTION
 # ============================================================================
 
@@ -3044,219 +3670,6 @@ def create_documentation_agent() -> StateGraph:
     workflow.add_edge("save_document", END)
 
     return workflow.compile()
-
-
-# ============================================================================
-# MAIN EXECUTION
-# ============================================================================
-
-def generate_documentation(
-    program_name: str,
-    workspace_path: str = "..",
-    metadata_dir: str = "../output",
-    template_path: str = "./cobol-doc-template.yaml",
-    output_dir: str = "../docs",
-    generate_metadata: bool = False,
-    skip_existing_metadata: bool = True,
-    cobol_files: Optional[List[str]] = None,
-    source_checksum_path: str = "./source-checksum.yaml",
-    metadata_checksum_path: str = "./metadata-checksum.yaml",
-    servers_config: Optional[Dict[str, Any]] = None,
-    llm_config: Optional[Dict[str, Any]] = None,
-    use_two_pass_mode: bool = True,  # NEW: Enable two-pass generation by default
-    enable_source_extraction: bool = False,  # Phase 1: Enable source code extraction
-    compress_source: bool = True,  # Phase 1: Compress extracted source (remove comments/blanks)
-    cobol_file_path: Optional[str] = None,  # Phase 1: Path to COBOL source file
-    # Phase 3: Multi-file support parameters
-    resolve_copybooks: bool = False,  # Phase 3: Resolve and include copybook content
-    resolve_called_programs: bool = False,  # Phase 3: Resolve called program information
-    copybook_search_paths: Optional[List[str]] = None,  # Phase 3: Directories to search for copybooks
-    program_search_paths: Optional[List[str]] = None,  # Phase 3: Directories to search for called programs
-    # Epic 2: Full Context Mode parameters
-    use_full_context_mode: bool = False,  # Epic 2: Enable full context mode (default: False)
-    full_context_sections: Optional[List[str]] = None,  # Epic 2: Sections that use full context
-    max_message_chars: int = 9000000  # Epic 2: Max chars for LLM prompt (API limit ~10MB)
-) -> str:
-    """
-    Main entry point for documentation generation.
-
-    Args:
-        program_name: Name of COBOL program (e.g., "MAINPROG")
-        workspace_path: Path to directory containing COBOL source files
-        metadata_dir: Directory containing/for metadata files
-        template_path: Path to documentation template YAML
-        output_dir: Directory to save generated documentation
-        generate_metadata: Whether to generate metadata via MCP servers
-        skip_existing_metadata: Skip metadata generation if files exist (deprecated)
-        cobol_files: List of COBOL files for metadata generation (auto-discovered if None)
-        source_checksum_path: Path to source file checksums YAML
-        metadata_checksum_path: Path to metadata file checksums YAML
-        servers_config: Optional MCP servers configuration from YAML config
-        llm_config: Optional LLM configuration (provider, model, api_key, temperature)
-        use_two_pass_mode: Enable two-pass generation (conservative filtering, better quality)
-        enable_source_extraction: Enable Phase 1 source code extraction (default: False)
-        compress_source: Compress extracted source by removing comments/blanks (default: True)
-        cobol_file_path: Path to COBOL source file for extraction (auto-determined if None)
-        resolve_copybooks: Enable Phase 3 copybook resolution (default: False)
-        resolve_called_programs: Enable Phase 3 called program resolution (default: False)
-        copybook_search_paths: Directories to search for copybook files (default: None)
-        program_search_paths: Directories to search for called program files (default: None)
-        use_full_context_mode: Enable Epic 2 full context mode (default: False)
-        full_context_sections: List of section IDs that use full context (default: None)
-
-    Returns:
-        Path to generated documentation file
-    """
-
-    print(f"\n{'='*70}")
-    print(f"COBOL Documentation Generator")
-    print(f"Program: {program_name}")
-    if generate_metadata:
-        print(f"Mode: Checksum-based intelligent metadata generation")
-    else:
-        print(f"Mode: Documentation only (using existing metadata)")
-    if use_two_pass_mode:
-        print(f"Strategy: Two-pass generation (conservative filtering)")
-    else:
-        print(f"Strategy: Single-pass generation (aggressive filtering)")
-    if enable_source_extraction:
-        print(f"Phase 1: Source extraction ENABLED (compress={compress_source})")
-    if resolve_copybooks or resolve_called_programs:
-        features = []
-        if resolve_copybooks:
-            features.append("copybooks")
-        if resolve_called_programs:
-            features.append("called programs")
-        print(f"Phase 3: Multi-file support ENABLED ({', '.join(features)})")
-    print(f"{'='*70}\n")
-
-    # Initialize LLM call tracer
-    from llm_tracer import init_tracer, finalize_tracer
-    log_file = f"llm_trace_{program_name}.jsonl"
-    tracer = init_tracer(log_file)
-    print(f"✓ LLM call tracer initialized: {log_file}\n")
-
-    # Auto-determine COBOL file path if not provided
-    if enable_source_extraction and not cobol_file_path:
-        # Try to find the COBOL file in workspace
-        from pathlib import Path as PathLib
-        workspace = PathLib(workspace_path)
-        # Look for .cbl, .cob, .c74 files with matching name
-        for ext in ['.cbl', '.cob', '.c74', '.CBL', '.COB']:
-            candidate = workspace / f"{program_name}{ext}"
-            if candidate.exists():
-                cobol_file_path = str(candidate)
-                print(f"  → Auto-detected COBOL file: {cobol_file_path}")
-                break
-
-    # Phase 3: Initialize multi-file resolvers if enabled
-    copybook_resolver = None
-    called_program_resolver = None
-
-    if enable_source_extraction and MULTI_FILE_AVAILABLE:
-        if resolve_copybooks:
-            # Initialize CopybookResolver with search paths
-            from pathlib import Path as PathLib
-            codebase_root = workspace_path
-            search_paths = copybook_search_paths or []
-
-            try:
-                copybook_resolver = CopybookResolver(
-                    codebase_root=codebase_root,
-                    search_paths=search_paths
-                )
-                print(f"  → Initialized CopybookResolver with {len(search_paths)} search paths")
-            except Exception as e:
-                print(f"  ⚠ Warning: Failed to initialize CopybookResolver: {e}")
-
-        if resolve_called_programs:
-            # Initialize CalledProgramResolver with search paths
-            from pathlib import Path as PathLib
-            codebase_root = workspace_path
-            search_paths = program_search_paths or []
-
-            try:
-                called_program_resolver = CalledProgramResolver(
-                    codebase_root=codebase_root,
-                    search_paths=search_paths
-                )
-                print(f"  → Initialized CalledProgramResolver with {len(search_paths)} search paths")
-            except Exception as e:
-                print(f"  ⚠ Warning: Failed to initialize CalledProgramResolver: {e}")
-
-    # Initialize state
-    initial_state = AgentState(
-        program_name=program_name,
-        workspace_path=Path(workspace_path),
-        metadata_dir=Path(metadata_dir),
-        template_path=Path(template_path),
-        output_dir=Path(output_dir),
-        source_checksum_path=Path(source_checksum_path),
-        metadata_checksum_path=Path(metadata_checksum_path),
-        generate_metadata=generate_metadata,
-        skip_existing_metadata=skip_existing_metadata,
-        cobol_files=cobol_files or [],
-        metadata_generation_reason=None,
-        servers_config=servers_config or {},
-        llm_config=llm_config or {},
-        template={},
-        superbol_symbols={},
-        superbol_cfg={},
-        gnucobol_analysis={},
-        ctags_outline={},
-        called_by_graph={},  # PHASE 3: Reverse call graph (populated during metadata loading)
-        use_two_pass_mode=use_two_pass_mode,  # NEW: Two-pass mode flag
-        current_pass=None,  # NEW: Current pass number
-        passes=None,  # NEW: Passes list (populated during template structure extraction)
-        current_pass_index=0,  # NEW: Current pass index
-        enable_source_extraction=enable_source_extraction,  # Phase 1: Source extraction flag
-        compress_source=compress_source,  # Phase 1: Compression flag
-        cobol_file_path=cobol_file_path,  # Phase 1: Path to COBOL source
-        # Phase 3: Multi-file support
-        resolve_copybooks=resolve_copybooks,  # Phase 3: Resolve copybooks flag
-        resolve_called_programs=resolve_called_programs,  # Phase 3: Resolve called programs flag
-        copybook_search_paths=copybook_search_paths,  # Phase 3: Copybook search paths
-        program_search_paths=program_search_paths,  # Phase 3: Program search paths
-        copybook_resolver=copybook_resolver,  # Phase 3: CopybookResolver instance
-        called_program_resolver=called_program_resolver,  # Phase 3: CalledProgramResolver instance
-        # Epic 2: Full Context Mode
-        use_full_context_mode=use_full_context_mode,  # Epic 2: Full context mode flag
-        full_context_sections=full_context_sections or [],  # Epic 2: Sections using full context
-        max_message_chars=max_message_chars,  # Epic 2: Max chars for LLM prompt (API limit)
-        current_section="",
-        section_ids=[],  # Initialize section IDs list
-        current_section_index=0,  # Initialize index
-        generated_content={},
-        final_document="",
-        errors=[]
-    )
-
-    try:
-        # Create and run agent
-        agent = create_documentation_agent()
-        final_state = agent.invoke(initial_state)
-
-        # Check for errors
-        if final_state.get("errors"):
-            print("\n⚠ Errors occurred during generation:")
-            for error in final_state["errors"]:
-                print(f"  - {error}")
-
-        output_path = Path(output_dir) / f"{program_name}-documentation.md"
-        return str(output_path)
-
-    finally:
-        # Finalize LLM call tracer (print summary and write reports)
-        print("\n" + "="*70)
-        print("Finalizing LLM Call Trace")
-        print("="*70)
-
-        # Pass documentation and source paths for coverage calculation
-        output_path = Path(output_dir) / f"{program_name}-documentation.md"
-        finalize_tracer(
-            doc_path=str(output_path) if output_path.exists() else None,
-            source_path=cobol_file_path
-        )
 
 
 if __name__ == "__main__":
@@ -3503,25 +3916,9 @@ Examples:
                     metadata_dir=metadata_dir,
                     template_path=template_path,
                     output_dir=docs_path,
-                    generate_metadata=generate_metadata and idx == 1,  # Only generate metadata once (first file)
-                    skip_existing_metadata=skip_existing,
-                    cobol_files=all_cobol_files,  # Pass specific files to avoid auto-discovery
-                    source_checksum_path=source_checksum_path,
-                    metadata_checksum_path=metadata_checksum_path,
-                    servers_config=servers_config,
                     llm_config=llm_config,
+                    cobol_file_path=full_filename,
                     enable_source_extraction=enable_source_extraction,
-                    compress_source=compress_source,
-                    cobol_file_path=full_filename,  # Use the actual file being processed
-                    # Phase 3: Multi-file support
-                    resolve_copybooks=resolve_copybooks,
-                    resolve_called_programs=resolve_called_programs,
-                    copybook_search_paths=copybook_search_paths,
-                    program_search_paths=program_search_paths,
-                    # Epic 2: Full Context Mode
-                    use_full_context_mode=use_full_context_mode,
-                    full_context_sections=full_context_sections,
-                    max_message_chars=max_message_chars
                 )
                 successful.append((prog_name, output_path))
                 print(f"✓ Successfully generated documentation for {prog_name}")
@@ -3549,31 +3946,16 @@ Examples:
         print(f"\n{'='*70}\n")
 
     else:
-        # Single program mode (original behavior)
+        # Single program mode - use two-phase approach
         output_path = generate_documentation(
             program_name=program_name,
             workspace_path=workspace,
             metadata_dir=metadata_dir,
             template_path=template_path,
             output_dir=docs_path,
-            generate_metadata=generate_metadata,
-            skip_existing_metadata=skip_existing,
-            source_checksum_path=source_checksum_path,
-            metadata_checksum_path=metadata_checksum_path,
-            servers_config=servers_config,
             llm_config=llm_config,
-            enable_source_extraction=enable_source_extraction,
-            compress_source=compress_source,
             cobol_file_path=None,  # Will be auto-detected
-            # Phase 3: Multi-file support
-            resolve_copybooks=resolve_copybooks,
-            resolve_called_programs=resolve_called_programs,
-            copybook_search_paths=copybook_search_paths,
-            program_search_paths=program_search_paths,
-            # Epic 2: Full Context Mode
-            use_full_context_mode=use_full_context_mode,
-            full_context_sections=full_context_sections,
-            max_message_chars=max_message_chars
+            enable_source_extraction=enable_source_extraction,
         )
 
         print(f"\n{'='*70}")

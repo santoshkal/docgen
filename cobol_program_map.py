@@ -52,14 +52,20 @@ def rank_paragraphs_by_importance(
     paragraph_scores = Counter()
 
     # Extract all paragraph names from CTags and initialize with score 0
+    # Handle both old format (symbols) and new format (outline.other)
     all_paragraphs = set()
-    if 'symbols' in ctags_outline:
-        for symbol in ctags_outline['symbols']:
-            if symbol.get('kind') in ['paragraph', 'section']:
-                para_name = symbol.get('name', '')
-                all_paragraphs.add(para_name)
-                # Initialize all paragraphs with score 0 so they're included even if not referenced
-                paragraph_scores[para_name] = 0
+    symbols = ctags_outline.get('symbols', [])
+    if not symbols:
+        # Try new CTags format: outline.other
+        outline = ctags_outline.get('outline', {})
+        symbols = outline.get('other', [])
+
+    for symbol in symbols:
+        if symbol.get('kind') in ['paragraph', 'section']:
+            para_name = symbol.get('name', '')
+            all_paragraphs.add(para_name)
+            # Initialize all paragraphs with score 0 so they're included even if not referenced
+            paragraph_scores[para_name] = 0
 
     # Score based on PERFORM relationships (in-degree)
     if 'performs' in superbol_cfg:
@@ -126,16 +132,21 @@ def rank_data_items_by_importance(
             data_scores[var_name] = ref_count
 
     # Bonus for level-01 and group items from CTags
-    if 'symbols' in ctags_outline:
-        for symbol in ctags_outline['symbols']:
-            if symbol.get('kind') == 'data':
-                name = symbol.get('name', '')
-                # Level-01 items are important structure definitions
-                if symbol.get('level') == '01':
-                    data_scores[name] += 20
-                # Group items (no PICTURE clause) are structural
-                if not symbol.get('picture'):
-                    data_scores[name] += 10
+    # Handle both old format (symbols) and new format (outline.other)
+    symbols = ctags_outline.get('symbols', [])
+    if not symbols:
+        outline = ctags_outline.get('outline', {})
+        symbols = outline.get('other', [])
+
+    for symbol in symbols:
+        if symbol.get('kind') == 'data':
+            name = symbol.get('name', '')
+            # Level-01 items are important structure definitions
+            if symbol.get('level') == '01':
+                data_scores[name] += 20
+            # Group items (no PICTURE clause) are structural
+            if not symbol.get('picture'):
+                data_scores[name] += 10
 
     return sorted(data_scores.items(), key=lambda x: x[1], reverse=True)
 
@@ -149,12 +160,18 @@ def extract_division_structure(ctags_outline: Dict[str, Any]) -> Dict[str, List[
     """
     divisions = defaultdict(list)
 
-    if 'symbols' not in ctags_outline:
+    # Handle both old format (symbols) and new format (outline.other)
+    symbols = ctags_outline.get('symbols', [])
+    if not symbols:
+        outline = ctags_outline.get('outline', {})
+        symbols = outline.get('other', [])
+
+    if not symbols:
         return divisions
 
     current_division = 'UNKNOWN'
 
-    for symbol in ctags_outline['symbols']:
+    for symbol in symbols:
         kind = symbol.get('kind', '')
         name = symbol.get('name', '')
 

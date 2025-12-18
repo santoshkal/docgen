@@ -230,8 +230,13 @@ class FullContextBuilder:
         lines = [f"# Program Map: {self.program_name}", ""]
 
         # Extract paragraphs from CTags
+        # Handle both old format (symbols) and new format (outline.other)
         ctags = metadata.get("ctags_outline", {})
         symbols = ctags.get("symbols", [])
+        if not symbols:
+            # Try new CTags format: outline.other
+            outline = ctags.get("outline", {})
+            symbols = outline.get("other", [])
 
         paragraphs = [s for s in symbols if s.get("kind") in ["paragraph", "section"]]
         data_items = [s for s in symbols if s.get("kind") == "data"]
