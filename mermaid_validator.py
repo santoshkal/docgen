@@ -17,9 +17,26 @@ import json
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 
 from mcp_use import MCPClient
+
+
+class MermaidValidationStats(TypedDict):
+    """Type definition for mermaid validation statistics."""
+    total_blocks: int
+    valid_blocks: int
+    fixed_blocks: int
+    failed_blocks: int
+    sections_with_mermaid: List[str]
+
+
+class MermaidSectionStats(TypedDict):
+    """Type definition for per-section mermaid stats."""
+    total: int
+    valid: int
+    fixed: int
+    failed: int
 
 
 @dataclass
@@ -36,7 +53,7 @@ class MermaidValidator:
     Validates and fixes Mermaid diagrams using MCP server and LLM.
     """
 
-    def __init__(self, docker_image: str = "mermaid-mcp:test", llm_config: Dict[str, Any] = None):
+    def __init__(self, docker_image: str = "mermaid-mcp:test", llm_config: Optional[Dict[str, Any]] = None):
         """
         Initialize the Mermaid validator.
 
@@ -45,8 +62,8 @@ class MermaidValidator:
             llm_config: LLM configuration for fixing invalid diagrams
         """
         self.docker_image = docker_image
-        self.llm_config = llm_config or {}
-        self.mcp_client: MCPClient = None
+        self.llm_config: Dict[str, Any] = llm_config or {}
+        self.mcp_client: Optional[MCPClient] = None
         self.max_retries = 3
 
     def get_mcp_config(self) -> Dict[str, Any]:
@@ -117,6 +134,8 @@ class MermaidValidator:
             Tuple of (is_valid, error_message)
         """
         try:
+            if self.mcp_client is None:
+                return False, "MCP client not initialized"
             session = self.mcp_client.get_session("mermaid")
             result = await session.call_tool("validate", {"code": code})
 
@@ -135,7 +154,7 @@ class MermaidValidator:
         except Exception as e:
             return False, f"MCP validation failed: {str(e)}"
 
-    def fix_mermaid_with_llm(self, invalid_code: str, error: str, section_content: str = None) -> str:
+    def fix_mermaid_with_llm(self, invalid_code: str, error: str, section_content: Optional[str] = None) -> str:
         """
         Use LLM to fix invalid mermaid diagram.
 
@@ -271,11 +290,24 @@ Return ONLY the corrected Mermaid code:"""
         # Invoke LLM with exponential backoff retry for rate limit (429) errors
         max_retries = 5
         base_delay = 2  # seconds
+        fixed_code = invalid_code  # Default to original if all retries fail
 
         for attempt in range(max_retries):
             try:
                 response = llm.invoke(messages)
-                fixed_code = response.content.strip()
+                # Handle response.content which can be str or list
+                content = response.content
+                if isinstance(content, str):
+                    fixed_code = content.strip()
+                elif isinstance(content, list) and len(content) > 0:
+                    # Extract text from first content block
+                    first_block = content[0]
+                    if hasattr(first_block, 'text'):
+                        fixed_code = first_block.text.strip()
+                    elif isinstance(first_block, str):
+                        fixed_code = first_block.strip()
+                    else:
+                        fixed_code = str(first_block).strip()
                 break  # Success, exit retry loop
             except Exception as e:
                 error_str = str(e).lower()
@@ -302,7 +334,7 @@ Return ONLY the corrected Mermaid code:"""
 
         return fixed_code.strip()
 
-    async def validate_and_fix_block(self, block: MermaidBlock, section_content: str = None) -> Tuple[MermaidBlock, bool, str]:
+    async def validate_and_fix_block(self, block: MermaidBlock, section_content: Optional[str] = None) -> Tuple[MermaidBlock, bool, str]:
         """
         Validate a mermaid block and fix if invalid.
 
@@ -335,12 +367,15 @@ Return ONLY the corrected Mermaid code:"""
             if attempt < self.max_retries + 1:
                 print(f"      Attempt {attempt}/{self.max_retries}: Fixing with LLM...")
                 # Pass section_content for additional context
-                current_code = self.fix_mermaid_with_llm(current_code, error, section_content)
+                # error could be None, provide default message
+                error_msg = error or "Unknown validation error"
+                current_code = self.fix_mermaid_with_llm(current_code, error_msg, section_content)
 
         # Max retries exceeded - return original with warning
         print(f"      ⚠ Max retries exceeded, marking as invalid")
+        final_error = error or "Unknown validation error"
         warning_block = MermaidBlock(
-            code=f"[INVALID DIAGRAM - needs manual review]\n%% Error: {error}\n%% Original code:\n{original_code}",
+            code=f"[INVALID DIAGRAM - needs manual review]\n%% Error: {final_error}\n%% Original code:\n{original_code}",
             start_pos=block.start_pos,
             end_pos=block.end_pos,
             section_id=block.section_id
@@ -390,7 +425,7 @@ async def validate_all_mermaid_in_sections(
     section_outputs: Dict[str, str],
     llm_config: Dict[str, Any],
     docker_image: str = "mermaid-mcp:test"
-) -> Tuple[str, Dict[str, str], Dict[str, Any]]:
+) -> Tuple[str, Dict[str, str], MermaidValidationStats]:
     """
     Validate and fix all mermaid diagrams in generated sections.
 
@@ -410,7 +445,7 @@ async def validate_all_mermaid_in_sections(
     print("="*60)
 
     validator = MermaidValidator(docker_image=docker_image, llm_config=llm_config)
-    stats = {
+    stats: MermaidValidationStats = {
         'total_blocks': 0,
         'valid_blocks': 0,
         'fixed_blocks': 0,
@@ -507,7 +542,7 @@ def validate_mermaid_sync(
     section_outputs: Dict[str, str],
     llm_config: Dict[str, Any],
     docker_image: str = "mermaid-mcp:test"
-) -> Tuple[str, Dict[str, str], Dict[str, Any]]:
+) -> Tuple[str, Dict[str, str], MermaidValidationStats]:
     """
     Synchronous wrapper for mermaid validation.
 
@@ -531,7 +566,7 @@ async def validate_section_mermaid(
     section_id: str,
     section_content: str,
     validator: MermaidValidator
-) -> Tuple[str, Dict[str, Any]]:
+) -> Tuple[str, MermaidSectionStats]:
     """
     Validate and fix mermaid diagrams in a single section.
 
@@ -546,7 +581,7 @@ async def validate_section_mermaid(
     Returns:
         Tuple of (fixed_section_content, stats_dict)
     """
-    stats = {
+    stats: MermaidSectionStats = {
         'total': 0,
         'valid': 0,
         'fixed': 0,
@@ -594,9 +629,9 @@ def validate_section_mermaid_sync(
     section_id: str,
     section_content: str,
     llm_config: Dict[str, Any],
-    mcp_client: "MCPClient" = None,
+    mcp_client: Optional["MCPClient"] = None,
     docker_image: str = "mermaid-mcp:test"
-) -> Tuple[str, Dict[str, Any]]:
+) -> Tuple[str, MermaidSectionStats]:
     """
     Synchronous wrapper for per-section mermaid validation.
 
@@ -612,12 +647,13 @@ def validate_section_mermaid_sync(
     Returns:
         Tuple of (fixed_section_content, stats_dict)
     """
-    async def _validate():
+    async def _validate() -> Tuple[str, MermaidSectionStats]:
         validator = MermaidValidator(docker_image=docker_image, llm_config=llm_config)
 
         # Check if section has any mermaid blocks first (quick check)
         if '```mermaid' not in section_content:
-            return section_content, {'total': 0, 'valid': 0, 'fixed': 0, 'failed': 0}
+            empty_stats: MermaidSectionStats = {'total': 0, 'valid': 0, 'fixed': 0, 'failed': 0}
+            return section_content, empty_stats
 
         try:
             await validator.initialize()
