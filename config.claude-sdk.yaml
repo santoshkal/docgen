@@ -1,0 +1,169 @@
+# COBOL Documentation Agent - Claude SDK Configuration
+# ====================================================
+# This configuration uses the Claude Agent SDK for LLM calls
+# instead of OpenAI or Anthropic via LangChain.
+#
+# Prerequisites:
+#   1. pip install claude-agent-sdk
+#   2. npm install -g @anthropic-ai/claude-code
+#   3. Ensure Claude Code CLI is authenticated
+#
+# Usage:
+#   python cobol_doc_agent.py --config config.claude-sdk.yaml
+
+# ============================================================================
+# SOURCE FILES CONFIGURATION
+# ============================================================================
+source:
+  mode: single
+  source_files: ../TDAS-MINDISTCALC.c74
+  program_name: TDAS-MINDISTCALC
+  workspace:
+
+
+# ============================================================================
+# OUTPUT PATHS CONFIGURATION
+# ============================================================================
+output:
+  metadata_dir: ../output
+  docs_path: ../docs
+  create_dirs: true
+
+
+# ============================================================================
+# METADATA GENERATION (MCP) CONFIGURATION
+# ============================================================================
+metadata:
+  generate: true
+  skip_existing: true
+  force_regenerate: false
+
+  servers:
+    ctags:
+      enabled: true
+      docker_image: ctags-mcp-server:latest
+    gnucobol:
+      enabled: true
+      docker_image: gnucobol-mcp-server:latest
+    superbol:
+      enabled: true
+      docker_image: superbol-mcp-server:latest
+
+
+# ============================================================================
+# TEMPLATE CONFIGURATION
+# ============================================================================
+template:
+  path: ./cobol-doc-template.yaml
+  custom_vars:
+    company_name: "Your Company Name"
+    project_name: "COBOL Modernization Project"
+    author: "Documentation Team"
+
+
+# ============================================================================
+# PROGRAM MAP CONFIGURATION
+# ============================================================================
+program_map:
+  top_n_paragraphs: 30
+  top_n_data_items: 20
+  show_all: false
+
+
+# ============================================================================
+# LLM CONFIGURATION - CLAUDE SDK
+# ============================================================================
+llm:
+  # Provider: Use 'claude_sdk' for Claude Agent SDK
+  # This uses the Claude Code CLI for authentication (no API key needed in config)
+  provider: claude_sdk
+
+  # Model options for Claude SDK:
+  # - claude-opus-4-5          (Most capable, best for complex reasoning)
+  # - claude-sonnet-4-20250514 (Recommended - fast and capable)
+  # - claude-haiku-4-5-20251001 (Fastest, good for simple tasks)
+  #
+  # Aliases also work: opus, sonnet, haiku
+  model: claude-sonnet-4-20250514
+
+  # Temperature is accepted for compatibility but ignored by Claude SDK
+  # Claude uses optimal defaults
+  temperature: 0.2
+
+  # API key is NOT needed for claude_sdk provider
+  # Authentication is handled by Claude Code CLI
+  # api_key: (not required)
+
+
+# ============================================================================
+# FULL CONTEXT MODE CONFIGURATION
+# ============================================================================
+full_context:
+  enabled: false
+  sections:
+    - executive-summary
+    - key-responsibilities
+    - business-logic
+    - overview
+    - data-flow-analysis
+
+
+# ============================================================================
+# BATCH PROCESSING CONFIGURATION
+# ============================================================================
+batch:
+  parallel: false
+  max_workers: 4
+  continue_on_error: true
+  generate_report: true
+
+
+# ============================================================================
+# LOGGING AND OUTPUT CONFIGURATION
+# ============================================================================
+logging:
+  level: info
+  verbose: true
+  show_progress: true
+
+
+# ============================================================================
+# ADVANCED CONFIGURATION
+# ============================================================================
+advanced:
+  llm_retry:
+    max_retries: 5  # Claude SDK has built-in retry with exponential backoff
+    retry_delay: 2
+
+  timeouts:
+    mcp_generation: 600
+    llm_call: 300  # Longer timeout for Claude SDK (may have more latency)
+    docker_pull: 300
+
+
+# ============================================================================
+# NOTES ON CLAUDE SDK
+# ============================================================================
+# The Claude Agent SDK provides several advantages:
+#
+# 1. NO API KEY IN CONFIG
+#    Authentication is handled by Claude Code CLI, which stores credentials
+#    securely. No need to manage API keys in config files.
+#
+# 2. BUILT-IN RATE LIMIT HANDLING
+#    The SDK wrapper (claude_sdk_client.py) includes exponential backoff
+#    retry logic for rate limit errors (429).
+#
+# 3. STREAMING SUPPORT
+#    Under the hood, the SDK streams responses, which can be useful for
+#    long-running documentation generation.
+#
+# 4. TOOL INTEGRATION
+#    The SDK natively supports Claude's tool use capabilities, though
+#    they are disabled by default in this documentation agent to keep
+#    responses focused on text generation.
+#
+# TROUBLESHOOTING:
+# - If you see "Claude Code CLI not found", run: npm install -g @anthropic-ai/claude-code
+# - If you see authentication errors, run: claude login
+# - If you see rate limit errors, the SDK will automatically retry with backoff

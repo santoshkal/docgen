@@ -21,13 +21,20 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 
-# Import Anthropic support
+# Import Anthropic support (LangChain)
 try:
     from langchain_anthropic import ChatAnthropic
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
     print("⚠ Warning: langchain-anthropic not installed. Run: pip install langchain-anthropic")
+
+# Import Claude Agent SDK support
+try:
+    from claude_sdk_client import ClaudeSdkLLM, CLAUDE_SDK_AVAILABLE
+except ImportError:
+    CLAUDE_SDK_AVAILABLE = False
+    print("⚠ Warning: claude_sdk_client not available. Claude SDK provider disabled.")
 
 # Import Source Extraction (Phase 1-3)
 try:
@@ -153,13 +160,13 @@ def create_llm(llm_config: Dict[str, Any]):
 
     Args:
         llm_config: LLM configuration dict with keys:
-            - provider: 'openai' or 'anthropic'
+            - provider: 'openai', 'anthropic', or 'claude_sdk'
             - model: model name
-            - api_key: API key (optional if set in env)
+            - api_key: API key (optional if set in env, not needed for claude_sdk)
             - temperature: temperature value (optional, default 0.1)
 
     Returns:
-        LLM instance (ChatOpenAI or ChatAnthropic)
+        LLM instance (ChatOpenAI, ChatAnthropic, or ClaudeSdkLLM)
 
     Raises:
         ValueError: If provider is not supported or required package not installed
@@ -195,10 +202,25 @@ def create_llm(llm_config: Dict[str, Any]):
 
         return ChatAnthropic(**kwargs)
 
+    elif provider == 'claude_sdk':
+        if not CLAUDE_SDK_AVAILABLE:
+            raise ValueError(
+                "Claude SDK provider requested but claude-agent-sdk not installed. "
+                "Run: pip install claude-agent-sdk\n"
+                "Also ensure Claude Code CLI is installed: npm install -g @anthropic-ai/claude-code"
+            )
+
+        # ClaudeSdkLLM accepts temperature for compatibility but ignores it
+        return ClaudeSdkLLM(
+            model=model,
+            temperature=temperature,
+            api_key=api_key
+        )
+
     else:
         raise ValueError(
             f"Unsupported LLM provider: {provider}. "
-            f"Supported providers: openai, anthropic"
+            f"Supported providers: openai, anthropic, claude_sdk"
         )
 
 
@@ -1338,11 +1360,33 @@ def _build_full_context_for_section(state: AgentState, section: Dict[str, Any]) 
         )
 
         # Add source code to context
+        # CRITICAL: Check if source is too large for single-pass processing
+        # Files over 8000 lines need chunked processing (same threshold as source_integration.py)
+        MAX_LINES_SINGLE_PASS = 8000
+
         source_code = full_context.get("source_code", "")
         if source_code:
-            context["source_code"] = source_code
             source_lines = len(source_code.split('\n'))
-            print(f"    → Source code loaded: {source_lines} lines")
+
+            if source_lines > MAX_LINES_SINGLE_PASS:
+                # Large file detected - create chunked_file_info for chunked processing
+                # This ensures run_phase1_code_explanation() uses process_large_file_in_chunks()
+                print(f"    ⚠ LARGE FILE DETECTED: {source_lines:,} lines > {MAX_LINES_SINGLE_PASS:,} threshold")
+                print(f"    → Switching to chunked processing mode")
+
+                context["chunked_file_info"] = {
+                    'type': 'CHUNKED_FILE',
+                    'file_path': cobol_file_path,
+                    'total_lines': source_lines,
+                    'max_lines_per_chunk': MAX_LINES_SINGLE_PASS,
+                }
+                # Clear source_code - chunked processor will read file directly
+                # This ensures later truncation logic doesn't try to use it
+                source_code = ""
+            else:
+                # Small file - include source code directly
+                context["source_code"] = source_code
+                print(f"    → Source code loaded: {source_lines} lines")
 
         # Add full metadata (unfiltered)
         metadata = full_context.get("metadata", {})
@@ -1888,8 +1932,9 @@ def generate_section_content(
         llm = create_llm(llm_config)
         model_name = llm_config.get('model', 'unknown')
     else:
-        # Fallback to OpenAI gpt-4o if no config
-        llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
+        # Fallback to default config if no config provided
+        default_config = {'provider': 'openai', 'model': 'gpt-4o', 'temperature': 0.1}
+        llm = create_llm(default_config)
         model_name = "gpt-4o"
 
     # Build system prompt

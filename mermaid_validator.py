@@ -167,14 +167,16 @@ class MermaidValidator:
             Fixed mermaid code
         """
         from langchain_core.messages import HumanMessage, SystemMessage
-        from langchain_openai import ChatOpenAI
+        from cobol_doc_agent import create_llm
 
-        # Create LLM instance
-        llm = ChatOpenAI(
-            model=self.llm_config.get('model', 'gpt-4.1'),
-            api_key=self.llm_config.get('api_key'),
-            temperature=0.1  # Low temperature for deterministic fixes
-        )
+        # Create LLM instance using the factory (supports openai, anthropic, claude_sdk)
+        llm_config_for_fix = {
+            'provider': self.llm_config.get('provider', 'openai'),
+            'model': self.llm_config.get('model', 'gpt-4.1'),
+            'api_key': self.llm_config.get('api_key'),
+            'temperature': 0.1  # Low temperature for deterministic fixes
+        }
+        llm = create_llm(llm_config_for_fix)
 
         # Base system prompt for mermaid syntax fixing
         base_system_prompt = """You are a Mermaid diagram syntax expert. Your task is to fix invalid Mermaid diagram code so it renders in VSCode Mermaid preview.
