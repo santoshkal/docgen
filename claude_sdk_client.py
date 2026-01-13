@@ -16,8 +16,12 @@ Usage:
 """
 
 import asyncio
+import json
+import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 # Claude Agent SDK imports
@@ -48,6 +52,12 @@ except ImportError:
     ProcessError = Exception  # type: ignore
 
 
+# Threshold for switching to direct CLI call (bytes)
+# Linux ARG_MAX is ~2MB but the SDK command includes other args
+# 50KB is a safe threshold to avoid hitting limits
+PROMPT_SIZE_THRESHOLD = 50 * 1024  # 50KB
+
+
 @dataclass
 class ClaudeResponse:
     """Response object mimicking LangChain's response structure."""
@@ -57,6 +67,129 @@ class ClaudeResponse:
 
     def __str__(self) -> str:
         return self.content
+
+
+def _find_claude_cli() -> str:
+    """Find the Claude CLI binary path."""
+    import shutil
+
+    # Check for bundled CLI first (in SDK package)
+    try:
+        import claude_agent_sdk
+        sdk_path = Path(claude_agent_sdk.__file__).parent
+        bundled = sdk_path / "_bundled" / "claude"
+        if bundled.exists():
+            return str(bundled)
+    except Exception:
+        pass
+
+    # Fall back to system-wide search
+    if cli := shutil.which("claude"):
+        return cli
+
+    # Check common locations
+    locations = [
+        Path.home() / ".npm-global/bin/claude",
+        Path("/usr/local/bin/claude"),
+        Path.home() / ".local/bin/claude",
+        Path.home() / "node_modules/.bin/claude",
+    ]
+
+    for path in locations:
+        if path.exists():
+            return str(path)
+
+    raise FileNotFoundError("Claude CLI not found. Install with: npm install -g @anthropic-ai/claude-code")
+
+
+def _call_claude_cli_direct(
+    prompt: str,
+    system_prompt: Optional[str] = None,
+    model: Optional[str] = None
+) -> str:
+    """
+    Call Claude CLI directly using a temp file for large prompts.
+
+    This bypasses the SDK's command-line argument limitation by:
+    1. Writing the prompt to a temp file
+    2. Using shell to pipe the file content to claude CLI
+
+    Args:
+        prompt: The user prompt (can be very large)
+        system_prompt: Optional system prompt
+        model: Optional model name
+
+    Returns:
+        The response text from Claude
+    """
+    cli_path = _find_claude_cli()
+
+    # Build command
+    cmd = [cli_path, "--print"]
+
+    if system_prompt:
+        cmd.extend(["--system-prompt", system_prompt])
+
+    if model:
+        cmd.extend(["--model", model])
+
+    # Disable tools for pure LLM calls
+    cmd.extend(["--allowedTools", ""])
+
+    # Write prompt to temp file and read via stdin
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+        f.write(prompt)
+        temp_path = f.name
+
+    try:
+        # Use shell to pipe temp file to claude CLI
+        # The prompt is passed via stdin, not command line
+        with open(temp_path, 'r', encoding='utf-8') as prompt_file:
+            result = subprocess.run(
+                cmd,
+                stdin=prompt_file,
+                capture_output=True,
+                text=True,
+                timeout=600  # 10 minute timeout
+            )
+
+        if result.returncode != 0:
+            # Capture both stderr and stdout for debugging
+            error_msg = result.stderr.strip() if result.stderr else ""
+            stdout_msg = result.stdout.strip() if result.stdout else ""
+
+            # Check for specific API errors
+            combined_output = f"{stdout_msg} {error_msg}".lower()
+
+            # Detect context limit error
+            if "prompt is too long" in combined_output or "context limit" in combined_output:
+                # Calculate approximate token count
+                prompt_tokens = len(prompt) // 4  # Rough estimate: 4 chars per token
+                raise RuntimeError(
+                    f"CONTEXT OVERFLOW: Prompt too large for Claude's context window.\n"
+                    f"  Prompt size: {len(prompt):,} bytes (~{prompt_tokens:,} tokens)\n"
+                    f"  Claude limit: ~200,000 tokens\n"
+                    f"  Solution: Reduce prompt size by ~{max(0, prompt_tokens - 170000):,} tokens\n"
+                    f"  Raw error: {stdout_msg[:200]}"
+                )
+
+            # Build detailed error message for other errors
+            details = []
+            if stdout_msg:
+                details.append(f"stdout: {stdout_msg[:1000]}")
+            if error_msg:
+                details.append(f"stderr: {error_msg[:1000]}")
+            if not details:
+                details.append("No output captured")
+
+            full_error = f"Claude CLI failed (exit {result.returncode}): {'; '.join(details)}"
+            raise RuntimeError(full_error)
+
+        return result.stdout.strip()
+
+    finally:
+        # Clean up temp file
+        Path(temp_path).unlink(missing_ok=True)
 
 
 class ClaudeSdkLLM:
@@ -162,7 +295,37 @@ class ClaudeSdkLLM:
         prompt: str,
         system_prompt: Optional[str] = None
     ) -> str:
-        """Async query to Claude Agent SDK."""
+        """
+        Async query to Claude Agent SDK.
+
+        Automatically uses direct CLI call for large prompts to avoid
+        "Argument list too long" errors (Linux ARG_MAX limit).
+
+        Args:
+            prompt: The user prompt
+            system_prompt: Optional system prompt
+
+        Returns:
+            The response text from Claude
+        """
+        # Determine if we need direct CLI call based on prompt size
+        prompt_size = len(prompt.encode('utf-8'))
+        use_direct_cli = prompt_size > PROMPT_SIZE_THRESHOLD
+
+        if use_direct_cli:
+            print(f"    → Using direct CLI call for large prompt ({prompt_size:,} bytes)")
+            # Use direct CLI call with temp file (bypasses ARG_MAX)
+            # Run in thread pool to not block async event loop
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None,
+                _call_claude_cli_direct,
+                prompt,
+                system_prompt,
+                self.model
+            )
+
+        # For small prompts, use the SDK (simpler error handling)
         options = self._build_options(system_prompt)
 
         full_response = ""

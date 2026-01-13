@@ -194,6 +194,10 @@ class ConfigLoader:
 
         return result
 
+    def get_advanced_config(self) -> Dict[str, Any]:
+        """Get advanced/debug configuration."""
+        return self.config.get('advanced', {})
+
     def get_full_context_config(self) -> Dict[str, Any]:
         """
         Get full context mode configuration.

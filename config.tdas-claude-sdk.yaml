@@ -192,3 +192,12 @@ logging:
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
   verbose: true
   show_progress: true
+
+# ============================================================================
+# ADVANCED / DEBUG OPTIONS
+# ============================================================================
+advanced:
+  # Skip Phase 1 (detailed code explanation) for faster debugging of Phase 2
+  # Set to true to bypass the 55-chunk processing (~3 hours)
+  # REMEMBER TO SET BACK TO false FOR PRODUCTION RUNS!
+  skip_phase1: false

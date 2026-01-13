@@ -14,7 +14,7 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 
 import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -1974,12 +1974,17 @@ OUTPUT FORMAT:
     # Import tiktoken-based token counter
     from source_chunker import estimate_tokens
 
-    # Model token limits (leave room for system prompt + output)
+    # Model token limits (leave room for system prompt + output ~25K tokens)
     MODEL_TOKEN_LIMITS = {
+        # OpenAI models
         "gpt-4.1": 900000,       # 1M context → 900K input max
         "gpt-4o": 100000,        # 128K context → 100K input max
         "gpt-4-turbo": 100000,   # 128K context → 100K input max
         "gpt-4": 6000,           # 8K context → 6K input max
+        # Claude models (200K context, but need room for max_tokens ~21K + buffer)
+        "claude-sonnet-4-20250514": 170000,  # 200K - 30K for output
+        "claude-opus-4-5": 170000,           # 200K - 30K for output
+        "claude-haiku-4-5-20251001": 170000, # 200K - 30K for output
     }
     MAX_INPUT_TOKENS = MODEL_TOKEN_LIMITS.get(model_name, 100000)  # Default 100K
 
@@ -2014,6 +2019,27 @@ OUTPUT FORMAT:
                 )
                 print(f"    → Truncated source_code: {source_tokens:,} → ~{target_source_tokens:,} tokens")
 
+        # Strategy 1b: Truncate prose/explanation_prose (Phase 1 extracted text - can be very large)
+        # Check both "prose" and "explanation_prose" keys (different code paths use different names)
+        prose_key = "explanation_prose" if "explanation_prose" in context else "prose"
+        if prose_key in context and context[prose_key]:
+            prose = context[prose_key]
+            prose_tokens = estimate_tokens(prose, model=model_name)
+
+            if prose_tokens > 50000:  # If prose is > 50K tokens, truncate
+                target_prose_tokens = int(prose_tokens * reduction_ratio * 0.7)
+                target_prose_chars = int(len(prose) * (target_prose_tokens / prose_tokens))
+
+                if target_prose_chars > 2000:  # Keep at least 2000 chars
+                    half = target_prose_chars // 2
+                    truncated_tokens = prose_tokens - target_prose_tokens
+                    context[prose_key] = (
+                        prose[:half] +
+                        f"\n\n... [TRUNCATED ~{truncated_tokens:,} tokens of prose to fit model limit] ...\n\n" +
+                        prose[-half:]
+                    )
+                    print(f"    → Truncated {prose_key}: {prose_tokens:,} → ~{target_prose_tokens:,} tokens")
+
         # Strategy 2: Remove large metadata (keep only essential)
         for key in ["superbol_symbols", "gnucobol_analysis"]:
             if key in context and context[key]:
@@ -2030,6 +2056,22 @@ OUTPUT FORMAT:
         context_json = json.dumps(context)
         new_tokens = estimate_tokens(context_json, model=model_name)
         print(f"    → New context: {new_tokens:,} tokens")
+
+        # FINAL SAFETY: Hard truncate if still over limit
+        if new_tokens > MAX_INPUT_TOKENS:
+            print(f"    ⚠ STILL OVER LIMIT after truncation! Hard truncating context...")
+            # Calculate how much to keep
+            keep_ratio = (MAX_INPUT_TOKENS * 0.8) / new_tokens  # 80% of target for safety
+            target_chars = int(len(context_json) * keep_ratio)
+            half = target_chars // 2
+
+            # Hard truncate the JSON string itself
+            context_json = (
+                context_json[:half] +
+                f'\n\n... [HARD TRUNCATED: {new_tokens:,} → ~{MAX_INPUT_TOKENS:,} tokens] ...\n\n' +
+                context_json[-half:]
+            )
+            print(f"    → Hard truncated to ~{len(context_json):,} chars")
 
     metadata_str = context_json
 
@@ -2150,8 +2192,9 @@ def process_large_file_in_chunks(
     chunked_file_info: Dict[str, Any],
     llm_config: Optional[Dict[str, Any]] = None,
     pass_number: Optional[int] = None,
-    state: Optional[Dict[str, Any]] = None
-) -> str:
+    state: Optional[Dict[str, Any]] = None,
+    return_chunk_data: bool = False
+) -> Union[str, Tuple[str, List[Tuple[int, str, Dict[str, Any]]]]]:
     """
     Process a large COBOL file in chunks for detailed code-block explanation.
 
@@ -2171,9 +2214,12 @@ def process_large_file_in_chunks(
         llm_config: LLM configuration
         pass_number: Optional pass number (for two-pass mode)
         state: Optional state dict for accessing full unfiltered CTags data
+        return_chunk_data: If True, also return individual chunk data for tagging
 
     Returns:
-        Combined documentation for all chunks
+        If return_chunk_data is False: Combined documentation for all chunks
+        If return_chunk_data is True: Tuple of (combined_doc, chunk_data_list)
+            where chunk_data_list is List[(chunk_number, prose, chunk_info)]
     """
     from source_chunker import chunk_large_cobol_file, format_chunk_for_llm
     from chunk_validation import ChunkDocumentationValidator
@@ -2234,6 +2280,7 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
 
     all_results = []
     all_chunk_gaps = []  # Collect gaps from all chunks for Pass 2
+    chunk_data_for_tagging = []  # Collect (chunk_number, prose, chunk_info) for tagging
     validation_stats = {
         'total_chunks': total_chunks,
         'validated': 0,
@@ -2445,6 +2492,20 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
 
 """
             all_results.append(final_chunk_doc)
+
+            # Collect chunk data for tagging (if requested)
+            if return_chunk_data and chunk_result:
+                # extract_prose_from_explanation is defined in this file
+                chunk_prose = extract_prose_from_explanation(chunk_result)
+                chunk_data_for_tagging.append((
+                    chunk_num,
+                    chunk_prose,
+                    {
+                        "start_line": chunk_info['start_line'],
+                        "end_line": chunk_info['end_line'],
+                        "line_count": chunk_info.get('line_count', 0),
+                    }
+                ))
         else:
             all_results.append(f"\n\n**[Chunk {chunk_num} - no result]**\n\n")
 
@@ -2467,9 +2528,13 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
     if avg_coverage >= 90.0:
         print(f"\n  ✓ Good coverage ({avg_coverage:.1f}%) - Gap filling not needed")
         print(f"     (Accepting 90%+ coverage as sufficient to avoid excessive API calls)")
+        if return_chunk_data:
+            return combined_result, chunk_data_for_tagging
         return combined_result
     elif len(all_chunk_gaps) == 0:
         print(f"\n  ✓ All chunks complete - No gaps to fill")
+        if return_chunk_data:
+            return combined_result, chunk_data_for_tagging
         return combined_result
     else:
         print(f"\n  ⚠ Low coverage ({avg_coverage:.1f}%) - Gap filling needed")
@@ -2502,6 +2567,8 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             if gap_fill_result:
                 combined_result += "\n\n" + gap_fill_result
 
+        if return_chunk_data:
+            return combined_result, chunk_data_for_tagging
         return combined_result
 
 
@@ -3148,7 +3215,7 @@ def extract_prose_from_explanation(explanation_md: str) -> str:
 def run_phase1_code_explanation(
     state: AgentState,
     llm_config: Dict[str, Any]
-) -> Tuple[str, str]:
+) -> Tuple[str, str, Optional["TaggedChunkStore"]]:
     """
     Phase 1: Generate detailed code explanation using chunked processing.
 
@@ -3156,15 +3223,19 @@ def run_phase1_code_explanation(
     1. Finds the detailed-code-explanation section from template
     2. Calls existing chunk processing logic
     3. Extracts prose from the generated explanation
-    4. Saves both full explanation and prose to tmp
+    4. Tags chunks by topic for section-specific filtering in Phase 2
+    5. Saves both full explanation and prose to tmp
 
     Args:
         state: Agent state with program info and metadata
         llm_config: LLM configuration
 
     Returns:
-        Tuple of (full_explanation_md, extracted_prose)
+        Tuple of (full_explanation_md, extracted_prose, tagged_chunk_store)
+        tagged_chunk_store is None for small files (single-pass processing)
     """
+    from chunk_topic_tagger import create_tagged_store_from_chunks, print_section_estimates
+
     program_name = state["program_name"]
     print(f"\n{'='*60}")
     print(f"PHASE 1: Generating Detailed Code Explanation")
@@ -3186,11 +3257,15 @@ def run_phase1_code_explanation(
     # Build context for the section
     context = build_section_context(state, code_explanation_section)
 
+    tagged_store = None
+    chunk_data = None
+
     # Check if this is a large file requiring chunked processing
     if 'chunked_file_info' in context:
         print(f"  → Large file detected - using chunked processing")
 
-        full_explanation = process_large_file_in_chunks(
+        # Request chunk data for tagging
+        result = process_large_file_in_chunks(
             section_id=code_explanation_section.get("id", ""),
             section_title=code_explanation_section.get("title", "Detailed Code Explanation"),
             instruction=code_explanation_section.get("instruction", ""),
@@ -3199,8 +3274,36 @@ def run_phase1_code_explanation(
             chunked_file_info=context['chunked_file_info'],
             llm_config=llm_config,
             pass_number=1,
-            state=state
+            state=state,
+            return_chunk_data=True  # Request chunk data for tagging
         )
+
+        # Unpack result (now returns tuple when return_chunk_data=True)
+        if isinstance(result, tuple):
+            full_explanation, chunk_data = result
+        else:
+            full_explanation = result
+            chunk_data = None
+
+        # Create tagged chunk store for section-specific filtering
+        if chunk_data:
+            print(f"\n  → Tagging {len(chunk_data)} chunks by topic...")
+            tagged_store = create_tagged_store_from_chunks(chunk_data)
+            stats = tagged_store.get_stats()
+            print(f"    Topics found: {', '.join(stats['topics'].keys())}")
+            print(f"    Total prose: {stats['total_prose_chars']:,} chars")
+
+            # Show estimated context sizes per section
+            print_section_estimates(tagged_store)
+
+            # Save tagged store for debugging/analysis
+            import json
+            store_path = save_to_tmp(
+                json.dumps(tagged_store.to_dict(), indent=2, default=str),
+                program_name,
+                "tagged_chunks.json"
+            )
+            print(f"    Saved tagged chunks to: {store_path}")
     else:
         # Small file - process normally
         print(f"  → Small file - processing in single pass")
@@ -3225,13 +3328,14 @@ def run_phase1_code_explanation(
 
     print(f"\n✓ Phase 1 complete")
 
-    return full_explanation, extracted_prose
+    return full_explanation, extracted_prose, tagged_store
 
 
 def run_phase2_sections(
     state: AgentState,
     explanation_prose: str,
-    llm_config: Dict[str, Any]
+    llm_config: Dict[str, Any],
+    tagged_store: Optional["TaggedChunkStore"] = None
 ) -> Dict[str, str]:
     """
     Phase 2: Generate remaining sections using prose + metadata context.
@@ -3239,21 +3343,32 @@ def run_phase2_sections(
     This function:
     1. Gets all sections except detailed-code-explanation
     2. Builds prose-based context for each section
-    3. Generates each section sequentially
-    4. Handles failures gracefully (continues with other sections)
+    3. Uses section-specific filtered prose when tagged_store is available
+    4. Generates each section sequentially
+    5. Handles failures gracefully (continues with other sections)
 
     Args:
         state: Agent state with program info and metadata
-        explanation_prose: Extracted prose from Phase 1
+        explanation_prose: Extracted prose from Phase 1 (fallback if no tagged_store)
         llm_config: LLM configuration
+        tagged_store: Optional tagged chunk store for section-specific prose filtering
 
     Returns:
         Dict mapping section_id to generated content
     """
+    from chunk_topic_tagger import SECTION_TOPIC_MAPPING, estimate_section_context_size
+
     program_name = state["program_name"]
     print(f"\n{'='*60}")
     print(f"PHASE 2: Generating Remaining Sections")
     print(f"{'='*60}")
+
+    # Log whether section-specific filtering is enabled
+    if tagged_store:
+        print(f"  → Section-specific prose filtering: ENABLED")
+        print(f"    Total chunks available: {len(tagged_store.chunks)}")
+    else:
+        print(f"  → Section-specific prose filtering: DISABLED (using full prose)")
 
     # Get all sections from template
     template = state.get("template", {})
@@ -3278,9 +3393,6 @@ def run_phase2_sections(
         'sections_with_mermaid': []
     }
 
-    # Build base context with prose instead of source code
-    base_context = build_prose_based_context(state, explanation_prose)
-
     # Process each section sequentially
     for i, section in enumerate(other_sections, 1):
         section_id = section.get("id", "unknown")
@@ -3289,8 +3401,19 @@ def run_phase2_sections(
         print(f"\n  [{i}/{len(other_sections)}] Generating: {section_title}")
 
         try:
-            # Build section-specific context
-            section_context = base_context.copy()
+            # Get section-specific prose if tagged_store is available
+            if tagged_store:
+                section_prose = tagged_store.get_prose_for_section(section_id)
+                filtered_chars, total_chars, reduction = estimate_section_context_size(tagged_store, section_id)
+                topics = SECTION_TOPIC_MAPPING.get(section_id, ["general"])
+                print(f"      Topics: {', '.join(topics[:3])}{'...' if len(topics) > 3 else ''}")
+                print(f"      Prose: {filtered_chars:,} chars (↓{reduction:.0f}% from {total_chars:,})")
+            else:
+                section_prose = explanation_prose
+                print(f"      Using full prose: {len(section_prose):,} chars")
+
+            # Build section-specific context with filtered prose
+            section_context = build_prose_based_context(state, section_prose)
             section_context["section_id"] = section_id
 
             # Generate content using existing function
@@ -3502,6 +3625,7 @@ def generate_documentation(
     servers_config: Optional[Dict[str, Any]] = None,
     preloaded_metadata: Optional[Dict[str, Any]] = None,
     enable_source_extraction: bool = True,
+    skip_phase1: bool = False,
 ) -> Optional[str]:
     """
     Generate documentation using the two-phase approach.
@@ -3632,14 +3756,27 @@ def generate_documentation(
         # ═══════════════════════════════════════════════════════════════
         # PHASE 1: Generate Detailed Code Explanation
         # ═══════════════════════════════════════════════════════════════
-        code_explanation, prose = run_phase1_code_explanation(state, llm_config)
+        # Check if Phase 1 should be skipped (for debugging Phase 2)
+        tagged_store = None  # For section-specific prose filtering
+        if skip_phase1:
+            print("\n" + "="*60)
+            print("⚠ SKIP_PHASE1 ENABLED - Bypassing detailed code explanation")
+            print("  (This is for debugging Phase 2 sections)")
+            print("="*60 + "\n")
+            code_explanation = "## Detailed Code Explanation\n\n*[Phase 1 skipped for debugging]*\n"
+            prose = "Program performs COBOL operations. [Phase 1 skipped - no detailed prose available]"
+            # No tagged_store available when skipping Phase 1
+        else:
+            code_explanation, prose, tagged_store = run_phase1_code_explanation(state, llm_config)
 
         # ═══════════════════════════════════════════════════════════════
         # PHASE 2: Generate Other Sections (includes Mermaid validation)
         # ═══════════════════════════════════════════════════════════════
         # Note: Mermaid validation is now done per-section inside run_phase2_sections()
         # This provides section context for LLM to fix invalid diagrams
-        section_outputs = run_phase2_sections(state, prose, llm_config)
+        # When tagged_store is available, uses section-specific prose filtering
+        # to reduce context size from ~435K tokens to ~100-150K tokens per section
+        section_outputs = run_phase2_sections(state, prose, llm_config, tagged_store)
 
         # ═══════════════════════════════════════════════════════════════
         # PHASE 3: Assemble Final Document
@@ -3903,6 +4040,10 @@ Examples:
             print(f"  Full Context Sections: {full_context_sections}")
             print(f"  Max Message Chars: {max_message_chars:,}")
 
+        # Advanced/Debug configuration
+        advanced_config = config_loader.get_advanced_config()
+        skip_phase1 = advanced_config.get('skip_phase1', False)
+
     else:
         # Use CLI arguments only (backward compatibility)
         program_name = args.program_name
@@ -3932,6 +4073,9 @@ Examples:
         use_full_context_mode = False
         full_context_sections = []
         max_message_chars = 9000000  # Default 9MB
+
+        # Advanced/Debug defaults
+        skip_phase1 = False
 
     # Validation: either program_name or source_files must be provided
     if not program_name and not source_files_arg:
@@ -3994,6 +4138,7 @@ Examples:
                     llm_config=llm_config,
                     cobol_file_path=full_filename,
                     enable_source_extraction=enable_source_extraction,
+                    skip_phase1=skip_phase1,
                 )
                 successful.append((prog_name, output_path))
                 print(f"✓ Successfully generated documentation for {prog_name}")
@@ -4031,6 +4176,7 @@ Examples:
             llm_config=llm_config,
             cobol_file_path=None,  # Will be auto-detected
             enable_source_extraction=enable_source_extraction,
+            skip_phase1=skip_phase1,
         )
 
         print(f"\n{'='*70}")
