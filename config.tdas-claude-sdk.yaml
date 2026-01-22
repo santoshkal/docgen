@@ -111,10 +111,15 @@ llm:
   # - claude-opus-4-5          (Most capable, best for complex reasoning)
   # - claude-sonnet-4-20250514 (Recommended - fast and capable)
   # - claude-haiku-4-5-20251001 (Fastest, good for simple tasks)
-  model: claude-sonnet-4-20250514
+  model: sonnet
 
   # Temperature is accepted for compatibility but ignored by Claude SDK
   temperature: 0.2
+
+  # Beta features (requires Tier 4 or Enterprise account)
+  # - context-1m-2025-08-07: Enable 1M token context window
+  betas:
+    - context-1m-2025-08-07
 
   # API key NOT needed - uses Claude Code CLI authentication
   # api_key: (not required for claude_sdk)

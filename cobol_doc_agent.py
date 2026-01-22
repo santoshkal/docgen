@@ -210,11 +210,15 @@ def create_llm(llm_config: Dict[str, Any]):
                 "Also ensure Claude Code CLI is installed: npm install -g @anthropic-ai/claude-code"
             )
 
+        # Get beta features from config (e.g., for 1M context)
+        betas = llm_config.get('betas')
+
         # ClaudeSdkLLM accepts temperature for compatibility but ignores it
         return ClaudeSdkLLM(
             model=model,
             temperature=temperature,
-            api_key=api_key
+            api_key=api_key,
+            betas=betas
         )
 
     else:
