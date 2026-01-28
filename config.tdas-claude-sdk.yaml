@@ -105,24 +105,59 @@ program_map:
 # ============================================================================
 llm:
   # Use Claude Agent SDK provider
-  provider: claude_sdk
+  provider: openai
 
   # Claude model options:
   # - claude-opus-4-5          (Most capable, best for complex reasoning)
   # - claude-sonnet-4-20250514 (Recommended - fast and capable)
   # - claude-haiku-4-5-20251001 (Fastest, good for simple tasks)
-  model: sonnet
+  model: gpt-4.1
 
   # Temperature is accepted for compatibility but ignored by Claude SDK
   temperature: 0.2
 
   # Beta features (requires Tier 4 or Enterprise account)
   # - context-1m-2025-08-07: Enable 1M token context window
-  betas:
-    - context-1m-2025-08-07
+  # betas:
+    # - context-1m-2025-08-07
 
   # API key NOT needed - uses Claude Code CLI authentication
   # api_key: (not required for claude_sdk)
+
+  # ────────────────────────────────────────────────────────────────────────
+  # FALLBACK CONFIGURATION (Optional)
+  # ────────────────────────────────────────────────────────────────────────
+  # If primary LLM fails, automatically switch to fallback for remaining calls.
+  # Omit this section entirely if no fallback is desired.
+  #
+  fallback:
+    provider: claude_sdk
+
+    # Phase-specific fallback configurations:
+    # - Phase 1: Detailed code explanation (chunked processing)
+    # - Phase 2: Other documentation sections
+
+    phase1:
+      model: sonnet
+
+    phase2:
+      model: sonnet[1m]
+      betas: ["context-1m-2025-08-07"]       # No special betas for OpenAI
+  #
+  # Example: OpenAI primary with Claude fallback:
+  # ─────────────────────────────────────────────
+  # llm:
+  #   provider: openai
+  #   model: gpt-4o
+  #   temperature: 0.2
+  #   fallback:
+  #     provider: claude_sdk
+  #     phase1:
+  #       model: sonnet
+  #     phase2:
+  #       model: sonnet
+  #       betas:
+  #         - context-1m-2025-08-07
 
 # ============================================================================
 # METADATA GENERATION

@@ -261,9 +261,8 @@ class ClaudeSdkLLM:
         self.cwd = cwd
         self.betas = betas
 
-        # Log if temperature was passed (it's ignored)
-        if temperature is not None:
-            print(f"  Note: temperature={temperature} ignored (Claude SDK uses default)")
+        # Temperature is accepted for compatibility but silently ignored by Claude SDK
+        # (No need to log as this is expected behavior)
 
         # Log if betas are enabled
         if betas:

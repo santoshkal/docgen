@@ -74,6 +74,10 @@ except ImportError as e:
     CONTEXT_CHAINING_AVAILABLE = False
     print(f"⚠ Warning: Context chaining modules not found: {e}")
 
+# Import Tokenizer and Fallback modules
+from tokenizer import estimate_tokens, get_token_limit
+from llm_fallback import LLMFallbackManager, invoke_llm_with_fallback
+
 # ============================================================================
 # STATE DEFINITION
 # ============================================================================
@@ -1913,7 +1917,9 @@ def generate_section_content(
     llm_config: Optional[Dict[str, Any]] = None,
     pass_number: Optional[int] = None,
     chunk_number: Optional[int] = None,
-    is_retry: bool = False
+    is_retry: bool = False,
+    fallback_manager: Optional['LLMFallbackManager'] = None,
+    phase: int = 1
 ) -> str:
     """
     Use LLM to generate section content based on template and metadata.
@@ -1929,6 +1935,8 @@ def generate_section_content(
         llm_config: LLM configuration dict (provider, model, api_key, temperature)
         pass_number: Optional pass number (for two-pass mode)
         chunk_number: Optional chunk number (for large file processing)
+        fallback_manager: Optional LLMFallbackManager for automatic fallback on errors
+        phase: Phase number (1 or 2) for phase-specific fallback config
     """
 
     # Initialize LLM from configuration
@@ -1975,17 +1983,9 @@ OUTPUT FORMAT:
     # indent=2 adds ~50% overhead (800K → 1.2M tokens)
 
     # TRUNCATION: Check TOKEN count before sending (model context limits)
-    # Import tiktoken-based token counter
-    from source_chunker import estimate_tokens
-
-    # Model token limits (leave room for system prompt + output)
-    MODEL_TOKEN_LIMITS = {
-        "gpt-4.1": 900000,       # 1M context → 900K input max
-        "gpt-4o": 100000,        # 128K context → 100K input max
-        "gpt-4-turbo": 100000,   # 128K context → 100K input max
-        "gpt-4": 6000,           # 8K context → 6K input max
-    }
-    MAX_INPUT_TOKENS = MODEL_TOKEN_LIMITS.get(model_name, 100000)  # Default 100K
+    # Use unified tokenizer module for token estimation and limits
+    betas = llm_config.get('betas') if llm_config else None
+    MAX_INPUT_TOKENS = get_token_limit(model_name, betas=betas)
 
     context_json = json.dumps(context)
     context_tokens = estimate_tokens(context_json, model=model_name)
@@ -2105,7 +2105,16 @@ Remember:
             model=model_name
         )
 
-    response = llm.invoke(messages)
+    # Use fallback-aware invocation if fallback_manager provided
+    if fallback_manager and llm_config:
+        response = invoke_llm_with_fallback(
+            llm_config=llm_config,
+            messages=messages,
+            fallback_manager=fallback_manager,
+            phase=phase
+        )
+    else:
+        response = llm.invoke(messages)
     content = response.content
 
     # End LLM call tracking
@@ -2154,7 +2163,8 @@ def process_large_file_in_chunks(
     chunked_file_info: Dict[str, Any],
     llm_config: Optional[Dict[str, Any]] = None,
     pass_number: Optional[int] = None,
-    state: Optional[Dict[str, Any]] = None
+    state: Optional[Dict[str, Any]] = None,
+    fallback_manager: Optional['LLMFallbackManager'] = None
 ) -> str:
     """
     Process a large COBOL file in chunks for detailed code-block explanation.
@@ -2175,6 +2185,7 @@ def process_large_file_in_chunks(
         llm_config: LLM configuration
         pass_number: Optional pass number (for two-pass mode)
         state: Optional state dict for accessing full unfiltered CTags data
+        fallback_manager: Optional LLMFallbackManager for automatic fallback on errors
 
     Returns:
         Combined documentation for all chunks
@@ -2337,7 +2348,9 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
                 llm_config,
                 pass_number=pass_number,
                 chunk_number=chunk_num,
-                is_retry=False  # Never retry in test mode
+                is_retry=False,  # Never retry in test mode
+                fallback_manager=fallback_manager,
+                phase=1  # Chunked processing is always Phase 1
             )
 
             # Validate chunk result against expected lines
@@ -3151,7 +3164,8 @@ def extract_prose_from_explanation(explanation_md: str) -> str:
 
 def run_phase1_code_explanation(
     state: AgentState,
-    llm_config: Dict[str, Any]
+    llm_config: Dict[str, Any],
+    fallback_manager: Optional['LLMFallbackManager'] = None
 ) -> Tuple[str, str]:
     """
     Phase 1: Generate detailed code explanation using chunked processing.
@@ -3165,6 +3179,7 @@ def run_phase1_code_explanation(
     Args:
         state: Agent state with program info and metadata
         llm_config: LLM configuration
+        fallback_manager: Optional LLMFallbackManager for automatic fallback on errors
 
     Returns:
         Tuple of (full_explanation_md, extracted_prose)
@@ -3203,7 +3218,8 @@ def run_phase1_code_explanation(
             chunked_file_info=context['chunked_file_info'],
             llm_config=llm_config,
             pass_number=1,
-            state=state
+            state=state,
+            fallback_manager=fallback_manager
         )
     else:
         # Small file - process normally
@@ -3235,7 +3251,8 @@ def run_phase1_code_explanation(
 def run_phase2_sections(
     state: AgentState,
     explanation_prose: str,
-    llm_config: Dict[str, Any]
+    llm_config: Dict[str, Any],
+    fallback_manager: Optional['LLMFallbackManager'] = None
 ) -> Dict[str, str]:
     """
     Phase 2: Generate remaining sections using prose + metadata context.
@@ -3305,7 +3322,9 @@ def run_phase2_sections(
                 template=section.get("template", ""),
                 context=section_context,
                 section_config=section,
-                llm_config=llm_config
+                llm_config=llm_config,
+                fallback_manager=fallback_manager,
+                phase=2
             )
 
             print(f"      ✓ Generated ({len(content):,} chars)")
@@ -3320,7 +3339,8 @@ def run_phase2_sections(
                     section_id=section_id,
                     section_content=content,
                     llm_config=llm_config,
-                    docker_image="mermaid-mcp:test"
+                    docker_image="mermaid-mcp:test",
+                    fallback_manager=fallback_manager
                 )
                 # Update overall stats
                 mermaid_stats['total'] += section_mermaid_stats['total']
@@ -3606,8 +3626,8 @@ def generate_documentation(
 
         # Determine COBOL file path
         if not cobol_file_path:
-            # Try to find it in workspace
-            for ext in ['.cbl', '.cob', '.CBL', '.COB', '.c74']:
+            # Try to find it in workspace (includes XGEN extensions)
+            for ext in ['.cbl', '.cob', '.CBL', '.COB', '.c74', '.C74', '.XMOD', '.xmod', '.XLIB', '.xlib', '.xgn', '.XGN']:
                 potential_path = workspace_path / f"{program_name}{ext}"
                 if potential_path.exists():
                     cobol_file_path = str(potential_path)
@@ -3634,16 +3654,25 @@ def generate_documentation(
         }
 
         # ═══════════════════════════════════════════════════════════════
+        # Initialize LLM Fallback Manager (if fallback configured)
+        # ═══════════════════════════════════════════════════════════════
+        fallback_manager = LLMFallbackManager(llm_config)
+        if fallback_manager.has_fallback():
+            print(f"\n→ Fallback LLM configured: {llm_config.get('fallback', {}).get('provider', 'unknown')}")
+        else:
+            print(f"\n→ No fallback LLM configured (errors will be raised)")
+
+        # ═══════════════════════════════════════════════════════════════
         # PHASE 1: Generate Detailed Code Explanation
         # ═══════════════════════════════════════════════════════════════
-        code_explanation, prose = run_phase1_code_explanation(state, llm_config)
+        code_explanation, prose = run_phase1_code_explanation(state, llm_config, fallback_manager)
 
         # ═══════════════════════════════════════════════════════════════
         # PHASE 2: Generate Other Sections (includes Mermaid validation)
         # ═══════════════════════════════════════════════════════════════
         # Note: Mermaid validation is now done per-section inside run_phase2_sections()
         # This provides section context for LLM to fix invalid diagrams
-        section_outputs = run_phase2_sections(state, prose, llm_config)
+        section_outputs = run_phase2_sections(state, prose, llm_config, fallback_manager)
 
         # ═══════════════════════════════════════════════════════════════
         # PHASE 3: Assemble Final Document
@@ -3667,6 +3696,15 @@ def generate_documentation(
         print(f"\n{'='*60}")
         print(f"✓ Documentation saved to: {output_path}")
         print(f"{'='*60}")
+
+        # Log if fallback was used during generation
+        if fallback_manager.is_fallback_active():
+            fb_status = fallback_manager.get_status()
+            print(f"\n⚠ FALLBACK WAS USED:")
+            print(f"  Primary: {fb_status['primary_provider']} / {fb_status['primary_model']}")
+            print(f"  Fallback: {fb_status['fallback_provider']}")
+            print(f"  Triggered at: {fb_status['triggered_at']}")
+            print(f"  Error: {fb_status['trigger_error'][:100] if fb_status['trigger_error'] else 'N/A'}...")
 
         # Finalize LLM tracer and write reports (AFTER final document is saved)
         from llm_tracer import finalize_tracer

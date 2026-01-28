@@ -12,38 +12,8 @@ detailed code-block explanation, ensuring:
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# Try to import tiktoken for accurate token counting
-try:
-    import tiktoken
-    TIKTOKEN_AVAILABLE = True
-except ImportError:
-    TIKTOKEN_AVAILABLE = False
-
-
-def estimate_tokens(text: str, model: str = "gpt-4") -> int:
-    """
-    Calculate accurate token count for text using tiktoken.
-
-    Falls back to conservative estimate (1 token ≈ 4 characters) if tiktoken unavailable.
-
-    Args:
-        text: Text to count tokens for
-        model: Model name for tiktoken encoder (default: gpt-4)
-
-    Returns:
-        Token count
-    """
-    if TIKTOKEN_AVAILABLE:
-        try:
-            encoder = tiktoken.encoding_for_model(model)
-            return len(encoder.encode(text))
-        except Exception as e:
-            # Fallback to estimation if tiktoken fails
-            print(f"  ⚠ tiktoken failed ({e}), using estimation")
-            return len(text) // 4
-    else:
-        # Fallback: Conservative estimate (1 token ≈ 4 characters)
-        return len(text) // 4
+# Import unified tokenizer module
+from tokenizer import estimate_tokens, TIKTOKEN_AVAILABLE
 
 
 def find_paragraph_boundaries(lines: List[str], ctags_metadata: Optional[Dict] = None) -> List[int]:

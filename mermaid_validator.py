@@ -53,16 +53,23 @@ class MermaidValidator:
     Validates and fixes Mermaid diagrams using MCP server and LLM.
     """
 
-    def __init__(self, docker_image: str = "mermaid-mcp:test", llm_config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        docker_image: str = "mermaid-mcp:test",
+        llm_config: Optional[Dict[str, Any]] = None,
+        fallback_manager: Optional[Any] = None
+    ):
         """
         Initialize the Mermaid validator.
 
         Args:
             docker_image: Docker image name for Mermaid MCP server
             llm_config: LLM configuration for fixing invalid diagrams
+            fallback_manager: Optional LLMFallbackManager for automatic fallback on errors
         """
         self.docker_image = docker_image
         self.llm_config: Dict[str, Any] = llm_config or {}
+        self.fallback_manager = fallback_manager
         self.mcp_client: Optional[MCPClient] = None
         self.max_retries = 3
 
@@ -289,20 +296,21 @@ Return ONLY the corrected Mermaid code:"""
             HumanMessage(content=user_prompt)
         ]
 
-        # Invoke LLM with exponential backoff retry for rate limit (429) errors
-        max_retries = 5
-        base_delay = 2  # seconds
-        fixed_code = invalid_code  # Default to original if all retries fail
-
-        for attempt in range(max_retries):
+        # Use fallback-aware invocation if fallback_manager is available
+        if self.fallback_manager:
+            from llm_fallback import invoke_llm_with_fallback
             try:
-                response = llm.invoke(messages)
+                response = invoke_llm_with_fallback(
+                    llm_config=llm_config_for_fix,
+                    messages=messages,
+                    fallback_manager=self.fallback_manager,
+                    phase=2  # Mermaid fixing is part of Phase 2
+                )
                 # Handle response.content which can be str or list
                 content = response.content
                 if isinstance(content, str):
                     fixed_code = content.strip()
                 elif isinstance(content, list) and len(content) > 0:
-                    # Extract text from first content block
                     first_block = content[0]
                     if hasattr(first_block, 'text'):
                         fixed_code = first_block.text.strip()
@@ -310,21 +318,48 @@ Return ONLY the corrected Mermaid code:"""
                         fixed_code = first_block.strip()
                     else:
                         fixed_code = str(first_block).strip()
-                break  # Success, exit retry loop
-            except Exception as e:
-                error_str = str(e).lower()
-                # Check for rate limit error (429)
-                if '429' in str(e) or 'rate' in error_str or 'too many' in error_str:
-                    if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)  # Exponential: 2, 4, 8, 16, 32 seconds
-                        print(f"        ⚠ Rate limit hit, waiting {delay}s before retry ({attempt + 1}/{max_retries})...")
-                        time.sleep(delay)
-                    else:
-                        print(f"        ✗ Rate limit exceeded after {max_retries} retries")
-                        raise
                 else:
-                    # Non-rate-limit error, re-raise immediately
-                    raise
+                    fixed_code = invalid_code
+            except Exception as e:
+                print(f"        ✗ LLM fix failed: {e}")
+                fixed_code = invalid_code
+        else:
+            # Original retry logic for when no fallback_manager
+            max_retries = 5
+            base_delay = 2  # seconds
+            fixed_code = invalid_code  # Default to original if all retries fail
+
+            for attempt in range(max_retries):
+                try:
+                    response = llm.invoke(messages)
+                    # Handle response.content which can be str or list
+                    content = response.content
+                    if isinstance(content, str):
+                        fixed_code = content.strip()
+                    elif isinstance(content, list) and len(content) > 0:
+                        # Extract text from first content block
+                        first_block = content[0]
+                        if hasattr(first_block, 'text'):
+                            fixed_code = first_block.text.strip()
+                        elif isinstance(first_block, str):
+                            fixed_code = first_block.strip()
+                        else:
+                            fixed_code = str(first_block).strip()
+                    break  # Success, exit retry loop
+                except Exception as e:
+                    error_str = str(e).lower()
+                    # Check for rate limit error (429)
+                    if '429' in str(e) or 'rate' in error_str or 'too many' in error_str:
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2 ** attempt)  # Exponential: 2, 4, 8, 16, 32 seconds
+                            print(f"        ⚠ Rate limit hit, waiting {delay}s before retry ({attempt + 1}/{max_retries})...")
+                            time.sleep(delay)
+                        else:
+                            print(f"        ✗ Rate limit exceeded after {max_retries} retries")
+                            raise
+                    else:
+                        # Non-rate-limit error, re-raise immediately
+                        raise
 
         # Remove any markdown fences if LLM included them
         if fixed_code.startswith('```mermaid'):
@@ -632,7 +667,8 @@ def validate_section_mermaid_sync(
     section_content: str,
     llm_config: Dict[str, Any],
     mcp_client: Optional["MCPClient"] = None,
-    docker_image: str = "mermaid-mcp:test"
+    docker_image: str = "mermaid-mcp:test",
+    fallback_manager: Optional[Any] = None
 ) -> Tuple[str, MermaidSectionStats]:
     """
     Synchronous wrapper for per-section mermaid validation.
@@ -645,12 +681,17 @@ def validate_section_mermaid_sync(
         llm_config: LLM configuration
         mcp_client: Optional existing MCP client (to reuse connection)
         docker_image: Mermaid MCP Docker image name
+        fallback_manager: Optional LLMFallbackManager for automatic fallback on errors
 
     Returns:
         Tuple of (fixed_section_content, stats_dict)
     """
     async def _validate() -> Tuple[str, MermaidSectionStats]:
-        validator = MermaidValidator(docker_image=docker_image, llm_config=llm_config)
+        validator = MermaidValidator(
+            docker_image=docker_image,
+            llm_config=llm_config,
+            fallback_manager=fallback_manager
+        )
 
         # Check if section has any mermaid blocks first (quick check)
         if '```mermaid' not in section_content:

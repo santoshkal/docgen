@@ -318,7 +318,10 @@ def get_source_files(workspace_path: Path, patterns: List[str] = None) -> List[P
             "*.COB", "*.cob",           # Standard COBOL
             "*.cbl", "*.CBL",           # COBOL
             "*.COBOL", "*.cobol",       # Full name
-            "*.c74", "*.C74"            # COBOL-74
+            "*.c74", "*.C74",           # COBOL-74
+            "*.XMOD", "*.xmod",         # XGEN modules (human-authored)
+            "*.XLIB", "*.xlib",         # XGEN libraries (human-authored)
+            "*.xgn", "*.XGN",           # XGEN specification files
         ]
 
     files = []

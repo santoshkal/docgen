@@ -17,6 +17,9 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 from collections import defaultdict
 
+# Import unified tokenizer module
+from tokenizer import estimate_tokens as tokenizer_estimate_tokens
+
 
 class LLMCallTracer:
     """
@@ -65,15 +68,20 @@ class LLMCallTracer:
             }
             f.write(json.dumps(header) + '\n')
 
-    def estimate_tokens(self, text: str) -> int:
+    def estimate_tokens(self, text: str, model: str = "gpt-4") -> int:
         """
-        Estimate token count for text.
+        Estimate token count for text using unified tokenizer module.
 
-        Conservative estimate: 1 token ≈ 4 characters
+        Uses tiktoken for OpenAI models, character-based estimation for others.
+
+        Args:
+            text: Text to count tokens for
+            model: Model name for tokenization
+
+        Returns:
+            Estimated token count
         """
-        if not text:
-            return 0
-        return len(text) // 4
+        return tokenizer_estimate_tokens(text, model)
 
     def start_call(
         self,
