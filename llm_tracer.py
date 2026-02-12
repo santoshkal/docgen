@@ -60,6 +60,7 @@ class LLMCallTracer:
 
     def _init_log_file(self):
         """Create/clear log file and write header."""
+        self.log_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.log_file, 'w') as f:
             header = {
                 'type': 'session_start',

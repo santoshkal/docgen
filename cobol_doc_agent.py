@@ -9,6 +9,7 @@ This agent ensures consistent documentation across COBOL projects by:
 4. Generating consistent Markdown documentation
 """
 
+import hashlib
 import json
 import re
 import shutil
@@ -77,6 +78,9 @@ except ImportError as e:
 # Import Tokenizer and Fallback modules
 from tokenizer import estimate_tokens, get_token_limit
 from llm_fallback import LLMFallbackManager, invoke_llm_with_fallback
+
+# Import Run Logger
+from run_logger import init_run_logger, get_run_logger
 
 # ============================================================================
 # STATE DEFINITION
@@ -217,12 +221,18 @@ def create_llm(llm_config: Dict[str, Any]):
         # Get beta features from config (e.g., for 1M context)
         betas = llm_config.get('betas')
 
+        # Get thinking/output token settings
+        max_thinking_tokens = llm_config.get('max_thinking_tokens')
+        max_output_tokens = llm_config.get('max_output_tokens')
+
         # ClaudeSdkLLM accepts temperature for compatibility but ignores it
         return ClaudeSdkLLM(
             model=model,
             temperature=temperature,
             api_key=api_key,
-            betas=betas
+            betas=betas,
+            max_thinking_tokens=max_thinking_tokens,
+            max_output_tokens=max_output_tokens
         )
 
     else:
@@ -258,13 +268,14 @@ def generate_metadata_node(state: AgentState) -> AgentState:
         metadata_dir = str(state["metadata_dir"])
         cobol_files = state.get("cobol_files", [])
         servers_config = state.get("servers_config", {})
+        file_filter_config = state.get("file_filter_config")
 
         # If no cobol_files provided, auto-discover
         if not cobol_files:
             from checksum_manager import get_source_files
             workspace = Path(workspace_path)
-            # Auto-discover all COBOL files (.COB, .cob, .cbl, .CBL, .COBOL, .cobol, .c74, .C74)
-            discovered_files = get_source_files(workspace)
+            # Auto-discover COBOL files (respecting filter config if provided)
+            discovered_files = get_source_files(workspace, filter_config=file_filter_config)
             cobol_files = sorted([f.name for f in discovered_files])
             print(f"Auto-discovered {len(cobol_files)} COBOL files")
 
@@ -776,7 +787,7 @@ def process_section_recursive(state: AgentState, section: Dict[str, Any]) -> str
             )
         else:
             # Normal processing
-            content = generate_section_content(
+            content, debug_path, latency = generate_section_content(
                 section_id=section_id,
                 section_title=section_title,
                 instruction=instruction,
@@ -786,6 +797,8 @@ def process_section_recursive(state: AgentState, section: Dict[str, Any]) -> str
                 llm_config=state.get("llm_config"),
                 pass_number=pass_number
             )
+            if debug_path:
+                print(f"  [DEBUG] Request logged to: {debug_path} (latency: {latency:.2f}s)")
         return content
 
 
@@ -1791,9 +1804,10 @@ def _write_llm_request_debug_file(
     from pathlib import Path
     from source_chunker import estimate_tokens
 
-    # Create request directory if it doesn't exist
-    request_dir = Path("./request")
-    request_dir.mkdir(exist_ok=True)
+    # Create request directory in centralized run dir
+    _rl = get_run_logger()
+    request_dir = _rl.get_request_dir(_rl.get_current_program())
+    request_dir.mkdir(parents=True, exist_ok=True)
 
     # Build filename
     if chunk_number is not None:
@@ -1904,7 +1918,8 @@ The following context was provided in the user prompt (embedded in JSON):
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(debug_content)
 
-    print(f"  [DEBUG] Request saved to: {filepath}")
+    # Don't print here - will be printed after response completes
+    return filepath
 
 
 def generate_section_content(
@@ -2082,7 +2097,7 @@ Remember:
     ]
 
     # Write request to debug file before LLM call
-    _write_llm_request_debug_file(
+    _debug_filepath = _write_llm_request_debug_file(
         section_id=section_id,
         section_title=section_title,
         system_prompt=system_prompt,
@@ -2106,6 +2121,8 @@ Remember:
         )
 
     # Use fallback-aware invocation if fallback_manager provided
+    import time as _time
+    _llm_start = _time.monotonic()
     if fallback_manager and llm_config:
         response = invoke_llm_with_fallback(
             llm_config=llm_config,
@@ -2115,6 +2132,7 @@ Remember:
         )
     else:
         response = llm.invoke(messages)
+    _llm_elapsed = _time.monotonic() - _llm_start
     content = response.content
 
     # End LLM call tracking
@@ -2125,9 +2143,38 @@ Remember:
             input_text=system_prompt + "\n\n" + user_prompt
         )
 
-    print(f"  ✓ Generated {len(content)} characters for {section_id}")
+    # Insert latency and usage into the Metadata block of the debug file
+    if _debug_filepath:
+        try:
+            with open(_debug_filepath, 'r', encoding='utf-8') as _f:
+                _content = _f.read()
+            # Build metadata lines to insert
+            _meta_lines = f"- **LLM Latency**: {_llm_elapsed:.2f}s\n"
+            # Add usage info if available (from ClaudeSdkLLM)
+            if hasattr(response, 'usage') and response.usage:
+                _usage = response.usage
+                if 'output_tokens' in _usage:
+                    _meta_lines += f"- **Output Tokens**: {_usage['output_tokens']:,}\n"
+                if 'input_tokens' in _usage:
+                    _meta_lines += f"- **Input Tokens**: {_usage['input_tokens']:,}\n"
+                if 'cache_read_input_tokens' in _usage and _usage['cache_read_input_tokens']:
+                    _meta_lines += f"- **Cache Read Tokens**: {_usage['cache_read_input_tokens']:,}\n"
+            if hasattr(response, 'total_cost_usd') and response.total_cost_usd:
+                _meta_lines += f"- **Total Cost**: ${response.total_cost_usd:.4f}\n"
+            # Insert after "Pass Number" line in Metadata block
+            _content = _content.replace(
+                "\n\n## Token Counts",
+                f"\n{_meta_lines}\n## Token Counts"
+            )
+            with open(_debug_filepath, 'w', encoding='utf-8') as _f:
+                _f.write(_content)
+        except Exception:
+            pass
 
-    return content
+    print(f"  ✓ Generated {len(content)} characters for {section_id} ({_llm_elapsed:.1f}s)")
+
+    # Return content and debug info for caller to print after chunk completes
+    return content, _debug_filepath, _llm_elapsed
 
 
 def filter_context_for_code_explanation(context: Dict[str, Any]) -> Dict[str, Any]:
@@ -2256,8 +2303,23 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         'total_coverage': 0.0
     }
 
+    # Load any previously cached chunk results for resume support
+    program_name = state["program_name"] if state else context.get("program_name", "UNKNOWN")
+    cached_chunks = load_completed_chunks(program_name)
+    if cached_chunks:
+        print(f"  → Loaded {len(cached_chunks)} cached chunk results, resuming from chunk {max(cached_chunks.keys()) + 1}")
+
     for chunk_info in chunks:
         chunk_num = chunk_info['chunk_number']
+
+        # Skip chunks that were already processed (checkpoint resume)
+        if chunk_num in cached_chunks:
+            print(f"\n  → Chunk {chunk_num}/{total_chunks} — cached, skipping")
+            all_results.append(cached_chunks[chunk_num])
+            validation_stats['validated'] += 1
+            validation_stats['total_coverage'] += 100.0
+            continue
+
         print(f"\n  → Processing chunk {chunk_num}/{total_chunks} (lines {chunk_info['start_line']}-{chunk_info['end_line']})")
 
         # Format chunk with metadata and program map (for whole-file context)
@@ -2298,6 +2360,8 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         chunk_result = None
         validation_result = None
         explanation_coverage = 0.0  # Initialize for scope
+        chunk_debug_path = None
+        chunk_latency = 0.0
         # max_retries = 1  # COMMENTED OUT - no retries in test mode
 
         # COMMENTED OUT: Retry loop - testing single attempt with improved prompts
@@ -2338,7 +2402,7 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             # """
             #         current_instruction = retry_feedback + "\n" + current_instruction
 
-            chunk_result = generate_section_content(
+            chunk_result, chunk_debug_path, chunk_latency = generate_section_content(
                 section_id,
                 f"{section_title} - Chunk {chunk_num}/{total_chunks}",
                 current_instruction,
@@ -2386,7 +2450,15 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             #         continue
 
         except Exception as e:
-            print(f"  ✗ Attempt {attempt} failed: {e}")
+            # Extract detailed error information
+            error_details = str(e)
+            if hasattr(e, 'stderr') and e.stderr:
+                error_details += f"\n    stderr: {e.stderr[:1000]}"
+            if hasattr(e, 'stdout') and e.stdout:
+                error_details += f"\n    stdout: {e.stdout[:1000]}"
+            if hasattr(e, '__cause__') and e.__cause__:
+                error_details += f"\n    caused by: {e.__cause__}"
+            print(f"  ✗ Attempt {attempt} failed: {error_details}")
             chunk_result = f"\n\n**[Chunk {chunk_num} processing failed: {e}]**\n\n"
             validation_stats['incomplete'] += 1
             # COMMENTED OUT: Retry on exception
@@ -2444,26 +2516,32 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             #
             # """
 
-            # TEST MODE: Use raw LLM response as-is (no source fallback)
+            # Use raw LLM response, stripping the Coverage Self-Assessment
+            # the LLM generates (we keep it in the prompt so the LLM validates
+            # its own work, but omit it from the final documentation).
+            chunk_hash = hashlib.sha256(chunk_info['content'].encode('utf-8')).hexdigest()[:12]
+            clean_result = re.sub(
+                r'---\s*\n## Coverage Self-Assessment.*',
+                '',
+                chunk_result,
+                flags=re.DOTALL
+            ).rstrip()
             final_chunk_doc = f"""
-## Chunk {chunk_num}/{total_chunks}: Lines {chunk_info['start_line']}-{chunk_info['end_line']}
+## Hash-ID: {chunk_hash} | Chunk {chunk_num}/{total_chunks}: Lines {chunk_info['start_line']}-{chunk_info['end_line']}
 
-{chunk_result}
-
----
-
-**[TEST MODE] Validation Summary:**
-- Total lines in chunk: {total_lines_in_chunk}
-- Expected lines: {validation_result.expected_lines if validation_result else total_lines_in_chunk}
-- LLM returned lines: {validation_result.found_lines if validation_result else 0}
-- LLM coverage: {explanation_coverage:.1f}%
-- Validation method: {validation_result.validation_method if validation_result else 'N/A'}
-- **Using ONLY LLM response (no source fallback)**
+{clean_result}
 
 """
             all_results.append(final_chunk_doc)
+            save_chunk_result(program_name, chunk_num, final_chunk_doc)
+            if chunk_debug_path:
+                print(f"  [DEBUG] Request logged to: {chunk_debug_path} (latency: {chunk_latency:.2f}s)")
         else:
-            all_results.append(f"\n\n**[Chunk {chunk_num} - no result]**\n\n")
+            no_result_doc = f"\n\n**[Chunk {chunk_num} - no result]**\n\n"
+            all_results.append(no_result_doc)
+            save_chunk_result(program_name, chunk_num, no_result_doc)
+            if chunk_debug_path:
+                print(f"  [DEBUG] Request logged to: {chunk_debug_path} (latency: {chunk_latency:.2f}s)")
 
     # Combine all results from Pass 1
     combined_result = "\n\n".join(all_results)
@@ -2702,7 +2780,7 @@ Validation will verify 100% coverage.
                     gap_stats['retries'] += 1
 
                 # Generate with ultra-strict prompt
-                gap_result = generate_section_content(
+                gap_result, gap_debug_path, gap_latency = generate_section_content(
                     section_id,
                     f"{section_title} - Gap Fill {chunk_num}",
                     ultra_strict_instruction,
@@ -2714,6 +2792,8 @@ Validation will verify 100% coverage.
                     chunk_number=chunk_num,
                     is_retry=(attempt > 1)  # Add retry emphasis on subsequent attempts
                 )
+                if gap_debug_path:
+                    print(f"    [DEBUG] Request logged to: {gap_debug_path} (latency: {gap_latency:.2f}s)")
 
                 # Validate
                 validator = ChunkDocumentationValidator(gap_chunk, gap_result)
@@ -3100,6 +3180,41 @@ def save_to_tmp(content: str, program_name: str, filename: str) -> Path:
     return file_path
 
 
+def save_chunk_result(program_name: str, chunk_num: int, content: str) -> Path:
+    """Save a single chunk result to disk for checkpointing."""
+    chunks_dir = get_tmp_dir(program_name) / "chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+    file_path = chunks_dir / f"chunk_{chunk_num:04d}.md"
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    return file_path
+
+
+def load_completed_chunks(program_name: str) -> Dict[int, str]:
+    """Load previously completed chunk results from disk."""
+    chunks_dir = get_tmp_dir(program_name) / "chunks"
+    result = {}
+    if not chunks_dir.exists():
+        return result
+    for chunk_file in sorted(chunks_dir.glob("chunk_*.md")):
+        try:
+            num = int(chunk_file.stem.split("_")[1])
+            with open(chunk_file, 'r', encoding='utf-8') as f:
+                result[num] = f.read()
+        except (ValueError, IndexError):
+            continue
+    return result
+
+
+def clear_chunk_cache(program_name: str) -> None:
+    """Delete the chunks checkpoint directory after successful completion."""
+    import shutil
+    chunks_dir = get_tmp_dir(program_name) / "chunks"
+    if chunks_dir.exists():
+        shutil.rmtree(chunks_dir)
+        print(f"  → Cleared chunk cache: {chunks_dir}")
+
+
 def load_from_tmp(program_name: str, filename: str) -> Optional[str]:
     """
     Load content from tmp directory.
@@ -3242,6 +3357,7 @@ def run_phase1_code_explanation(
     # Save to tmp
     save_to_tmp(full_explanation, program_name, "detailed_code_explanation.md")
     save_to_tmp(extracted_prose, program_name, "explanation_prose.txt")
+    clear_chunk_cache(program_name)
 
     print(f"\n✓ Phase 1 complete")
 
@@ -3315,7 +3431,7 @@ def run_phase2_sections(
             section_context["section_id"] = section_id
 
             # Generate content using existing function
-            content = generate_section_content(
+            content, section_debug_path, section_latency = generate_section_content(
                 section_id=section_id,
                 section_title=section_title,
                 instruction=section.get("instruction", ""),
@@ -3328,6 +3444,8 @@ def run_phase2_sections(
             )
 
             print(f"      ✓ Generated ({len(content):,} chars)")
+            if section_debug_path:
+                print(f"      [DEBUG] Request logged to: {section_debug_path} (latency: {section_latency:.2f}s)")
 
             # ─────────────────────────────────────────────────────────────
             # MERMAID VALIDATION: Validate and fix mermaid diagrams in this section
@@ -3526,6 +3644,7 @@ def generate_documentation(
     servers_config: Optional[Dict[str, Any]] = None,
     preloaded_metadata: Optional[Dict[str, Any]] = None,
     enable_source_extraction: bool = True,
+    auto_start_phase2: bool = True,
 ) -> Optional[str]:
     """
     Generate documentation using the two-phase approach.
@@ -3548,6 +3667,7 @@ def generate_documentation(
         preloaded_metadata: Optional pre-loaded metadata dict with keys:
             ctags_outline, superbol_symbols, superbol_cfg, gnucobol_analysis
         enable_source_extraction: Enable source code extraction for chunked processing
+        auto_start_phase2: If True, proceed to Phase 2 immediately; if False, pause for user confirmation
 
     Returns:
         Path to generated documentation file, or None on failure
@@ -3564,10 +3684,13 @@ def generate_documentation(
     output_dir = Path(output_dir)
 
     try:
-        # Initialize LLM call tracer for this program
+        # Initialize LLM call tracer for this program (centralized run dir)
         from llm_tracer import init_tracer
-        tracer = init_tracer(f"llm_trace_{program_name}.jsonl")
-        print(f"\n→ LLM tracer initialized: llm_trace_{program_name}.jsonl")
+        _rl = get_run_logger()
+        _rl.set_current_program(program_name)
+        trace_log = _rl.get_trace_log_path(program_name)
+        tracer = init_tracer(trace_log)
+        print(f"\n→ LLM tracer initialized: {trace_log}")
 
         # Load template
         print(f"\n→ Loading template: {template_path}")
@@ -3668,6 +3791,46 @@ def generate_documentation(
         code_explanation, prose = run_phase1_code_explanation(state, llm_config, fallback_manager)
 
         # ═══════════════════════════════════════════════════════════════
+        # Phase 1 → Phase 2 Transition: Token counting & pause
+        # ═══════════════════════════════════════════════════════════════
+        phase2_config = llm_config.get('phase2', {})
+        phase2_model = phase2_config.get('model', llm_config.get('model', 'sonnet'))
+        prose_chars = len(prose)
+        prose_tokens = estimate_tokens(prose, model=phase2_model)
+
+        print(f"\n{'─'*60}")
+        print(f"Phase 1 prose ready for Phase 2 context:")
+        print(f"  Characters : {prose_chars:,}")
+        print(f"  Tokens     : {prose_tokens:,}  (model: {phase2_model})")
+        print(f"{'─'*60}")
+
+        if not auto_start_phase2:
+            user_input = input("\nPress Enter to start Phase 2 (or 'q' to skip): ").strip().lower()
+            if user_input == 'q':
+                print("→ Skipping Phase 2 by user request. Assembling document with Phase 1 only.")
+                section_outputs = {}
+
+                final_doc = assemble_final_document(
+                    program_name=program_name,
+                    code_explanation=code_explanation,
+                    section_outputs=section_outputs,
+                    template=template
+                )
+
+                output_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%d-%m-%Y")
+                output_filename = f"{program_name}-documentation-{timestamp}.md"
+                output_path = output_dir / output_filename
+
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(final_doc)
+
+                print(f"\n{'='*60}")
+                print(f"✓ Documentation (Phase 1 only) saved to: {output_path}")
+                print(f"{'='*60}")
+                return str(output_path)
+
+        # ═══════════════════════════════════════════════════════════════
         # PHASE 2: Generate Other Sections (includes Mermaid validation)
         # ═══════════════════════════════════════════════════════════════
         # Note: Mermaid validation is now done per-section inside run_phase2_sections()
@@ -3713,6 +3876,10 @@ def generate_documentation(
             source_path=cobol_file_path
         )
 
+        # Record success in run logger
+        _rl = get_run_logger()
+        _rl.record_program_result(program_name, 'completed', output_path=str(output_path))
+
         # Cleanup tmp files
         cleanup_tmp(program_name)
 
@@ -3722,6 +3889,11 @@ def generate_documentation(
         print(f"\n✗ Documentation generation failed: {e}")
         import traceback
         traceback.print_exc()
+
+        # Record failure in run logger
+        _rl = get_run_logger()
+        _rl.record_program_result(program_name, 'failed', error=str(e))
+
         return None
 
 
@@ -3833,6 +4005,13 @@ Examples:
     parser.add_argument("--generate-metadata", action="store_true", help="Generate metadata via MCP servers before documentation")
     parser.add_argument("--no-skip-existing", action="store_true", help="Force regenerate metadata even if it exists")
 
+    # Checkpoint/Resume arguments
+    parser.add_argument("--restart", action="store_true", help="Ignore checkpoint and restart batch processing from beginning")
+    parser.add_argument("--status", action="store_true", help="Show checkpoint status and exit without processing")
+    parser.add_argument("--retry-failed", action="store_true", help="Only retry previously failed files")
+    parser.add_argument("--continue-on-error", action="store_true", help="Continue processing if a file fails (default for batch)")
+    parser.add_argument("--max-retries", type=int, default=3, help="Maximum retries for failed files (default: 3)")
+
     args = parser.parse_args()
 
     # Load configuration from YAML if --config is provided
@@ -3940,6 +4119,13 @@ Examples:
         full_context_sections = full_context_config.get('sections', [])
         max_message_chars = full_context_config.get('max_message_chars', 9000000)
 
+        # File filtering configuration
+        file_filter_config = config_loader.get_file_filter_config()
+
+        # Workflow configuration
+        workflow_config = config_loader.get_workflow_config()
+        auto_start_phase2 = workflow_config.get('auto_start_phase2', True)
+
         if use_full_context_mode:
             print(f"\n  Full Context Mode: ENABLED")
             print(f"  Full Context Sections: {full_context_sections}")
@@ -3975,14 +4161,32 @@ Examples:
         full_context_sections = []
         max_message_chars = 9000000  # Default 9MB
 
+        # File filtering defaults (no filtering)
+        file_filter_config = None
+
+        # Workflow defaults
+        auto_start_phase2 = True
+
     # Validation: either program_name or source_files must be provided
     if not program_name and not source_files_arg:
         parser.error("Either program_name, --source-files, or --config must be provided")
 
+    # ═══════════════════════════════════════════════════════════════════
+    # RUN LOGGING INITIALIZATION (always enabled)
+    # ═══════════════════════════════════════════════════════════════════
+    run_logging_config = {}
+    if config_loader:
+        run_logging_config = config_loader.get_run_logging_config()
+
+    _rl = init_run_logger(docs_path)
+    if run_logging_config.get('console_tee', True):
+        _rl.start_console_tee()
+
     # Determine which mode to use
     if source_files_arg:
         # Batch processing mode
-        source_path = Path(source_files_arg)
+        # Expand ~ to home directory
+        source_path = Path(source_files_arg).expanduser()
 
         # Determine list of COBOL files to process
         if source_path.is_file():
@@ -3993,40 +4197,167 @@ Examples:
         elif source_path.is_dir():
             # Directory - find all COBOL files recursively
             from checksum_manager import get_source_files
-            cobol_file_paths = get_source_files(source_path)
+            cobol_file_paths = get_source_files(source_path, filter_config=file_filter_config)
             # Store tuples of (stem, full_path)
             cobol_files_to_process = sorted([(f.stem, str(f)) for f in cobol_file_paths])
             workspace_path = str(source_path)
             print(f"\nProcessing directory: {source_path}")
             print(f"Found {len(cobol_files_to_process)} COBOL files")
+            # Log filter configuration if active
+            if file_filter_config:
+                if file_filter_config.get('extensions_include'):
+                    print(f"  → Extensions included: {file_filter_config['extensions_include']}")
+                if file_filter_config.get('extensions_exclude'):
+                    print(f"  → Extensions excluded: {file_filter_config['extensions_exclude']}")
+                if file_filter_config.get('exclude_files'):
+                    print(f"  → File patterns excluded: {file_filter_config['exclude_files']}")
         else:
             parser.error(f"Source path does not exist: {source_files_arg}")
 
         if not cobol_files_to_process:
             parser.error(f"No COBOL files found in: {source_files_arg}")
 
-        # Batch process all files
-        print(f"\n{'='*70}")
-        print(f"BATCH MODE: Processing {len(cobol_files_to_process)} COBOL programs")
-        print(f"{'='*70}\n")
+        # ═══════════════════════════════════════════════════════════════════
+        # CHECKPOINT/RESUME INTEGRATION
+        # ═══════════════════════════════════════════════════════════════════
+        from checkpoint_manager import CheckpointManager
 
-        successful = []
-        failed = []
+        # Compute config hash for change detection
+        config_dict = {
+            'llm': llm_config,
+            'template': {'path': template_path},
+        }
+        config_hash = CheckpointManager.compute_config_hash(config_dict)
 
-        for idx, (prog_name, full_filename) in enumerate(cobol_files_to_process, 1):
-            print(f"\n{'#'*70}")
-            print(f"# Processing {idx}/{len(cobol_files_to_process)}: {prog_name}")
-            print(f"{'#'*70}")
+        # Initialize checkpoint manager
+        checkpoint = CheckpointManager(
+            output_dir=Path(docs_path),
+            config_hash=config_hash,
+            max_retries=args.max_retries
+        )
+
+        # Handle --restart flag
+        if args.restart:
+            import shutil
+            checkpoint.delete_checkpoint()
+            # Also delete checksum files to force full regeneration
+            for checksum_file in [source_checksum_path, metadata_checksum_path]:
+                checksum_path = Path(checksum_file)
+                if checksum_path.exists():
+                    checksum_path.unlink()
+                    print(f"  ✓ Deleted checksum file: {checksum_path}")
+            # Also clear chunk cache (./tmp/) to force re-processing of all chunks
+            tmp_dir = Path("./tmp")
+            if tmp_dir.exists():
+                shutil.rmtree(tmp_dir)
+                print(f"  ✓ Deleted chunk cache: {tmp_dir}")
+            print("  Checkpoint, checksums, and chunk cache deleted. Starting fresh.\n")
+
+        # Load or create checkpoint
+        source_file_paths = [Path(fp) for _, fp in cobol_files_to_process]
+        print(f"\n→ Initializing checkpoint...")
+        checkpoint.load_or_create(source_file_paths)
+
+        # Handle --status flag
+        if args.status:
+            print(checkpoint.get_summary_report())
+            sys.exit(0)
+
+        # Check for config changes
+        if checkpoint.config_changed() and not args.restart:
+            print("\n⚠ Configuration has changed since last run!")
+            print("  Use --restart to start fresh, or continue with current config.")
+            print("  Continuing with existing checkpoint...\n")
+
+        # Handle --retry-failed flag
+        if args.retry_failed:
+            reset_count = checkpoint.reset_failed_files()
+            print(f"  Reset {reset_count} failed files for retry.\n")
+
+        # ═══════════════════════════════════════════════════════════════════
+        # METADATA GENERATION (once for all files, before doc generation)
+        # ═══════════════════════════════════════════════════════════════════
+        # Check if metadata generation is needed based on checkpoint flag
+        metadata_generated = checkpoint.state.get('metadata_generated', False) if checkpoint.state else False
+        progress = checkpoint.get_progress()
+        is_resuming = progress['completed'] > 0
+
+        if generate_metadata and not metadata_generated:
+            print(f"\n{'='*70}")
+            print(f"METADATA GENERATION: Processing {len(cobol_files_to_process)} files")
+            print(f"{'='*70}\n")
+
+            # Get all file paths for batch metadata generation
+            all_cobol_files = [full_path for _, full_path in cobol_files_to_process]
 
             try:
-                # Build list of all filenames for metadata generation (only on first iteration)
-                if idx == 1 and generate_metadata:
-                    # Pass all files to metadata generation to process them together
-                    all_cobol_files = [name for _, name in cobol_files_to_process]
-                else:
-                    # For documentation-only, pass just this file
-                    all_cobol_files = [full_filename]
+                # Use the existing metadata generation infrastructure
+                from mcp_metadata_generator import generate_metadata_sync
 
+                # Get servers config
+                servers_config_for_meta = {}
+                if config_loader:
+                    servers_config_for_meta = config_loader.get_servers_config()
+
+                generate_metadata_sync(
+                    workspace_path=workspace_path,
+                    output_dir=metadata_dir,
+                    cobol_files=all_cobol_files,
+                    servers_config=servers_config_for_meta
+                )
+
+                # Mark metadata as generated in checkpoint
+                if checkpoint.state:
+                    checkpoint.state['metadata_generated'] = True
+                    checkpoint.save()
+
+                print(f"\n✓ Metadata generation complete for {len(all_cobol_files)} files\n")
+
+            except Exception as e:
+                print(f"\n✗ Metadata generation failed: {e}")
+                print("  Continuing with documentation generation (may have limited metadata)...\n")
+
+        elif generate_metadata and metadata_generated:
+            print(f"\n→ Skipping metadata generation (already completed in previous run)")
+
+        # Get files to process
+        pending_files = checkpoint.get_pending_files()
+
+        print(f"\n{'='*70}")
+        print(f"BATCH MODE: {'RESUMING' if is_resuming else 'Starting'} - {len(pending_files)} files to process")
+        print(f"{'='*70}")
+        print(f"  Total files:  {progress['total']}")
+        print(f"  Completed:    {progress['completed']}")
+        print(f"  Failed:       {progress['failed']}")
+        print(f"  Pending:      {len(pending_files)}")
+        print(f"{'='*70}\n")
+
+        if not pending_files:
+            print("✓ All files already processed!")
+            print(checkpoint.get_summary_report())
+            sys.exit(0)
+
+        # Process each pending file
+        for idx, filename in enumerate(pending_files, 1):
+            # Get full path from checkpoint
+            file_path = checkpoint.get_file_path(filename)
+
+            if not file_path:
+                print(f"⚠ File path not found for: {filename}")
+                continue
+
+            prog_name = Path(file_path).stem
+
+            print(f"\n{'#'*70}")
+            print(f"# [{idx}/{len(pending_files)}] Processing: {filename}")
+            print(f"# Program: {prog_name}")
+            print(f"{'#'*70}")
+
+            # Mark as in_progress and save checkpoint
+            checkpoint.mark_file_started(filename)
+            checkpoint.save()
+
+            try:
                 output_path = generate_documentation(
                     program_name=prog_name,
                     workspace_path=workspace_path,
@@ -4034,33 +4365,51 @@ Examples:
                     template_path=template_path,
                     output_dir=docs_path,
                     llm_config=llm_config,
-                    cobol_file_path=full_filename,
+                    cobol_file_path=file_path,
                     enable_source_extraction=enable_source_extraction,
+                    auto_start_phase2=auto_start_phase2,
                 )
-                successful.append((prog_name, output_path))
-                print(f"✓ Successfully generated documentation for {prog_name}")
+
+                if output_path:
+                    checkpoint.mark_file_completed(filename, output_path)
+                    print(f"✓ Successfully generated: {output_path}")
+                else:
+                    checkpoint.mark_file_failed(filename, "generate_documentation returned None")
+                    print(f"✗ Failed: No output generated")
+
+            except KeyboardInterrupt:
+                print(f"\n\n⚠ Interrupted by user. Saving checkpoint...")
+                checkpoint.save()
+                get_run_logger().finalize()
+                print(f"  Checkpoint saved. Resume with: python cobol_doc_agent.py {args.config or ''}")
+                sys.exit(130)
+
             except Exception as e:
-                failed.append((prog_name, str(e)))
-                print(f"✗ Failed to generate documentation for {prog_name}: {e}")
+                checkpoint.mark_file_failed(filename, str(e))
+                print(f"✗ Failed: {e}")
 
-        # Summary
-        print(f"\n{'='*70}")
-        print(f"BATCH PROCESSING COMPLETE")
-        print(f"{'='*70}")
-        print(f"Successful: {len(successful)}/{len(cobol_files_to_process)}")
-        print(f"Failed: {len(failed)}/{len(cobol_files_to_process)}")
+                if not args.continue_on_error:
+                    print("\n  Use --continue-on-error to skip failed files and continue.")
+                    checkpoint.save()
+                    raise
 
-        if successful:
-            print(f"\n✓ Successfully generated documentation for:")
-            for prog_name, out_path in successful:
-                print(f"  - {prog_name}: {out_path}")
+            # Save checkpoint after each file
+            checkpoint.save()
 
-        if failed:
-            print(f"\n✗ Failed to generate documentation for:")
-            for prog_name, error in failed:
-                print(f"  - {prog_name}: {error}")
+            # Print running progress
+            progress = checkpoint.get_progress()
+            print(f"  Progress: {progress['percent_complete']:.1f}% ({progress['completed']}/{progress['total']})")
 
-        print(f"\n{'='*70}\n")
+        # Final summary
+        print(checkpoint.get_summary_report())
+
+        # Finalize run logger
+        progress = checkpoint.get_progress()
+        get_run_logger().finalize(
+            config_hash=config_hash,
+            total_files=progress['total'],
+            mode='batch',
+        )
 
     else:
         # Single program mode - use two-phase approach
@@ -4073,9 +4422,13 @@ Examples:
             llm_config=llm_config,
             cobol_file_path=None,  # Will be auto-detected
             enable_source_extraction=enable_source_extraction,
+            auto_start_phase2=auto_start_phase2,
         )
 
         print(f"\n{'='*70}")
         print(f"Documentation generation complete!")
         print(f"Output: {output_path}")
         print(f"{'='*70}\n")
+
+        # Finalize run logger
+        get_run_logger().finalize(total_files=1, mode='single')

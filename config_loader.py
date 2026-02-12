@@ -116,6 +116,37 @@ class ConfigLoader:
         config = self._ensure_loaded()
         return config.get('source', {})
 
+    def get_file_filter_config(self) -> Dict[str, Any]:
+        """
+        Get file filtering configuration from source section.
+
+        Returns configuration for filtering which files to process:
+        - extensions_include: List of extensions to include (e.g., ['.c74', '.XMOD'])
+        - extensions_exclude: List of extensions to exclude (e.g., ['.xgn'])
+        - exclude_files: List of file patterns to exclude (e.g., ['TEST*', '*-BACKUP.*'])
+        - include_files: List of file patterns to include (overrides all other filters)
+
+        Priority order:
+        1. include_files (if set, ONLY these files)
+        2. extensions_include OR extensions_exclude
+        3. exclude_files (remove matches)
+
+        Returns:
+            Dictionary with file filter configuration
+        """
+        config = self._ensure_loaded()
+        source_config = config.get('source', {})
+
+        # Extract filter settings from source config
+        extensions_config = source_config.get('extensions', {})
+
+        return {
+            'extensions_include': extensions_config.get('include', []),
+            'extensions_exclude': extensions_config.get('exclude', []),
+            'exclude_files': source_config.get('exclude_files', []),
+            'include_files': source_config.get('include_files', []),
+        }
+
     def get_output_config(self) -> Dict[str, Any]:
         """Get output paths configuration"""
         config = self._ensure_loaded()
@@ -193,6 +224,45 @@ class ConfigLoader:
             result['mandatory_elements'] = pm_config['mandatory_elements']
 
         return result
+
+    def get_workflow_config(self) -> Dict[str, Any]:
+        """
+        Get workflow configuration.
+
+        Returns configuration for workflow behavior:
+        - auto_start_phase2: Whether to auto-start Phase 2 after Phase 1 (default: True)
+
+        Returns:
+            Dictionary with workflow configuration
+        """
+        config = self._ensure_loaded()
+        wf_config = config.get('workflow', {})
+
+        return {
+            'auto_start_phase2': wf_config.get('auto_start_phase2', True),
+        }
+
+    def get_run_logging_config(self) -> Dict[str, Any]:
+        """
+        Get run logging configuration.
+
+        Run logging is always enabled — all artifacts go into a centralized
+        per-run directory. These flags control optional sub-features:
+        - console_tee: Whether to tee stdout/stderr to files (default: True)
+        - capture_requests: Whether to route debug requests into run dir (default: True)
+        - capture_traces: Whether to route LLM traces into run dir (default: True)
+
+        Returns:
+            Dictionary with run logging configuration
+        """
+        config = self._ensure_loaded()
+        rl_config = config.get('run_logging', {})
+
+        return {
+            'console_tee': rl_config.get('console_tee', True),
+            'capture_requests': rl_config.get('capture_requests', True),
+            'capture_traces': rl_config.get('capture_traces', True),
+        }
 
     def get_full_context_config(self) -> Dict[str, Any]:
         """

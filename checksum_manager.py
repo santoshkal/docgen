@@ -298,39 +298,126 @@ class ChecksumManager:
             print(f"  ~ Modified files: {', '.join(sorted(modified))}")
 
 
-def get_source_files(workspace_path: Path, patterns: List[str] = None) -> List[Path]:
+def get_source_files(
+    workspace_path: Path,
+    patterns: List[str] = None,
+    filter_config: Optional[Dict[str, Any]] = None
+) -> List[Path]:
     """
-    Recursively get list of all COBOL source files in workspace
+    Recursively get list of all COBOL source files in workspace with optional filtering.
 
     Args:
         workspace_path: Path to workspace directory (searches recursively)
         patterns: List of file patterns to match (e.g., ["*.COB", "*.cbl"])
                   Defaults to common COBOL extensions if not provided
+        filter_config: Optional filtering configuration dict with:
+            - extensions_include: List of extensions to include (e.g., ['.c74', '.XMOD'])
+            - extensions_exclude: List of extensions to exclude (e.g., ['.xgn'])
+            - exclude_files: List of file patterns to exclude (e.g., ['TEST*'])
+            - include_files: List of file patterns to include (overrides all)
 
     Returns:
         List of COBOL file paths (sorted, no duplicates)
     """
+    import fnmatch
+
     workspace = Path(workspace_path)
+    filter_config = filter_config or {}
 
+    # Extract filter settings
+    extensions_include = filter_config.get('extensions_include', [])
+    extensions_exclude = filter_config.get('extensions_exclude', [])
+    exclude_files = filter_config.get('exclude_files', [])
+    include_files = filter_config.get('include_files', [])
+
+    # Normalize extensions (ensure they start with '.')
+    extensions_include = [ext if ext.startswith('.') else f'.{ext}' for ext in extensions_include]
+    extensions_exclude = [ext if ext.startswith('.') else f'.{ext}' for ext in extensions_exclude]
+
+    # ─────────────────────────────────────────────────────────────────
+    # PRIORITY 1: If include_files specified, ONLY match those patterns
+    # ─────────────────────────────────────────────────────────────────
+    if include_files:
+        files = []
+        for pattern in include_files:
+            # Support both exact names and glob patterns
+            matched = list(workspace.rglob(pattern))
+            files.extend(matched)
+        files = sorted(set(files))
+        print(f"  → File filter: include_files matched {len(files)} files")
+        return files
+
+    # ─────────────────────────────────────────────────────────────────
+    # PRIORITY 2: Determine which extensions to search for
+    # ─────────────────────────────────────────────────────────────────
     # Default COBOL file patterns covering common naming conventions
-    if patterns is None:
-        patterns = [
-            "*.COB", "*.cob",           # Standard COBOL
-            "*.cbl", "*.CBL",           # COBOL
-            "*.COBOL", "*.cobol",       # Full name
-            "*.c74", "*.C74",           # COBOL-74
-            "*.XMOD", "*.xmod",         # XGEN modules (human-authored)
-            "*.XLIB", "*.xlib",         # XGEN libraries (human-authored)
-            "*.xgn", "*.XGN",           # XGEN specification files
-        ]
+    default_extensions = [
+        '.COB', '.cob',           # Standard COBOL
+        '.cbl', '.CBL',           # COBOL
+        '.COBOL', '.cobol',       # Full name
+        '.c74', '.C74',           # COBOL-74
+        '.XMOD', '.xmod',         # XGEN modules (human-authored)
+        '.XLIB', '.xlib',         # XGEN libraries (human-authored)
+        '.xgn', '.XGN',           # XGEN specification files
+    ]
 
+    if extensions_include:
+        # Use ONLY the specified extensions
+        # Add both original and case variants
+        search_extensions = []
+        for ext in extensions_include:
+            search_extensions.append(ext)
+            search_extensions.append(ext.lower())
+            search_extensions.append(ext.upper())
+        search_extensions = list(set(search_extensions))
+        print(f"  → File filter: including only extensions {extensions_include}")
+    elif extensions_exclude:
+        # Use all defaults EXCEPT excluded ones
+        exclude_lower = [ext.lower() for ext in extensions_exclude]
+        search_extensions = [ext for ext in default_extensions if ext.lower() not in exclude_lower]
+        print(f"  → File filter: excluding extensions {extensions_exclude}")
+    else:
+        # Use patterns if provided, otherwise defaults
+        if patterns:
+            search_extensions = None  # Will use patterns directly
+        else:
+            search_extensions = default_extensions
+
+    # Build patterns from extensions
+    if search_extensions is not None:
+        patterns = [f"*{ext}" for ext in search_extensions]
+
+    # ─────────────────────────────────────────────────────────────────
+    # Search for files matching patterns
+    # ─────────────────────────────────────────────────────────────────
     files = []
     for pattern in patterns:
-        # Use rglob for recursive directory search
         files.extend(workspace.rglob(pattern))
 
-    # Remove duplicates and sort
-    return sorted(set(files))
+    # Remove duplicates
+    files = list(set(files))
+
+    # ─────────────────────────────────────────────────────────────────
+    # PRIORITY 3: Apply exclude_files patterns
+    # ─────────────────────────────────────────────────────────────────
+    if exclude_files:
+        original_count = len(files)
+        filtered_files = []
+        for f in files:
+            excluded = False
+            for pattern in exclude_files:
+                if fnmatch.fnmatch(f.name, pattern):
+                    excluded = True
+                    break
+            if not excluded:
+                filtered_files.append(f)
+        files = filtered_files
+        excluded_count = original_count - len(files)
+        if excluded_count > 0:
+            print(f"  → File filter: excluded {excluded_count} files matching {exclude_files}")
+
+    # Sort and return
+    return sorted(files)
 
 
 # Convenience functions for use in agent

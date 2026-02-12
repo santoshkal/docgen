@@ -121,8 +121,12 @@ class MCPMetadataGenerator:
         print("="*70)
 
         if self.mcp_client:
-            # Close sessions (containers will auto-cleanup via --rm)
-            # Check mcp-use API for proper cleanup method
+            try:
+                await self.mcp_client.close_all_sessions()
+            except Exception as e:
+                # Cancel scope errors are common with anyio during cleanup
+                # Docker containers will still be cleaned up via --rm flag
+                print(f"  ⚠ Session cleanup encountered non-critical error: {e}")
             print("✓ Sessions closed, Docker containers cleaned up automatically")
 
     async def generate_ctags_metadata(self, cobol_files: List[str]):

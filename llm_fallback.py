@@ -41,6 +41,7 @@ class LLMFallbackManager:
 
         Args:
             llm_config: Full LLM configuration dict, may contain 'fallback' block
+                        and phase-specific configs (phase1, phase2) for claude_sdk
         """
         self.primary_config = {
             'provider': llm_config.get('provider', 'openai'),
@@ -49,6 +50,13 @@ class LLMFallbackManager:
             'api_key': llm_config.get('api_key'),
             'betas': llm_config.get('betas'),
         }
+
+        # Store phase-specific configs from top level (for claude_sdk primary)
+        self.primary_phase_configs = {}
+        if llm_config.get('phase1'):
+            self.primary_phase_configs['phase1'] = llm_config['phase1']
+        if llm_config.get('phase2'):
+            self.primary_phase_configs['phase2'] = llm_config['phase2']
 
         self.fallback_config = llm_config.get('fallback')
         self._fallback_active = False
@@ -96,37 +104,51 @@ class LLMFallbackManager:
         """
         Get effective LLM config for current state and phase.
 
+        Phase-specific configs are used when provider is 'claude_sdk':
+        - Primary: looks for phase1/phase2 at top level of llm config
+        - Fallback: looks for phase1/phase2 inside fallback block
+
         Args:
-            phase: Phase number (1 or 2) for phase-specific fallback config
+            phase: Phase number (1 or 2) for phase-specific config
 
         Returns:
             LLM config dict ready for create_llm()
         """
-        if not self._fallback_active or not self.fallback_config:
-            return self.primary_config.copy()
-
-        # Build fallback config
-        fb = self.fallback_config
         phase_key = f'phase{phase}'
 
-        # Get base fallback settings
-        config = {
-            'provider': fb.get('provider', self.primary_config['provider']),
-            'temperature': fb.get('temperature', self.primary_config.get('temperature', 0.1)),
-            'api_key': fb.get('api_key', self.primary_config.get('api_key')),
-        }
+        # If fallback is active, use fallback config
+        if self._fallback_active and self.fallback_config:
+            fb = self.fallback_config
+            fb_provider = fb.get('provider', self.primary_config['provider'])
 
-        # Get phase-specific settings
-        if phase_key in fb:
-            phase_config = fb[phase_key]
-            config['model'] = phase_config.get('model', fb.get('model', 'sonnet'))
-            config['betas'] = phase_config.get('betas', fb.get('betas'))
-        else:
-            # Use top-level fallback model/betas
-            config['model'] = fb.get('model', 'sonnet')
-            config['betas'] = fb.get('betas')
+            config = {
+                'provider': fb_provider,
+                'temperature': fb.get('temperature', self.primary_config.get('temperature', 0.1)),
+                'api_key': fb.get('api_key', self.primary_config.get('api_key')),
+            }
 
-        return config
+            # Use phase-specific config if fallback provider is claude_sdk
+            if fb_provider == 'claude_sdk' and phase_key in fb:
+                phase_config = fb[phase_key]
+                config['model'] = phase_config.get('model', fb.get('model', 'sonnet'))
+                config['betas'] = phase_config.get('betas', fb.get('betas'))
+            else:
+                config['model'] = fb.get('model', 'sonnet')
+                config['betas'] = fb.get('betas')
+
+            return config
+
+        # Not in fallback - use primary config
+        # Check for phase-specific config if primary provider is claude_sdk
+        if self.primary_config.get('provider') == 'claude_sdk' and phase_key in self.primary_phase_configs:
+            phase_config = self.primary_phase_configs[phase_key]
+            config = self.primary_config.copy()
+            config['model'] = phase_config.get('model', self.primary_config['model'])
+            config['betas'] = phase_config.get('betas', self.primary_config.get('betas'))
+            return config
+
+        # Default: use primary config as-is
+        return self.primary_config.copy()
 
     def get_status(self) -> Dict[str, Any]:
         """

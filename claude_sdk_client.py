@@ -29,13 +29,15 @@ try:
     from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions,
                                   ClaudeSDKError, CLIConnectionError,
                                   CLIJSONDecodeError, CLINotFoundError,
-                                  ProcessError, TextBlock, ToolUseBlock, query)
+                                  ProcessError, ResultMessage, TextBlock,
+                                  ToolUseBlock, query)
     CLAUDE_SDK_AVAILABLE = True
 except ImportError:
     CLAUDE_SDK_AVAILABLE = False
     # Define placeholder types for when SDK is not available
     ClaudeAgentOptions = None  # type: ignore
     AssistantMessage = None  # type: ignore
+    ResultMessage = None  # type: ignore
     TextBlock = None  # type: ignore
     query = None  # type: ignore
     ClaudeSDKError = Exception  # type: ignore
@@ -55,7 +57,8 @@ class ClaudeResponse:
     """Response object mimicking LangChain's response structure."""
     content: str
     model: str
-    usage: Optional[Dict[str, int]] = None
+    usage: Optional[Dict[str, Any]] = None
+    total_cost_usd: Optional[float] = None
 
     def __str__(self) -> str:
         return self.content
@@ -98,7 +101,9 @@ def _call_claude_cli_direct(
     prompt: str,
     system_prompt: Optional[str] = None,
     model: Optional[str] = None,
-    betas: Optional[List[str]] = None
+    betas: Optional[List[str]] = None,
+    max_thinking_tokens: Optional[int] = None,
+    max_output_tokens: Optional[int] = None
 ) -> str:
     """
     Call Claude CLI directly using a temp file for large prompts.
@@ -112,6 +117,8 @@ def _call_claude_cli_direct(
         system_prompt: Optional system prompt
         model: Optional model name
         betas: Optional list of beta features (e.g., ['context-1m-2025-08-07'])
+        max_thinking_tokens: Max thinking tokens (0 to disable thinking)
+        max_output_tokens: Max output tokens
 
     Returns:
         The response text from Claude
@@ -134,6 +141,20 @@ def _call_claude_cli_direct(
 
     # Disable tools for pure LLM calls
     cmd.extend(["--allowedTools", ""])
+    # Explicitly disallow all Claude Code built-in tools for faster responses
+    all_tools = "Bash,Edit,Read,Write,Glob,Grep,NotebookEdit,WebFetch,WebSearch,TodoWrite,BashOutput,KillBash,ExitPlanMode,ListMcpResources,ReadMcpResource,Task,AskUserQuestion"
+    cmd.extend(["--disallowedTools", all_tools])
+
+    # Build environment with max output tokens if specified
+    env = None
+    if max_output_tokens is not None:
+        import os
+        env = os.environ.copy()
+        env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(max_output_tokens)
+
+    # Add max thinking tokens if specified (0 = disable thinking)
+    if max_thinking_tokens is not None:
+        cmd.extend(["--max-thinking-tokens", str(max_thinking_tokens)])
 
     # Write prompt to temp file and read via stdin
     with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
@@ -149,7 +170,8 @@ def _call_claude_cli_direct(
                 stdin=prompt_file,
                 capture_output=True,
                 text=True,
-                timeout=600  # 10 minute timeout
+                timeout=600,  # 10 minute timeout
+                env=env
             )
 
         if result.returncode != 0:
@@ -245,6 +267,8 @@ class ClaudeSdkLLM:
         temperature: Optional[float] = None,  # Accepted but ignored (for compatibility)
         api_key: Optional[str] = None,  # Accepted but ignored (uses Claude Code auth)
         betas: Optional[List[str]] = None,  # Beta features (e.g., ['context-1m-2025-08-07'])
+        max_thinking_tokens: Optional[int] = None,  # Set to 0 to disable thinking
+        max_output_tokens: Optional[int] = None,  # Max output tokens (default 32K, can set to 64K)
     ):
         if not CLAUDE_SDK_AVAILABLE:
             raise ImportError(
@@ -260,6 +284,8 @@ class ClaudeSdkLLM:
         self.allowed_tools = allowed_tools
         self.cwd = cwd
         self.betas = betas
+        self.max_thinking_tokens = max_thinking_tokens
+        self.max_output_tokens = max_output_tokens
 
         # Temperature is accepted for compatibility but silently ignored by Claude SDK
         # (No need to log as this is expected behavior)
@@ -289,6 +315,15 @@ class ClaudeSdkLLM:
             # Default: no tools for pure LLM calls
             opts["allowed_tools"] = []
 
+        # Explicitly disallow all Claude Code built-in tools for faster responses
+        # This is belt-and-suspenders with allowed_tools=[] to ensure no tool consideration
+        opts["disallowed_tools"] = [
+            "Bash", "Edit", "Read", "Write", "Glob", "Grep", "NotebookEdit",
+            "WebFetch", "WebSearch", "TodoWrite", "BashOutput", "KillBash",
+            "ExitPlanMode", "ListMcpResources", "ReadMcpResource", "Task",
+            "AskUserQuestion"
+        ]
+
         # Set working directory
         if self.cwd:
             opts["cwd"] = self.cwd
@@ -297,13 +332,21 @@ class ClaudeSdkLLM:
         if self.betas:
             opts["betas"] = self.betas
 
+        # Set max thinking tokens (0 = disable thinking for faster responses)
+        if self.max_thinking_tokens is not None:
+            opts["max_thinking_tokens"] = self.max_thinking_tokens
+
+        # Set max output tokens via env variable
+        if self.max_output_tokens is not None:
+            opts["env"] = {"CLAUDE_CODE_MAX_OUTPUT_TOKENS": str(self.max_output_tokens)}
+
         return ClaudeAgentOptions(**opts)
 
     async def _query_async(
         self,
         prompt: str,
         system_prompt: Optional[str] = None
-    ) -> str:
+    ) -> tuple:
         """
         Async query to Claude Agent SDK.
 
@@ -315,7 +358,7 @@ class ClaudeSdkLLM:
             system_prompt: Optional system prompt
 
         Returns:
-            The response text from Claude
+            Tuple of (response_text, usage_dict, total_cost_usd)
         """
         # Determine if we need direct CLI call based on prompt size
         prompt_size = len(prompt.encode('utf-8'))
@@ -326,32 +369,65 @@ class ClaudeSdkLLM:
             # Use direct CLI call with temp file (bypasses ARG_MAX)
             # Run in thread pool to not block async event loop
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(
+            cli_response = await loop.run_in_executor(
                 None,
-                _call_claude_cli_direct,
-                prompt,
-                system_prompt,
-                self.model,
-                self.betas
+                lambda: _call_claude_cli_direct(
+                    prompt,
+                    system_prompt,
+                    self.model,
+                    self.betas,
+                    self.max_thinking_tokens,
+                    self.max_output_tokens
+                )
             )
+            # Direct CLI doesn't return usage info
+            return cli_response, None, None
 
         # For small prompts, use the SDK (simpler error handling)
         options = self._build_options(system_prompt)
 
         full_response = ""
+        result_usage = None
+        result_cost = None
         async for message in query(prompt=prompt, options=options):
             if isinstance(message, AssistantMessage):
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         full_response += block.text
+            elif isinstance(message, ResultMessage):
+                # Capture usage and cost from the final result message
+                result_usage = message.usage
+                result_cost = message.total_cost_usd
 
-        return full_response
+        return full_response, result_usage, result_cost
+
+    def _extract_error_details(self, e: Exception) -> str:
+        """Extract detailed error information from SDK exceptions."""
+        details = [str(e)]
+
+        # Try to extract stderr/stdout from ProcessError
+        if hasattr(e, 'stderr') and e.stderr:
+            details.append(f"stderr: {e.stderr[:2000]}")
+        if hasattr(e, 'stdout') and e.stdout:
+            details.append(f"stdout: {e.stdout[:2000]}")
+        if hasattr(e, 'returncode'):
+            details.append(f"exit code: {e.returncode}")
+        if hasattr(e, 'output') and e.output:
+            details.append(f"output: {e.output[:2000]}")
+        if hasattr(e, 'message') and e.message:
+            details.append(f"message: {e.message}")
+
+        # Check for nested exception with more details
+        if hasattr(e, '__cause__') and e.__cause__:
+            details.append(f"caused by: {self._extract_error_details(e.__cause__)}")
+
+        return " | ".join(details)
 
     def _query_with_retry(
         self,
         prompt: str,
         system_prompt: Optional[str] = None
-    ) -> str:
+    ) -> tuple:
         """Query with exponential backoff retry on rate limit errors."""
         last_error = None
 
@@ -360,18 +436,35 @@ class ClaudeSdkLLM:
                 return asyncio.run(self._query_async(prompt, system_prompt))
 
             except (CLIConnectionError, ProcessError) as e:
-                error_str = str(e).lower()
+                error_details = self._extract_error_details(e)
+                error_str = error_details.lower()
+
                 # Check for rate limit indicators
-                if '429' in str(e) or 'rate' in error_str or 'too many' in error_str:
+                if '429' in error_details or 'rate' in error_str or 'too many' in error_str:
                     if attempt < self.max_retries - 1:
                         delay = self.base_delay * (2 ** attempt)
                         print(f"    ⚠ Rate limit hit, waiting {delay}s before retry ({attempt + 1}/{self.max_retries})...")
+                        print(f"    Error details: {error_details[:500]}")
                         time.sleep(delay)
                         last_error = e
                     else:
                         print(f"    ✗ Rate limit exceeded after {self.max_retries} retries")
+                        print(f"    Error details: {error_details}")
+                        raise
+                # Check for 500/internal server errors (retry these too)
+                elif '500' in error_details or 'internal server error' in error_str:
+                    if attempt < self.max_retries - 1:
+                        delay = self.base_delay * (2 ** attempt)
+                        print(f"    ⚠ API server error (500), waiting {delay}s before retry ({attempt + 1}/{self.max_retries})...")
+                        print(f"    Error details: {error_details[:500]}")
+                        time.sleep(delay)
+                        last_error = e
+                    else:
+                        print(f"    ✗ API server errors after {self.max_retries} retries")
+                        print(f"    Error details: {error_details}")
                         raise
                 else:
+                    print(f"    ✗ CLI/Process error: {error_details}")
                     raise
 
             except CLINotFoundError:
@@ -380,13 +473,15 @@ class ClaudeSdkLLM:
                 )
 
             except ClaudeSDKError as e:
-                # For other SDK errors, raise immediately
+                # For other SDK errors, print details and raise
+                error_details = self._extract_error_details(e)
+                print(f"    ✗ SDK error: {error_details}")
                 raise
 
         # Should not reach here, but just in case
         if last_error:
             raise last_error
-        return ""
+        return "", None, None
 
     def invoke(
         self,
@@ -437,11 +532,13 @@ class ClaudeSdkLLM:
         combined_prompt = "\n\n".join(user_prompts)
 
         # Query Claude
-        response_text = self._query_with_retry(combined_prompt, system_prompt)
+        response_text, usage, total_cost = self._query_with_retry(combined_prompt, system_prompt)
 
         return ClaudeResponse(
             content=response_text,
-            model=self.model
+            model=self.model,
+            usage=usage,
+            total_cost_usd=total_cost
         )
 
     def invoke_simple(
@@ -459,11 +556,13 @@ class ClaudeSdkLLM:
         Returns:
             ClaudeResponse with 'content' attribute
         """
-        response_text = self._query_with_retry(user_prompt, system_prompt)
+        response_text, usage, total_cost = self._query_with_retry(user_prompt, system_prompt)
 
         return ClaudeResponse(
             content=response_text,
-            model=self.model
+            model=self.model,
+            usage=usage,
+            total_cost_usd=total_cost
         )
 
 

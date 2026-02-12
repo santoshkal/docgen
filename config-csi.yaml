@@ -1,0 +1,215 @@
+# ============================================================================
+# CSI-COBOL BATCH PROCESSING CONFIGURATION
+# ============================================================================
+#
+# This configuration is for batch processing the CSI TDA XGEN-generated
+# COBOL codebase with checkpoint/resume support.
+#
+# Usage:
+#   python cobol_doc_agent.py --config config-csi.yaml
+#   python cobol_doc_agent.py --config config-csi.yaml --status
+#   python cobol_doc_agent.py --config config-csi.yaml --restart
+#
+
+# ============================================================================
+# SOURCE CONFIGURATION
+# ============================================================================
+source:
+  mode: batch
+  # CSI-COBOL source directory (XGEN-generated codebase)
+  source_files: /home/santosh/Downloads/csi-cobol
+  # Workspace is same as source for batch mode
+  workspace: /home/santosh/Downloads/csi-cobol
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # FILE FILTERING (Optional)
+  # ─────────────────────────────────────────────────────────────────────────
+  # Control which files are processed. Priority order:
+  # 1. include_files (if set, ONLY these files are processed)
+  # 2. extensions.include / extensions.exclude
+  # 3. exclude_files (remove matching patterns)
+  #
+  # Extension filtering - include specific extensions
+  extensions:
+    include:
+      - .c74      # COBOL74 source files
+    exclude:    # OR exclude specific extensions (mutually exclusive with include)
+      - .xgn    # Exclude XGEN generated files
+
+  # File pattern exclusion - glob patterns to skip
+  exclude_files:
+    - .XMOD     # XGEN module files
+    - .XLIB     # XGEN library files
+    - "TEST*"           # Skip test files
+    - "*-BACKUP.*"      # Skip backup files
+    - "*.bak"           # Skip .bak files
+
+  # File pattern inclusion - if set, ONLY these files (overrides all other filters)
+  # include_files:
+  #   - "TDAS-*.c74"    # Only process TDAS programs
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+output:
+  # Metadata output directory (using Downloads to avoid permission issues)
+  metadata_dir: /home/santosh/Downloads/csi-cobol-output/metadata
+  # Documentation output directory (checkpoint file will be stored here)
+  docs_path: /home/santosh/Downloads/csi-cobol-output/docs
+  create_dirs: true
+
+# ============================================================================
+# LLM CONFIGURATION - CLAUDE SDK
+# ============================================================================
+llm:
+  # Use Claude Agent SDK provider (uses Claude Code CLI authentication)
+  provider: claude_sdk
+  # model: 'sonnet'
+  model: 'claude-haiku-4-5-20251001'
+  temperature: 0.2
+
+  # Phase-specific configuration for claude_sdk provider
+  # Phase 1: Detailed code explanation (chunked processing, smaller context)
+  # Phase 2: Other sections (full context mode, requires 1M context)
+  phase1:
+    # model: 'sonnet'
+    model: 'claude-haiku-4-5-20251001'
+    max_thinking_tokens: 0       # Disable thinking for faster responses
+    # max_output_tokens: 65536     # 64K output tokens
+
+  phase2:
+    model: sonnet[1m]
+    betas:
+      - context-1m-2025-08-07
+
+  # Optional fallback (if primary fails, use this)
+  # fallback:
+  #   provider: claude_sdk
+  #   phase1:
+  #     model: sonnet
+  #   phase2:
+  #     model: sonnet[1m]
+  #     betas:
+  #       - context-1m-2025-08-07
+
+# ============================================================================
+# FULL CONTEXT MODE CONFIGURATION
+# ============================================================================
+full_context:
+  enabled: true
+
+  sections:
+    - executive-summary
+    - key-responsibilities
+    - business-logic
+    - overview
+    - data-flow-analysis
+    - detailed-code-explanation
+
+  program_map_overrides:
+    top_n_paragraphs: 100
+    top_n_data_items: 50
+
+  max_message_chars: 9500000
+
+  context_chaining:
+    enabled: true
+    max_tokens: null
+
+# ============================================================================
+# WORKFLOW CONFIGURATION
+# ============================================================================
+workflow:
+  # Auto-start Phase 2 after Phase 1 completes
+  # true  = display token count and proceed immediately
+  # false = pause after Phase 1, press Enter to continue or 'q' to skip Phase 2
+  auto_start_phase2: true
+
+# ============================================================================
+# PROGRAM MAP CONFIGURATION
+# ============================================================================
+program_map:
+  top_n_paragraphs: 50
+  top_n_data_items: 30
+  show_all: false
+
+  dynamic_limits:
+    enabled: true
+    small_threshold: 100
+    large_threshold: 500
+    small:
+      paragraphs: -1
+      data_items: -1
+    medium:
+      paragraphs: 200
+      data_items: 100
+    large:
+      paragraphs: 300
+      data_items: 150
+
+# ============================================================================
+# METADATA GENERATION
+# ============================================================================
+metadata:
+  generate: false   # Generate metadata via MCP servers before doc generation
+  skip_existing: true
+
+# ============================================================================
+# MCP SERVERS CONFIGURATION
+# ============================================================================
+servers:
+  ctags:
+    enabled: true
+    docker_image: ctags-mcp:test
+  gnuCobol:
+    enabled: true
+    docker_image: gnucobol-mcp:test
+  superbol-lsp:
+    enabled: true
+    docker_image: superbol-mcp:test
+
+# ============================================================================
+# SOURCE CODE EXTRACTION
+# ============================================================================
+source_extraction:
+  enabled: true
+  compress: true
+  use_ripgrep: true
+  ripgrep_patterns:
+    sql: true
+    comments: true
+    error_handling: true
+    calls: true
+
+  resolve_copybooks: false
+  resolve_called_programs: false
+
+# ============================================================================
+# TEMPLATE CONFIGURATION
+# ============================================================================
+template:
+  path: ./cobol-doc-template.yaml
+
+# ============================================================================
+# CHECKSUM VALIDATION
+# ============================================================================
+validate_checksums:
+  source_checksum_file_path: /home/santosh/Downloads/csi-cobol-output/source-checksum.yaml
+  metadata_checksum_file_path: /home/santosh/Downloads/csi-cobol-output/metadata-checksum.yaml
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  verbose: true
+  show_progress: true
+
+# ============================================================================
+# RUN LOGGING - Centralized per-run artifact capture
+# ============================================================================
+run_logging:
+  console_tee: true
+  capture_requests: true
+  capture_traces: true

@@ -287,24 +287,60 @@ sections:
       ```
 
       **Purpose:**
-      - High-level summary of what the block accomplishes.
+      Provide a comprehensive summary of this block covering:
+      - **Functional**: What the block does — its role in the program's execution
+        flow, what it processes, and what output or side-effect it produces.
+      - **Business Logic**: What business rule, policy, calculation, or domain
+        operation this block implements. If the block is purely technical
+        infrastructure (e.g., FILLER definitions, compiler directives), state
+        that explicitly instead.
+      - **Context**: How this block relates to the surrounding blocks — what it
+        receives from upstream logic and what it feeds into downstream logic.
 
-      **Detailed Explanation:**
-      - What each line does  
-      - Functional role  
-      - Execution flow  
-      - Conditional logic and branches  
-      - Variables and data elements used  
-      - Data transformations  
-      - File interactions  
-      - External calls  
+      This should be a detailed paragraph (5–15 sentences), not a one-liner.
+
+      **Detailed Line-by-line Explanation:**
+      - What each line does
+      - Functional role
+      - Execution flow
+      - Conditional logic and branches
+      - Variables and data elements used
+      - Data transformations
+      - File interactions
+      - External calls
       - Error handling (if any)
 
       **Technical Details:**
-      - Variables used  
-      - Called by  
-      - Calls  
-      - Side effects  
+      - Variables used
+      - Called by
+      - Calls
+      - Side effects
+
+      **Call Flow:**
+      List all PERFORM, CALL, and GO TO relationships in this block as
+      structured edges. Use the format:
+      - PARAGRAPH-A → PERFORM → PARAGRAPH-B
+      - PARAGRAPH-A → CALL → 'EXTERNAL-PROGRAM'
+      - PARAGRAPH-A → GO TO → PARAGRAPH-C
+
+      If this block contains no executable statements (e.g., it is a DATA
+      DIVISION record definition, WORKING-STORAGE layout, or FILE SECTION
+      entry), write: "No executable call flow (data definition block)."
+
+      **Data Flow:**
+      List all significant data reads and writes in this block as structured
+      edges. Use the format:
+      - PARAGRAPH-NAME: READS VAR-A, VAR-B; WRITES VAR-C, VAR-D
+      - PARAGRAPH-NAME: MOVES VAR-X TO VAR-Y
+      - PARAGRAPH-NAME: READS FILE-RECORD INTO WS-RECORD
+
+      For DATA DIVISION blocks, emit data structure relationships instead:
+      - RECORD-A REDEFINES RECORD-B
+      - GROUP-FIELD CONTAINS ELEM-1, ELEM-2, ELEM-3
+      - TABLE-FIELD OCCURS N TIMES (contains: FIELD-1, FIELD-2)
+
+      If this block has no data movement (unlikely), write:
+      "No significant data flow in this block."
 
       --------------------------------------------------------------------------
       ## Coverage Self-Assessment

@@ -105,9 +105,9 @@ def estimate_tokens(text: str, model: str = "gpt-4") -> int:
     """
     Estimate token count for text using provider-aware tokenization.
 
-    - OpenAI models: Uses tiktoken for accurate counting
-    - Claude models: Uses character-based estimation (4 chars ≈ 1 token)
-    - Falls back to estimation if tiktoken unavailable
+    - OpenAI models: Uses tiktoken with model-specific encoding
+    - Claude/unknown models: Uses tiktoken cl100k_base for accurate BPE counting
+    - Falls back to len(text)//4 estimation if tiktoken unavailable
 
     Args:
         text: Text to count tokens for
@@ -131,8 +131,16 @@ def estimate_tokens(text: str, model: str = "gpt-4") -> int:
             # Fallback to estimation if tiktoken fails
             pass
 
-    # For Claude or fallback: use character-based estimation
-    # Claude's tokenization is similar to GPT (~4 chars per token)
+    # For Claude or unknown: use tiktoken cl100k_base for accurate BPE tokenization
+    if TIKTOKEN_AVAILABLE:
+        try:
+            import tiktoken as tk
+            encoder = tk.get_encoding("cl100k_base")
+            return len(encoder.encode(text))
+        except Exception:
+            pass
+
+    # Last-resort fallback if tiktoken unavailable
     return len(text) // 4
 
 
@@ -190,5 +198,5 @@ def get_model_info(model: str, betas: Optional[List[str]] = None) -> Dict[str, A
         'provider': provider,
         'max_input_tokens': max_tokens,
         'has_1m_beta': has_1m,
-        'tiktoken_available': TIKTOKEN_AVAILABLE and provider == 'openai'
+        'tiktoken_available': TIKTOKEN_AVAILABLE
     }
