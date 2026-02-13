@@ -1,0 +1,167 @@
+# ============================================================================
+# TEST CONFIGURATION - Single File (TDAS-FMACTIVITY)
+# ============================================================================
+#
+# Test config for validating Phase 1 template changes:
+#   - Hash-ID per chunk
+#   - Enhanced Purpose field
+#   - Detailed Line-by-line Explanation (renamed)
+#   - Per-chunk Call Flow & Data Flow structured edges
+#   - Validation summary stripped from output
+#
+# Usage:
+#   python cobol_doc_agent.py --config config-csi-test-single.yaml
+#
+
+# ============================================================================
+# SOURCE CONFIGURATION - Single file mode
+# ============================================================================
+source:
+  mode: batch
+  source_files: /home/santosh/Downloads/csi-cobol/TDAS-FMACTIVITY.c74
+  workspace: /home/santosh/Downloads/csi-cobol
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+output:
+  metadata_dir: /home/santosh/Downloads/csi-cobol-output/metadata-test
+  docs_path: /home/santosh/Downloads/csi-cobol-output/docs-test
+  create_dirs: true
+
+# ============================================================================
+# LLM CONFIGURATION - CLAUDE SDK
+# ============================================================================
+llm:
+  provider: claude_sdk
+  model: 'claude-sonnet-4-5'
+  # model: 'claude-haiku-4-5-20251001'
+  temperature: 0.2
+
+  phase1:
+    model: 'claude-sonnet-4-5'
+    max_thinking_tokens: 0
+
+  phase2:
+    model: claude-sonnet-4-5
+    betas:
+      - context-1m-2025-08-07
+
+# ============================================================================
+# FULL CONTEXT MODE CONFIGURATION
+# ============================================================================
+full_context:
+  enabled: true
+
+  sections:
+    - executive-summary
+    - key-responsibilities
+    - business-logic
+    - overview
+    - data-flow-analysis
+    - detailed-code-explanation
+
+  program_map_overrides:
+    top_n_paragraphs: 100
+    top_n_data_items: 50
+
+  max_message_chars: 9500000
+
+  context_chaining:
+    enabled: true
+    max_tokens: null
+
+# ============================================================================
+# WORKFLOW CONFIGURATION
+# ============================================================================
+workflow:
+  auto_start_phasea: false
+
+# ============================================================================
+# PROGRAM MAP CONFIGURATION
+# ============================================================================
+program_map:
+  top_n_paragraphs: 50
+  top_n_data_items: 30
+  show_all: false
+
+  dynamic_limits:
+    enabled: true
+    small_threshold: 100
+    large_threshold: 500
+    small:
+      paragraphs: -1
+      data_items: -1
+    medium:
+      paragraphs: 200
+      data_items: 100
+    large:
+      paragraphs: 300
+      data_items: 150
+
+# ============================================================================
+# METADATA GENERATION
+# ============================================================================
+metadata:
+  generate: false
+  skip_existing: true
+
+# ============================================================================
+# MCP SERVERS CONFIGURATION
+# ============================================================================
+servers:
+  ctags:
+    enabled: true
+    docker_image: ctags-mcp:test
+  gnuCobol:
+    enabled: true
+    docker_image: gnucobol-mcp:test
+  superbol-lsp:
+    enabled: true
+    docker_image: superbol-mcp:test
+
+# ============================================================================
+# SOURCE CODE EXTRACTION
+# ============================================================================
+source_extraction:
+  enabled: true
+  compress: true
+  use_ripgrep: true
+  ripgrep_patterns:
+    sql: true
+    comments: true
+    error_handling: true
+    calls: true
+
+  resolve_copybooks: false
+  resolve_called_programs: false
+
+# ============================================================================
+# TEMPLATE CONFIGURATION
+# ============================================================================
+template:
+  path: ./cobol-doc-template.yaml
+
+# ============================================================================
+# CHECKSUM VALIDATION
+# ============================================================================
+validate_checksums:
+  source_checksum_file_path: /home/santosh/Downloads/csi-cobol-output/source-checksum.yaml
+  metadata_checksum_file_path: /home/santosh/Downloads/csi-cobol-output/metadata-checksum.yaml
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  verbose: true
+  show_progress: true
+
+# ============================================================================
+# RUN LOGGING - Centralized per-run artifact capture
+# ============================================================================
+run_logging:
+  console_tee: true
+  capture_requests: true
+  capture_traces: true

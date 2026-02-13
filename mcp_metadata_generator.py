@@ -14,6 +14,7 @@ The mcp-use library handles:
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -123,9 +124,10 @@ class MCPMetadataGenerator:
         if self.mcp_client:
             try:
                 await self.mcp_client.close_all_sessions()
-            except Exception as e:
-                # Cancel scope errors are common with anyio during cleanup
-                # Docker containers will still be cleaned up via --rm flag
+            except BaseException as e:
+                # CancelledError (BaseException in Python 3.9+) and cancel scope
+                # errors are common with anyio/mcp_use during cleanup.
+                # Docker containers will still be cleaned up via --rm flag.
                 print(f"  ⚠ Session cleanup encountered non-critical error: {e}")
             print("✓ Sessions closed, Docker containers cleaned up automatically")
 
@@ -454,6 +456,19 @@ def generate_metadata_sync(workspace_path: str, output_dir: str, cobol_files: Li
     """
     generator = MCPMetadataGenerator(workspace_path, output_dir, servers_config)
     asyncio.run(generator.generate_all_metadata(cobol_files))
+
+    # After asyncio.run() closes the event loop, lingering Docker subprocess
+    # transports hit __del__ and print noisy RuntimeError ("Event loop is
+    # closed") to stderr.  Force GC now with stderr suppressed so those
+    # harmless messages don't appear.  Docker containers are already removed
+    # via --rm flag.
+    import gc, io
+    real_stderr = sys.stderr
+    sys.stderr = io.StringIO()
+    try:
+        gc.collect()
+    finally:
+        sys.stderr = real_stderr
 
 
 # CLI for testing

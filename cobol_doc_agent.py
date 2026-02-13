@@ -2521,13 +2521,30 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             # its own work, but omit it from the final documentation).
             chunk_hash = hashlib.sha256(chunk_info['content'].encode('utf-8')).hexdigest()[:12]
             clean_result = re.sub(
-                r'---\s*\n## Coverage Self-Assessment.*',
+                r'---\s*\n#{2,3} Coverage Self-Assessment.*',
                 '',
                 chunk_result,
                 flags=re.DOTALL
             ).rstrip()
+
+            # Normalize LLM headings to H3+ (chunk header is H2, content must be below it)
+            in_fence = False
+            normalized_lines = []
+            for line in clean_result.split('\n'):
+                if line.startswith('```'):
+                    in_fence = not in_fence
+                    normalized_lines.append(line)
+                    continue
+                if not in_fence and line.startswith('#'):
+                    level = len(line) - len(line.lstrip('#'))
+                    if level > 0 and level < 3:
+                        # Shift up to H3 minimum (H1→H3, H2→H3)
+                        line = '###' + line[level:]
+                normalized_lines.append(line)
+            clean_result = '\n'.join(normalized_lines)
+
             final_chunk_doc = f"""
-## Hash-ID: {chunk_hash} | Chunk {chunk_num}/{total_chunks}: Lines {chunk_info['start_line']}-{chunk_info['end_line']}
+## Hash-ID: {chunk_hash} | Chunk {chunk_num}/{total_chunks} | Lines: {chunk_info['start_line']}-{chunk_info['end_line']}
 
 {clean_result}
 
@@ -3320,10 +3337,25 @@ def run_phase1_code_explanation(
     # Build context for the section
     context = build_section_context(state, code_explanation_section)
 
-    # Check if this is a large file requiring chunked processing
-    if 'chunked_file_info' in context:
-        print(f"  → Large file detected - using chunked processing")
+    # Always use chunked processing for Phase 1 (consistent Hash-ID, Call Flow, Data Flow format)
+    # For small files that weren't flagged by source_integration, create chunked_file_info here
+    if 'chunked_file_info' not in context:
+        cobol_file_path = state.get("cobol_file_path")
+        if cobol_file_path:
+            try:
+                with open(cobol_file_path, 'r', encoding='utf-8', errors='replace') as f:
+                    total_lines = sum(1 for _ in f)
+                context['chunked_file_info'] = {
+                    'type': 'CHUNKED_FILE',
+                    'file_path': cobol_file_path,
+                    'total_lines': total_lines,
+                    'max_lines_per_chunk': max(total_lines, 8000),  # Single chunk for small files
+                }
+                print(f"  → File: {total_lines:,} lines - using chunked processing")
+            except Exception as e:
+                print(f"  ⚠ Could not read file for chunking: {e}")
 
+    if 'chunked_file_info' in context:
         full_explanation = process_large_file_in_chunks(
             section_id=code_explanation_section.get("id", ""),
             section_title=code_explanation_section.get("title", "Detailed Code Explanation"),
@@ -3337,8 +3369,8 @@ def run_phase1_code_explanation(
             fallback_manager=fallback_manager
         )
     else:
-        # Small file - process normally
-        print(f"  → Small file - processing in single pass")
+        # Fallback: no COBOL file path available
+        print(f"  ⚠ No COBOL file path - using single-pass fallback")
         full_explanation = process_section_recursive(state, code_explanation_section)
 
     # Extract prose from the explanation
@@ -3570,6 +3602,71 @@ def build_prose_based_context(
     return context
 
 
+def _normalize_section_content(content: str, section_title: str) -> str:
+    """Normalize heading hierarchy within a section.
+
+    Ensures all headings in the content nest properly under the H1
+    section heading added by the assembly. The shallowest heading
+    in the content will be adjusted to H2.
+
+    1. Remove leading heading if it duplicates the section title
+    2. Adjust all heading levels so the shallowest is H2
+    """
+    lines = content.strip().split('\n')
+
+    # Step 1: Remove leading heading if it duplicates the section title
+    if lines and lines[0].startswith('#'):
+        heading_text = lines[0].lstrip('#').strip()
+        if heading_text.lower() == section_title.lower():
+            lines = lines[1:]
+            # Strip blank lines after the removed heading
+            while lines and not lines[0].strip():
+                lines = lines[1:]
+
+    # Step 2: Find minimum heading level (skip lines inside code blocks)
+    in_code_block = False
+    heading_levels = []
+    for line in lines:
+        if line.startswith('```'):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            continue
+        if line.startswith('#'):
+            level = len(line) - len(line.lstrip('#'))
+            if level > 0:
+                heading_levels.append(level)
+
+    if not heading_levels:
+        return '\n'.join(lines)
+
+    min_level = min(heading_levels)
+    if min_level == 2:
+        # Already correct — H2 is the shallowest
+        return '\n'.join(lines)
+
+    # Step 3: Shift all headings so shallowest becomes H2
+    offset = min_level - 2  # positive: shift up; negative: shift down
+    in_code_block = False
+    result = []
+    for line in lines:
+        if line.startswith('```'):
+            in_code_block = not in_code_block
+            result.append(line)
+            continue
+        if in_code_block:
+            result.append(line)
+            continue
+        if line.startswith('#'):
+            level = len(line) - len(line.lstrip('#'))
+            if level > 0:
+                new_level = max(2, level - offset)
+                line = '#' * new_level + line[level:]
+        result.append(line)
+
+    return '\n'.join(result)
+
+
 def assemble_final_document(
     program_name: str,
     code_explanation: str,
@@ -3580,6 +3677,7 @@ def assemble_final_document(
     Phase 3: Assemble all sections into final markdown document.
 
     Combines sections in the order specified by the template.
+    Each section gets an H1 heading; content within is normalized to H2+.
 
     Args:
         program_name: Program name for title
@@ -3619,10 +3717,14 @@ def assemble_final_document(
             print(f"  → Adding: {section_title} (from Phase 2)")
         else:
             # Section not generated
-            content = f"## {section_title}\n\n*Section not generated*\n"
+            content = "*Section not generated*"
             print(f"  → Skipping: {section_title} (not generated)")
 
-        doc_parts.append(f"\n{content}\n")
+        # Normalize content headings to H2+ (remove duplicate title, shift H1s down)
+        content = _normalize_section_content(content, section_title)
+
+        # Add section with H1 heading and separator
+        doc_parts.append(f"\n---\n\n# {section_title}\n\n{content}\n")
 
     final_doc = "\n".join(doc_parts)
 

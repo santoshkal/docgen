@@ -269,18 +269,18 @@ sections:
       ═══════════════════════════════════════════════════════════════════════════
 
       --------------------------------------------------------------------------
-      ## COBOL Code (Complete Verbatim Copy)
+      ### COBOL Code (Complete Verbatim Copy)
 
       ```cobol
       [EVERY LINE EXACTLY AS RECEIVED IN INPUT — VERBATIM, NO CHANGES]
       ```
 
       --------------------------------------------------------------------------
-      ## Explanation by Block
+      ### Explanation by Block
 
       For EACH logical block in the program:
 
-      ### Block N: [BLOCK-NAME] (Lines X–Y)
+      #### Block N: [BLOCK-NAME] (Lines X–Y)
 
       ```cobol
       [EXACT LINES X–Y FROM THE ORIGINAL INPUT — VERBATIM]
@@ -312,11 +312,12 @@ sections:
 
       **Technical Details:**
       - Variables used
-      - Called by
-      - Calls
+      - Called by: [list paragraph names or "N/A" for top-level blocks]
+      - Calls: [list PERFORM/CALL targets or "None"]
       - Side effects
 
       **Call Flow:**
+      MANDATORY — this sub-section MUST appear in EVERY block without exception.
       List all PERFORM, CALL, and GO TO relationships in this block as
       structured edges. Use the format:
       - PARAGRAPH-A → PERFORM → PARAGRAPH-B
@@ -327,7 +328,12 @@ sections:
       DIVISION record definition, WORKING-STORAGE layout, or FILE SECTION
       entry), write: "No executable call flow (data definition block)."
 
+      CROSS-CHECK: Every entry under Technical Details "Calls" MUST appear
+      as an edge here. If Technical Details says "Calls: PERFORM X", then
+      Call Flow MUST contain the edge "→ PERFORM → X".
+
       **Data Flow:**
+      MANDATORY — this sub-section MUST appear in EVERY block without exception.
       List all significant data reads and writes in this block as structured
       edges. Use the format:
       - PARAGRAPH-NAME: READS VAR-A, VAR-B; WRITES VAR-C, VAR-D
@@ -343,12 +349,14 @@ sections:
       "No significant data flow in this block."
 
       --------------------------------------------------------------------------
-      ## Coverage Self-Assessment
+      ### Coverage Self-Assessment
 
-      Use the EXACT template below:
+      Use the EXACT template below.
+      NOTE: This entire section is stripped from the final document. It exists
+      solely for you to self-validate before finishing your output.
 
       ---
-      ## Coverage Self-Assessment
+      ### Coverage Self-Assessment
 
       **Code Blocks Generated:**
       1. Block 1: [NAME] (Lines X–Y) - N lines
@@ -368,6 +376,21 @@ sections:
       - I excluded: [NUMBER] comment/page-break lines
       - Expected executable: {{line_count}} – [excluded count]
       - My self-assessed coverage: [NUMBER]%
+
+      **Sub-Section Completeness:**
+      For each block, confirm all five sub-sections are present (Purpose,
+      Detailed Line-by-line, Technical Details, Call Flow, Data Flow):
+      1. Block 1: [NAME] — Purpose ✔/✗ | Line-by-line ✔/✗ | TD ✔/✗ | CF ✔/✗ | DF ✔/✗
+      2. Block 2: [NAME] — Purpose ✔/✗ | Line-by-line ✔/✗ | TD ✔/✗ | CF ✔/✗ | DF ✔/✗
+      ... (all blocks)
+      If ANY block shows ✗, go back and add the missing sub-section before
+      finishing your output.
+
+      **Call Flow ↔ Technical Details Cross-Check:**
+      For each block whose Technical Details lists "Calls" entries, verify
+      every call appears as an edge in the Call Flow:
+      - Block N: TD says "Calls: X, Y" → CF has "→ X" ✔ and "→ Y" ✔
+      Fix any mismatch before finishing.
 
       ⚠️ This section must appear LAST in this chunk. No text may follow it.
       ---
@@ -458,7 +481,7 @@ sections:
 
       ---
 
-      ## Chunk Completion Checklist
+      ### Chunk Completion Checklist
 
       The following paragraphs were documented in this chunk:
 
