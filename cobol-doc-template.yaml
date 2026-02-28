@@ -314,6 +314,13 @@ sections:
       - Variables used
       - Called by: [list paragraph names or "N/A" for top-level blocks]
       - Calls: [list PERFORM/CALL targets or "None"]
+      - External calls: [list only CALL targets (external programs) or "None"]
+      - Reads: [list variables/records this block reads from]
+      - Writes: [list variables/records this block writes to]
+      - Block type: [one of: data_definition, executable, error_handling,
+        business_logic, infrastructure, entry_point]
+      - Entry point: [true if this is the program's main entry paragraph
+        or a top-level driver, false otherwise]
       - Side effects
 
       **Call Flow:**
