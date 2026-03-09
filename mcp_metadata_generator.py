@@ -441,20 +441,254 @@ class MCPMetadataGenerator:
                 json.dump(data, f, indent=2)
 
 
+class ConfigDrivenMCPMetadataGenerator:
+    """
+    Generic MCP metadata generator — reads servers/tools from YAML config.
+
+    Unlike MCPMetadataGenerator which hardcodes ctags/gnucobol/superbol,
+    this class dynamically builds MCP sessions from the config's
+    metadata.servers section and runs the declared tools.
+    """
+
+    def __init__(self, workspace_path: str, output_base_dir: str, servers_config: Dict[str, Any]):
+        self.workspace_path = Path(workspace_path).absolute()
+        self.output_base_dir = Path(output_base_dir).absolute()
+        self.servers_config = servers_config
+        self.mcp_client: MCPClient = None
+
+    def get_mcp_config(self) -> Dict[str, Any]:
+        """Build mcp-use config dynamically from servers_config."""
+        mcp_servers = {}
+
+        for server_name, server_cfg in self.servers_config.items():
+            if not isinstance(server_cfg, dict):
+                continue
+            if not server_cfg.get('enabled', True):
+                continue
+
+            docker_image = server_cfg.get('docker_image')
+            if not docker_image:
+                raise ValueError(f"Missing docker_image for server: {server_name}")
+
+            # Create output directory for this server
+            server_output_dir = self.output_base_dir / server_name
+            server_output_dir.mkdir(parents=True, exist_ok=True)
+
+            mcp_servers[server_name] = {
+                "command": "docker",
+                "args": [
+                    "run", "-i", "--rm",
+                    "-v", f"{self.workspace_path}:/workspace:ro",
+                    "-v", f"{server_output_dir}:/output",
+                    docker_image
+                ]
+            }
+
+        return {"mcpServers": mcp_servers}
+
+    def _substitute_placeholders(self, args: Dict[str, Any], source_file: str = "", program_name: str = "") -> Dict[str, Any]:
+        """Replace {{placeholders}} in tool arguments."""
+        # Compute workspace-relative path for source file
+        # e.g., "AutolivSweden/Atoms.cs" for nested files, "MAINPROG.cbl" for flat
+        if source_file:
+            try:
+                relative_source = str(Path(source_file).relative_to(self.workspace_path))
+            except ValueError:
+                relative_source = Path(source_file).name
+        else:
+            relative_source = ""
+
+        result = {}
+        for key, value in args.items():
+            if isinstance(value, str):
+                if '{{source_content}}' in value:
+                    # Read file content for tools that need source code as a string
+                    file_path = Path(source_file) if source_file else None
+                    if file_path and file_path.exists():
+                        content = file_path.read_text(encoding='utf-8', errors='replace')
+                        value = value.replace('{{source_content}}', content)
+                    else:
+                        value = value.replace('{{source_content}}', '')
+                        print(f"  ⚠ Cannot read source content: {file_path}")
+                value = value.replace('{{workspace}}', '/workspace')
+                value = value.replace('{{source_file}}', f'/workspace/{relative_source}' if relative_source else '/workspace')
+                value = value.replace('{{program_name}}', program_name)
+            result[key] = value
+        return result
+
+    async def initialize(self):
+        """Initialize MCP client and create sessions."""
+        print("\n" + "=" * 70)
+        print("Initializing Config-Driven MCP Metadata Generator")
+        print("=" * 70)
+
+        mcp_config = self.get_mcp_config()
+        print(f"\nMCP Configuration:")
+        print(json.dumps(mcp_config, indent=2))
+
+        self.mcp_client = MCPClient.from_dict(mcp_config)
+        print("\nCreating MCP sessions (starting Docker containers)...")
+        await self.mcp_client.create_all_sessions()
+        print("✓ All MCP sessions created and ready")
+
+    async def cleanup(self):
+        """Cleanup MCP sessions."""
+        print("\n" + "=" * 70)
+        print("Cleaning Up MCP Sessions")
+        print("=" * 70)
+
+        if self.mcp_client:
+            try:
+                await self.mcp_client.close_all_sessions()
+            except BaseException as e:
+                print(f"  ⚠ Session cleanup encountered non-critical error: {e}")
+            print("✓ Sessions closed, Docker containers cleaned up automatically")
+
+    async def generate_all_metadata(self, source_files: List[str]):
+        """
+        Generate metadata for all source files using configured MCP servers.
+
+        Args:
+            source_files: List of source file names (e.g., ["MyClass.cs"])
+        """
+        try:
+            await self.initialize()
+
+            print("\n" + "=" * 70)
+            print(f"Generating Metadata for {len(source_files)} files")
+            print("=" * 70)
+
+            for server_name, server_cfg in self.servers_config.items():
+                if not isinstance(server_cfg, dict):
+                    continue
+                if not server_cfg.get('enabled', True):
+                    continue
+                if 'tools' not in server_cfg:
+                    continue
+
+                print(f"\n--- Server: {server_name} ---")
+                session = self.mcp_client.get_session(server_name)
+
+                for tool_cfg in server_cfg['tools']:
+                    tool_name = tool_cfg['name']
+                    output_key = tool_cfg.get('output_key', tool_name)
+                    scope = tool_cfg.get('scope', 'file')
+                    base_args = tool_cfg.get('args', {})
+
+                    if scope == 'project':
+                        # Run once for the whole project
+                        args = self._substitute_placeholders(base_args)
+                        print(f"\n  Running {tool_name} (project scope)...")
+                        result = await session.call_tool(tool_name, args)
+
+                        output_path = self.output_base_dir / output_key
+                        if not output_path.suffix:
+                            output_path = output_path.with_suffix('.json')
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        self._write_json(result, output_path)
+                        print(f"  ✓ {tool_name} → {output_path.name}")
+
+                    elif scope == 'file':
+                        # Run per source file
+                        output_dir = self.output_base_dir / output_key
+                        output_dir.mkdir(parents=True, exist_ok=True)
+
+                        for source_file in source_files:
+                            program_name = Path(source_file).stem
+                            args = self._substitute_placeholders(
+                                base_args,
+                                source_file=source_file,
+                                program_name=program_name
+                            )
+
+                            print(f"  Running {tool_name} for {program_name}...")
+                            result = await session.call_tool(tool_name, args)
+
+                            file_output = output_dir / f"{program_name}.json"
+                            self._write_json(result, file_output)
+                            print(f"  ✓ {tool_name}({program_name}) → {file_output.name}")
+
+            print("\n" + "=" * 70)
+            print("✓ Config-Driven Metadata Generation Complete!")
+            print("=" * 70)
+            print(f"\nMetadata saved to: {self.output_base_dir}")
+
+        except Exception as e:
+            print(f"\n✗ Error during metadata generation: {e}")
+            raise
+        finally:
+            await self.cleanup()
+
+    def _write_json(self, data: Any, path: Path):
+        """Write JSON data to file (handles CallToolResult objects)."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        if hasattr(data, 'content'):
+            content_items = data.content
+            if content_items and len(content_items) > 0:
+                first_item = content_items[0]
+                if hasattr(first_item, 'text'):
+                    try:
+                        json_data = json.loads(first_item.text)
+                        with open(path, 'w') as f:
+                            json.dump(json_data, f, indent=2)
+                    except json.JSONDecodeError:
+                        with open(path, 'w') as f:
+                            f.write(first_item.text)
+                else:
+                    with open(path, 'w') as f:
+                        json.dump({"content": str(first_item)}, f, indent=2)
+            else:
+                with open(path, 'w') as f:
+                    json.dump({"error": "Empty result"}, f, indent=2)
+        else:
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=2)
+
+
+def create_metadata_generator(config: Dict[str, Any], workspace_path: str, output_base_dir: str):
+    """
+    Factory: auto-detect config format and return the right generator.
+
+    If any server has 'tools' declarations → ConfigDrivenMCPMetadataGenerator.
+    Otherwise → legacy MCPMetadataGenerator (COBOL-specific).
+    """
+    servers_config = config.get('metadata', {}).get('servers', {})
+    has_tools = any(
+        'tools' in s
+        for s in servers_config.values()
+        if isinstance(s, dict)
+    )
+    if has_tools:
+        return ConfigDrivenMCPMetadataGenerator(workspace_path, output_base_dir, servers_config)
+    return MCPMetadataGenerator(workspace_path, output_base_dir, servers_config)
+
+
 # Synchronous wrapper for LangGraph integration
-def generate_metadata_sync(workspace_path: str, output_dir: str, cobol_files: List[str], servers_config: Dict[str, Any] = None):
+def generate_metadata_sync(
+    workspace_path: str,
+    output_dir: str,
+    cobol_files: List[str],
+    servers_config: Dict[str, Any] = None,
+    config: Dict[str, Any] = None
+):
     """
     Synchronous wrapper for metadata generation
 
     Can be called from LangGraph nodes.
 
     Args:
-        workspace_path: Path to directory containing COBOL source files
+        workspace_path: Path to directory containing source files
         output_dir: Base directory for metadata output
-        cobol_files: List of COBOL file names (e.g., ["MAINPROG.COB"])
+        cobol_files: List of source file names (e.g., ["MAINPROG.COB", "MyClass.cs"])
         servers_config: Optional server configuration dict from YAML config
+        config: Optional full config dict — if provided, uses factory to pick generator
     """
-    generator = MCPMetadataGenerator(workspace_path, output_dir, servers_config)
+    if config:
+        generator = create_metadata_generator(config, workspace_path, output_dir)
+    else:
+        generator = MCPMetadataGenerator(workspace_path, output_dir, servers_config)
+
     asyncio.run(generator.generate_all_metadata(cobol_files))
 
     # After asyncio.run() closes the event loop, lingering Docker subprocess

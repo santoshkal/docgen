@@ -116,6 +116,19 @@ class ConfigLoader:
         config = self._ensure_loaded()
         return config.get('source', {})
 
+    def get_language_config(self) -> str:
+        """
+        Get the language setting from source configuration.
+
+        Reads source.language from config, defaulting to 'cobol'
+        for backward compatibility.
+
+        Returns:
+            Language identifier string (e.g., 'cobol', 'dotnet')
+        """
+        source_config = self.get_source_config()
+        return source_config.get('language', 'cobol')
+
     def get_file_filter_config(self) -> Dict[str, Any]:
         """
         Get file filtering configuration from source section.

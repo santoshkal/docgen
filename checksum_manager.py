@@ -30,12 +30,13 @@ class ChecksumManager:
         self.algorithm = algorithm
         self.hash_func = getattr(hashlib, algorithm)
 
-    def calculate_file_checksum(self, file_path: Path) -> str:
+    def calculate_file_checksum(self, file_path: Path, quiet: bool = False) -> str:
         """
         Calculate checksum of a single file
 
         Args:
             file_path: Path to file
+            quiet: If True, suppress per-file warning messages
 
         Returns:
             Hexadecimal checksum string
@@ -51,7 +52,8 @@ class ChecksumManager:
             return hash_obj.hexdigest()
 
         except Exception as e:
-            print(f"⚠ Warning: Could not calculate checksum for {file_path}: {e}")
+            if not quiet:
+                print(f"⚠ Warning: Could not calculate checksum for {file_path}: {e}")
             return ""
 
     def calculate_source_checksums(self, source_files: List[Path], workspace_path: Path) -> Dict[str, Any]:
@@ -72,6 +74,7 @@ class ChecksumManager:
         workspace_path = Path(workspace_path)
         checksums = {}
         file_details = {}
+        failed_files = []
 
         for file_path in sorted(source_files):
             # Calculate relative path from workspace root
@@ -84,7 +87,7 @@ class ChecksumManager:
             # Use forward slashes for cross-platform compatibility
             path_key = str(relative_path).replace('\\', '/')
 
-            checksum = self.calculate_file_checksum(file_path)
+            checksum = self.calculate_file_checksum(file_path, quiet=True)
 
             if checksum:
                 checksums[path_key] = checksum
@@ -93,6 +96,18 @@ class ChecksumManager:
                     "modified_at": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
                 }
                 print(f"  ✓ {path_key}: {checksum[:16]}...")
+            else:
+                failed_files.append(path_key)
+
+        if failed_files:
+            print(f"  ⚠ Could not calculate checksums for {len(failed_files)} file(s) (not found or unreadable)")
+            if len(failed_files) <= 5:
+                for f in failed_files:
+                    print(f"    - {f}")
+            else:
+                for f in failed_files[:3]:
+                    print(f"    - {f}")
+                print(f"    ... and {len(failed_files) - 3} more")
 
         result = {
             "metadata": {

@@ -1,0 +1,613 @@
+# .NET/C# Code Documentation Template
+# Adapted from COBOL template v4 for C#/.NET projects
+# Same section ID structure where possible so the Phase 1/2/3 pipeline works unchanged
+
+template:
+  id: dotnet-documentation-template-v1
+  name: ".NET/C# Code Documentation"
+  version: 1.0
+  output:
+    format: markdown
+    filename: "docs/{{program_name}}-documentation.md"
+    title: "{{program_name}} - Code Documentation"
+
+workflow:
+  mode: automated
+  metadata_sources:
+    - structural_outline
+    - symbol_table
+    - static_analysis
+
+#######################################################################################
+# GLOBAL DEPENDENCY CATEGORIZATION HEURISTICS (C#/.NET)
+#######################################################################################
+
+dependency_categorization_heuristics:
+  framework_patterns:
+    - "System"
+    - "System.*"
+    - "Microsoft.*"
+    - "Windows.*"
+    - "Azure.*"
+
+  third_party_patterns:
+    - "Newtonsoft"
+    - "log4net"
+    - "NLog"
+    - "Serilog"
+    - "NUnit"
+    - "xUnit"
+    - "Moq"
+    - "AutoMapper"
+    - "Dapper"
+    - "MediatR"
+    - "FluentValidation"
+
+  internal_patterns:
+    - "ng.*"
+    - "iMES.*"
+
+  fallback_rules:
+    default_category: "Internal/Application"
+
+#######################################################################################
+# DOCUMENT HEADER
+#######################################################################################
+
+sections:
+  - id: document-header
+    title: "Document Header"
+    instruction: |
+      Extract file name and generate header.
+      Include timestamp and metadata sources.
+
+      Replace ALL template variables (no placeholders allowed).
+    sections:
+      - id: metadata-info
+        title: Document Information
+        template: |
+          **Generated**: {{generation_timestamp}}
+          **File**: {{program_name}}.cs
+          **Source File**: {{source_file_path}}
+          **Metadata Sources**: CTags structural outline, symbol table, static analysis
+
+#######################################################################################
+# EXECUTIVE SUMMARY
+#######################################################################################
+
+  - id: executive-summary
+    title: Executive Summary
+    instruction: |
+      Produce a 3-7 sentence high-level summary.
+
+      PURPOSE PRIORITY:
+      1. XML documentation comments (/// summary) — authoritative
+      2. Class/interface names and their relationships
+      3. Method signatures and their purposes
+      4. Namespace context
+
+      CONTENT:
+      - Clearly state what the file/class does, in domain terms.
+      - Where it fits in the application architecture.
+      - 3-7 specific key responsibilities derived from:
+        - XML doc comments AND
+        - Public method signatures
+      - High-level summary of external dependencies grouped into:
+        - .NET Framework/Runtime
+        - Third-party Libraries (NuGet)
+        - Internal/Application
+
+    template: |
+      {{summary_paragraph}}
+
+      **Key Responsibilities:**
+      {{responsibilities_list}}
+
+      **External Dependencies (Categorized):**
+      {{dependencies_list}}
+
+#######################################################################################
+# PROGRAM STRUCTURE
+#######################################################################################
+
+  - id: program-structure
+    title: Program Structure
+    instruction: |
+      Use structural outline metadata to list namespaces, classes, interfaces,
+      and their members. For each, infer purpose from:
+      - XML doc comments (preferred)
+      - Names and usage patterns
+      - Design patterns (Repository, Factory, Observer, etc.)
+
+    sections:
+      - id: namespace-class-hierarchy
+        title: Namespace & Type Hierarchy
+        type: table
+        columns: [Namespace, Type, Kind, Line Number, Purpose]
+        template: |
+          | {{namespace}} | {{type_name}} | {{kind}} | {{line_number}} | {{inferred_purpose}} |
+
+      - id: using-directives
+        title: Using Directives
+        instruction: |
+          List all using directives from the file.
+
+          For each using directive:
+          - Categorize as Framework / Third-party / Internal using
+            dependency_categorization_heuristics.
+          - Describe purpose briefly.
+
+          If no using directives, say: "No using directives".
+        template: |
+          ### Framework
+          {{framework_usings}}
+
+          ### Third-party
+          {{third_party_usings}}
+
+          ### Internal
+          {{internal_usings}}
+
+      - id: fields-properties
+        title: Fields & Properties
+        instruction: |
+          Extract fields, properties, and nested types from metadata.
+
+          For each:
+          - Show access modifier (public/private/protected/internal)
+          - Show type and name
+          - Note if static, readonly, const, or auto-property
+          - Infer business purpose
+
+        repeatable: true
+        template: |
+          ### {{member_name}} (Line {{line_number}})
+
+          **Access**: {{access_modifier}}
+          **Type**: {{member_type}}
+          **Purpose**: {{inferred_purpose}}
+          **Used In**: {{usage_locations}}
+
+#######################################################################################
+# DETAILED CODE EXPLANATION
+#######################################################################################
+
+  - id: detailed-code-explanation
+    title: Detailed Code-Block Explanation
+    instruction: |
+      You will receive C# source code from lines {{start_line}} to {{end_line}}.
+
+      You have TWO CRITICAL JOBS:
+
+      CRITICAL JOB #1 — VERBATIM CODE REPRODUCTION
+      Output the ENTIRE original C# source code inside ```csharp``` fenced code blocks.
+
+      CRITICAL JOB #2 — BLOCK-BY-BLOCK CODE EXPLANATION
+      Provide a complete explanation for each logical block (class, method,
+      property group, etc.), including a verbatim code snippet for each block.
+
+      OUTPUT STRUCTURE:
+
+      ### C# Code (Complete Verbatim Copy)
+
+      ```csharp
+      [EVERY LINE EXACTLY AS RECEIVED — VERBATIM]
+      ```
+
+      ### Explanation by Block
+
+      For EACH logical block:
+
+      #### Block N: [BLOCK-NAME] (Lines X-Y)
+
+      ```csharp
+      [EXACT LINES X-Y FROM THE ORIGINAL INPUT — VERBATIM]
+      ```
+
+      **Purpose:**
+      Comprehensive summary covering:
+      - **Functional**: What the block does — its role in the class/application
+      - **Business Logic**: What business rule or domain operation it implements
+      - **Context**: How it relates to surrounding code
+
+      **Detailed Line-by-line Explanation:**
+      - What each line does
+      - Method calls and their purposes
+      - Conditional logic and branches
+      - Variables and data elements used
+      - LINQ expressions
+      - Async/await patterns
+      - Error handling (try/catch)
+
+      **Technical Details:**
+      - Variables/fields used
+      - Called by: [list callers or "N/A"]
+      - Calls: [list method calls or "None"]
+      - External calls: [list external service/API calls or "None"]
+      - Reads: [data read by this block]
+      - Writes: [data written/modified by this block]
+      - Block type: [one of: type_definition, method, property, constructor,
+        event_handler, error_handling, business_logic, infrastructure, entry_point]
+      - Entry point: [true/false]
+
+      **Call Flow:**
+      MANDATORY — list all method call relationships:
+      - MethodA → calls → MethodB
+      - MethodA → calls → ExternalService.Method()
+      - MethodA → awaits → AsyncMethod()
+
+      If no executable statements: "No executable call flow (type/field definition block)."
+
+      **Data Flow:**
+      MANDATORY — list significant data reads and writes:
+      - Method: READS fieldA, paramB; WRITES fieldC
+      - Method: TRANSFORMS inputX TO outputY via LINQ
+
+      For type definitions:
+      - ClassA INHERITS BaseClass
+      - ClassA IMPLEMENTS IInterface
+      - Property PropertyName { get; set; } TYPE TypeName
+
+      ### Coverage Self-Assessment
+
+      **Code Blocks Generated:**
+      1. Block 1: [NAME] (Lines X-Y) - N lines
+      ...
+
+      **Total Lines in My Code Blocks:** [NUMBER]
+      **My self-assessed coverage:** [NUMBER]%
+
+    template: |
+      The following analysis covers the entire source code sequentially, from the first line to the last.
+      Each numbered item represents a class, method, or logically grouped set of members.
+
+      {{comprehensive_code_explanations}}
+
+      ---
+
+      ### Chunk Completion Checklist
+
+      The following blocks were documented in this chunk:
+
+      {{paragraph_checklist}}
+
+#######################################################################################
+# CONTROL FLOW ANALYSIS
+#######################################################################################
+
+  - id: control-flow-analysis
+    title: Control Flow Analysis
+    instruction: |
+      Describe the control flow of the application/class.
+
+      Focus on:
+      - Constructor and initialization flow
+      - Main execution paths
+      - Method call chains
+      - Event handlers and callbacks
+      - Error handling paths
+
+    sections:
+      - id: cfg-with-calls-diagram
+        title: High-Level Control Flow with External Calls
+        type: mermaid
+        mermaid_type: graph
+        instruction: |
+          Generate a simplified Mermaid graph LR diagram.
+
+          CONTENT RULES:
+          - Include:
+            - Entry points (Main, constructors, event handlers)
+            - Core business methods (3-10)
+            - Error handling methods
+          - Aggregate utility/helper methods into summary nodes.
+
+          External calls:
+          - Represent external services/APIs as nodes
+          - Use dashed edges for external calls
+
+        template: |
+          ```mermaid
+          graph LR
+            {{method_nodes_with_calls}}
+
+            classDef external fill:#aff,stroke:#06c,stroke-width:2px;
+            classDef method fill:#fff,stroke:#333,stroke-width:1px;
+            classDef helper fill:#eee,stroke:#999,stroke-width:1px,font-style:italic;
+            {{styling_classes}}
+          ```
+
+      - id: external-call-context
+        title: External Call Context
+        instruction: |
+          For each external dependency call:
+          - Identify calling method
+          - Categorize: Framework / Third-party / Internal
+          - Describe purpose
+
+        template: |
+          ### External Calls by Method
+
+          {{external_calls_by_method}}
+
+      - id: paragraph-complexity
+        title: Method Complexity & Business Role
+        type: table
+        columns: [Method, Line, Calls Out, Parameters, Complexity, Role]
+        instruction: |
+          Complexity (Low/Medium/High) based on:
+          - Cyclomatic complexity estimate
+          - Number of branches/conditions
+          - LINQ query complexity
+
+          Role:
+          - Entry point
+          - Core business logic
+          - Data access
+          - Validation
+          - Helper/utility
+          - Error handling
+
+        template: |
+          | {{method}} | {{line}} | {{calls_out}} | {{param_count}} | {{complexity_level}} | {{role}} |
+
+#######################################################################################
+# DATA FLOW ANALYSIS
+#######################################################################################
+
+  - id: data-flow-analysis
+    title: Data Flow Analysis
+    instruction: |
+      Focus on key business data elements and show how they flow:
+      - Inputs (parameters, configuration, database reads, API calls)
+      - Transformations (LINQ, mapping, calculations)
+      - Outputs (return values, database writes, API responses)
+
+    sections:
+      - id: dfa-diagram
+        title: Data Flow Diagram (Key Items)
+        type: mermaid
+        mermaid_type: graph
+        instruction: |
+          Generate a Mermaid graph LR diagram showing:
+          - Source nodes: input parameters, config, DB reads
+          - Process nodes: methods where data is transformed
+          - Sink nodes: return values, DB writes, API calls
+
+          Follow Mermaid syntax rules:
+          - IDs: letters/digits/underscore only
+          - No HTML tags in labels
+
+        template: |
+          ```mermaid
+          graph LR
+            {{dfa_mermaid_content}}
+          ```
+
+      - id: data-transformations
+        title: Data Transformations
+        instruction: |
+          For each key transformation:
+          - Identify source and target data
+          - Note operation type (LINQ, mapping, calculation, etc.)
+          - Explain business purpose
+
+        repeatable: true
+        template: |
+          **{{transformation_step}}**: {{source_data}} -> {{target_data}}
+          - Location: Line {{line_number}}
+          - Operation: {{operation_type}}
+          - Purpose: {{inferred_purpose}}
+
+#######################################################################################
+# ASSEMBLY REFERENCES & DEPENDENCIES
+#######################################################################################
+
+  - id: assembly-references
+    title: Assembly References & Dependencies
+    instruction: |
+      Document external dependencies:
+      - Using directives grouped by category
+      - NuGet package references (if detectable from metadata)
+      - Project references
+      - Framework dependencies
+
+    sections:
+      - id: call-frequency-heatmap
+        title: Dependency Usage & Category
+        type: table
+        columns: [Dependency, Category, Usage Count, Used In, Importance]
+        template: |
+          | {{dependency_name}} | {{category}} | {{usage_count}} | {{using_methods}} | {{importance}} |
+
+      - id: program-call-diagram
+        title: Dependency Hierarchy
+        type: mermaid
+        mermaid_type: graph
+        instruction: |
+          Create a dependency diagram:
+          - Center node: current file/class
+          - One node per external dependency (group framework deps)
+          - Dashed edges for external calls
+
+        template: |
+          ```mermaid
+          graph LR
+            CURRENT["{{program_name}}"]
+            {{dependency_nodes}}
+            {{dependency_relationships}}
+
+            classDef current fill:#f9f,stroke:#333,stroke-width:4px;
+            classDef framework fill:#ddd,stroke:#333,stroke-width:1px;
+            classDef thirdparty fill:#fc9,stroke:#333,stroke-width:1px;
+            classDef internal fill:#9cf,stroke:#333,stroke-width:2px;
+            class CURRENT current;
+            {{dependency_styling}}
+          ```
+
+      - id: call-details-with-context
+        title: Detailed Dependency Analysis
+        repeatable: true
+        template: |
+          ### {{dependency_name}} ({{category}})
+
+          **Usage in This File**:
+          - Reference Count: {{usage_count}}
+          - Used In:
+            {{method_and_line_list}}
+
+          **Purpose & Integration**:
+          {{inferred_purpose_and_integration}}
+
+#######################################################################################
+# BUSINESS LOGIC EXPLANATION
+#######################################################################################
+
+  - id: business-logic
+    title: Business Logic Explanation
+    instruction: |
+      Synthesize code analysis to explain how the class/file implements
+      its business purpose.
+
+      Identify:
+      - Initialization and setup
+      - Main business processing flow
+      - Validation and error handling
+      - Output and cleanup
+
+    sections:
+      - id: execution-flow-sequence
+        title: Execution Flow Sequence
+        type: mermaid
+        mermaid_type: sequence
+        instruction: |
+          Create a sequence diagram for the main execution path.
+
+          Participants:
+          - Caller (upstream component)
+          - Current class
+          - Key dependencies (at most 3-7)
+
+        template: |
+          ```mermaid
+          sequenceDiagram
+            participant CALLER as "Caller"
+            participant CURRENT as "{{program_name}}"
+            {{dependency_participants}}
+
+            {{detailed_execution_sequence}}
+          ```
+
+      - id: business-operations-catalog
+        title: Business Operations Catalog
+        instruction: |
+          Group related methods into business operations.
+
+        repeatable: true
+        template: |
+          ### {{operation_name}}
+
+          **Business Purpose**: {{business_purpose}}
+
+          **Implementation**:
+          - Primary Method: {{primary_method}} (Line {{line}})
+          - Supporting Methods: {{supporting_methods}}
+
+          **Data Requirements**:
+          {{required_data}}
+
+          **External Dependencies**:
+          {{external_deps}}
+
+          **Process Flow**:
+          {{step_by_step_flow}}
+
+          **Error Handling**:
+          {{error_handling_approach}}
+
+#######################################################################################
+# ERROR HANDLING
+#######################################################################################
+
+  - id: error-handling
+    title: Error Handling Strategy
+    instruction: |
+      Document:
+      - Exception types caught and thrown
+      - Try/catch/finally patterns
+      - Custom exception classes
+      - Validation and guard clauses
+      - Logging of errors
+
+    template: |
+      **Exception Types**: {{exception_types}}
+
+      **Error Handling Approach**:
+      {{error_handling_description}}
+
+      **Validation Points**:
+      {{validation_points}}
+
+      **Error Recovery**:
+      {{error_recovery_approach}}
+
+#######################################################################################
+# TECHNICAL DETAILS
+#######################################################################################
+
+  - id: technical-details
+    title: Technical Details
+    instruction: |
+      Provide concise technical metrics and dependency overview.
+
+    sections:
+      - id: code-metrics
+        title: Code Metrics
+        type: table
+        columns: [Metric, Value]
+        template: |
+          | {{metric_name}} | {{metric_value}} |
+
+      - id: dependencies-matrix
+        title: Dependencies Matrix
+        type: table
+        columns: [Dependency Type, Name, Category, Count, Lines]
+        template: |
+          | {{dependency_type}} | {{dependency_name}} | {{dependency_category}} | {{usage_count}} | {{line_numbers}} |
+
+#######################################################################################
+# CODE REFERENCES & METADATA APPENDIX
+#######################################################################################
+
+  - id: code-references
+    title: Code References
+    instruction: |
+      Provide quick links to important areas of the source (by line range or method).
+
+    template: |
+      ### Quick Reference Links
+
+      {{code_reference_links}}
+
+  - id: metadata-appendix
+    title: Appendix - Metadata Summary
+    instruction: |
+      Summarize analysis metadata for transparency and debugging.
+
+    sections:
+      - id: ctags-summary
+        title: Structural Outline Metadata
+        template: |
+          **Total Symbols**: {{total_symbols}}
+          **Namespaces**: {{namespace_count}}
+          **Types**: {{type_count}}
+          **Methods**: {{method_count}}
+          **Properties**: {{property_count}}
+
+      - id: analysis-summary
+        title: Static Analysis Metadata
+        template: |
+          **Cyclomatic Complexity**: {{complexity_score}}
+          **Lines of Code**: {{loc_count}}
+          **Analysis Tool**: {{analysis_tool}}
+          **Analysis Success**: {{analysis_success}}

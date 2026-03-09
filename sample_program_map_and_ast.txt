@@ -1,0 +1,895 @@
+================================================================================
+REAL DATA: HeijunkaData.cs Program Map
+(Generated from structural_outline metadata via DotNetAdapter)
+================================================================================
+
+# Program Map: HeijunkaData
+
+## Namespaces
+- ng.data.requirements.heijunka (line 7)
+
+## Types
+- enum PitchType (line 14)
+- enum ng.data.requirements.heijunka.PitchType (line 14)
+- enum PitchStatus (line 15)
+- enum ng.data.requirements.heijunka.PitchStatus (line 15)
+
+## Properties
+- Line (line 33)
+- ng.data.requirements.heijunka.HeijunkaLineSetupOptions.Line (line 33)
+- SyncRoot (line 42)
+- ng.data.requirements.heijunka.HeijunkaLineSetupOptions.SyncRoot (line 42)
+- ExtendedShiftTolerance (line 49)
+- ng.data.requirements.heijunka.HeijunkaLineSetupOptions.ExtendedShiftTolerance (line 49)
+- OverPlanTolerance (line 61)
+- ng.data.requirements.heijunka.HeijunkaLineSetupOptions.OverPlanTolerance (line 61)
+- OverTimeTolerance (line 73)
+- ng.data.requirements.heijunka.HeijunkaLineSetupOptions.OverTimeTolerance (line 73)
+- From (line 101)
+- ng.data.requirements.heijunka.CumToleranceEntry.From (line 101)
+- Data (line 130)
+- ng.data.requirements.heijunka.CumToleranceEntry.Data (line 130)
+- DataIndicator (line 184)
+- ng.data.requirements.heijunka.AbstractPitchDetail.DataIndicator (line 184)
+- Replan (line 200)
+- ng.data.requirements.heijunka.AbstractPitchDetail.Replan (line 200)
+- EnterpriseName (line 211)
+- ng.data.requirements.heijunka.AbstractPitchDetail.EnterpriseName (line 211)
+- DivisionName (line 222)
+- ng.data.requirements.heijunka.AbstractPitchDetail.DivisionName (line 222)
+- PitchItemID (line 234)
+- ng.data.requirements.heijunka.AbstractPitchDetail.PitchItemID (line 234)
+- TotalTime (line 246)
+- ng.data.requirements.heijunka.AbstractPitchDetail.TotalTime (line 246)
+- InstanceName (line 255)
+- ng.data.requirements.heijunka.AbstractPitchDetail.InstanceName (line 255)
+- LineID (line 266)
+- ng.data.requirements.heijunka.AbstractPitchDetail.LineID (line 266)
+  ... and 146 more properties
+
+## Summary
+- Namespaces: 1
+- Types: 4
+- Methods: 0
+- Properties: 176
+
+
+================================================================================
+REAL DATA: HeijunkaData AST Filter Statistics
+================================================================================
+
+Full AST: 606 nodes, 39,378 chars (~9,844 tokens)
+Filtered AST (lines 766-900, LinePitch start): 30 nodes, 4,224 chars (~1,056 tokens)
+Reduction: 95.0% nodes removed
+
+
+================================================================================
+REAL DATA: Filtered AST — Chunk lines 766-900 (LinePitch class start)
+================================================================================
+
+{
+  "type": "compilation_unit",
+  "is_named": true,
+  "start_byte": 0,
+  "end_byte": 118353,
+  "start_point": {
+    "row": 0,
+    "column": 0
+  },
+  "end_point": {
+    "row": 4803,
+    "column": 0
+  },
+  "children": [
+    {
+      "type": "namespace_declaration",
+      "is_named": true,
+      "start_byte": 95,
+      "end_byte": 118352,
+      "start_point": {
+        "row": 6,
+        "column": 0
+      },
+      "end_point": {
+        "row": 4802,
+        "column": 1
+      },
+      "children": [
+        {
+          "type": "declaration_list",
+          "is_named": true,
+          "start_byte": 135,
+          "end_byte": 118352,
+          "start_point": {
+            "row": 7,
+            "column": 0
+          },
+          "end_point": {
+            "row": 4802,
+            "column": 1
+          },
+          "children": [
+            {
+              "type": "class_declaration",
+              "is_named": true,
+              "start_byte": 16304,
+              "end_byte": 85615,
+              "start_point": {
+                "row": 766,
+                "column": 1
+              },
+              "end_point": {
+                "row": 3355,
+                "column": 2
+              },
+              "children": [
+                {
+                  "type": "attribute_list",
+                  "is_named": true,
+                  "start_byte": 16304,
+                  "end_byte": 16318,
+                  "start_point": {
+                    "row": 766,
+                    "column": 1
+                  },
+                  "end_point": {
+                    "row": 766,
+                    "column": 15
+                  },
+                  "text": "[Serializable]",
+                  "children_count": 3
+                },
+                {
+                  "type": "modifier",
+                  "is_named": true,
+                  "start_byte": 16320,
+                  "end_byte": 16326,
+                  "start_point": {
+                    "row": 767,
+                    "column": 1
+                  },
+                  "end_point": {
+                    "row": 767,
+                    "column": 7
+                  },
+                  "text": "public",
+                  "children_count": 1
+                },
+                {
+                  "type": "class",
+                  "is_named": false,
+                  "start_byte": 16327,
+                  "end_byte": 16332,
+                  "start_point": {
+                    "row": 767,
+                    "column": 8
+                  },
+                  "end_point": {
+                    "row": 767,
+                    "column": 13
+                  },
+                  "text": "class"
+                },
+                {
+                  "type": "identifier",
+                  "is_named": true,
+                  "start_byte": 16333,
+                  "end_byte": 16342,
+                  "start_point": {
+                    "row": 767,
+                    "column": 14
+                  },
+                  "end_point": {
+                    "row": 767,
+                    "column": 23
+                  },
+                  "text": "LinePitch"
+                },
+                {
+                  "type": "base_list",
+                  "is_named": true,
+                  "start_byte": 16343,
+                  "end_byte": 16368,
+                  "start_point": {
+                    "row": 767,
+                    "column": 24
+                  },
+                  "end_point": {
+                    "row": 767,
+                    "column": 49
+                  },
+                  "text": ": ng.server.IEventManager",
+                  "children_count": 2
+                },
+                {
+                  "type": "declaration_list",
+                  "is_named": true,
+                  "start_byte": 16370,
+                  "end_byte": 85615,
+                  "start_point": {
+                    "row": 768,
+                    "column": 1
+                  },
+                  "end_point": {
+                    "row": 3355,
+                    "column": 2
+                  },
+                  "children_count": 99
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+
+================================================================================
+REAL DATA: HeijunkaData.cs — FULL PROGRAM MAP (from depth-7 AST)
+================================================================================
+
+# Program Map: HeijunkaData.cs
+# (Generated from tree-sitter AST, depth=7)
+
+namespace ng.data.requirements.heijunka  (lines 7-4803)
+
+  public enum PitchType  (lines 14-14)
+
+  public enum PitchStatus  (lines 15-15)
+
+  public class HeijunkaLineSetupOptions  (lines 18-86)
+    --- Properties (5) ---
+    public ng.data.Line ng.data.Line  (line 33)
+    public object SyncRoot  (line 42)
+    public ng.data.requirements.heijunka.CumToleranceEntry ng.data.requirements.heijunka.CumToleranceEntry  (line 49)
+    public ng.data.requirements.heijunka.CumToleranceEntry ng.data.requirements.heijunka.CumToleranceEntry  (line 61)
+    public ng.data.requirements.heijunka.CumToleranceEntry ng.data.requirements.heijunka.CumToleranceEntry  (line 73)
+    --- Constructors (1) ---
+    public HeijunkaLineSetupOptions( ng.data.Line _line )  (line 28)
+
+  public class CumToleranceEntry  (lines 88-141)
+    --- Properties (2) ---
+    public double From  (line 101)
+    public object Data  (line 130)
+    --- Constructors (1) ---
+    public CumToleranceEntry(double _from  )  (line 95)
+    --- Methods (1) ---
+    public bool Qualifies( double minutesBehind )  (lines 114-128)
+
+  public delegate PitchDelegate  (lines 143-144)
+
+  public delegate PitchItemDelegate  (lines 146-147)
+
+  public delegate LinePitchDelegate  (lines 149-150)
+
+  public delegate LinePitchItemDelegate  (lines 152-153)
+
+  public abstract class AbstractPitchDetail  (lines 155-442)
+    --- Properties (20) ---
+    public virtual string DataIndicator  (line 184)
+    public virtual bool Replan  (line 200)
+    public virtual string EnterpriseName  (line 211)
+    public virtual string DivisionName  (line 222)
+    public string PitchItemID  (line 234)
+    public System.TimeSpan System.TimeSpan  (line 246)
+    public virtual string InstanceName  (line 255)
+    public virtual string LineID  (line 266)
+    public virtual PitchType PitchType  (line 278)
+    public virtual DateTime DateTime  (line 290)
+    public virtual DateTime DateTime  (line 301)
+    public virtual string ShiftName  (line 313)
+    public virtual int PitchNbr  (line 325)
+    public virtual string DivisionIntCode  (line 336)
+    public virtual string SiteIntCode  (line 347)
+    public virtual string LineIntCode  (line 359)
+    public virtual DateTime DateTime  (line 371)
+    public virtual DateTime DateTime  (line 383)
+    public virtual long Row_ID  (line 395)
+    public int CumCount  (line 408)
+
+  public class WorkingPitch : AbstractPitchDetail  (lines 444-544)
+    --- Constructors (2) ---
+    public WorkingPitch(ng.data.requirements.heijunka.AbstractPitchDetail apd)  (line 447)
+    public WorkingPitch()  (line 464)
+    --- Methods (2) ---
+    public bool PitchInterval(ng.data.requirements.heijunka.AbstractPitchDetail apd,System.TimeSpan _Time)  (lines 468-477)
+    public void Save()  (lines 479-541)
+
+  public class NonWorkingPitch : AbstractPitchDetail  (lines 546-587)
+    --- Properties (1) ---
+    public string NonWorkingDesc  (line 575)
+    --- Constructors (2) ---
+    public NonWorkingPitch()  (line 551)
+    public NonWorkingPitch(ng.data.requirements.heijunka.AbstractPitchDetail apd)  (line 555)
+
+  public class AONonWorkingPitch : NonWorkingPitch  (lines 588-593)
+    --- Constructors (1) ---
+    public AONonWorkingPitch( ng.data.requirements.heijunka.AbstractPitchDetail ap )  (line 591)
+
+  public class ServerPitch  (lines 595-738)
+    --- Properties (2) ---
+    public static bool HasStarted  (line 604)
+    public System.Collections.IList System.Collections.IList  (line 613)
+    --- Methods (9) ---
+    public void KillAll()  (lines 621-627)
+    public void Add(ng.data.requirements.heijunka.LinePitch lP)  (lines 630-633)
+    public void Add(ng.data.requirements.heijunka.Pitch pitch)  (lines 635-638)
+    public GetLinePitch ng.data.requirements.heijunka.LinePitch(ng.data.requirements.heijunka.AbstractPitchDetail ap)  (lines 642-653)
+    public GetLinePitch ng.data.requirements.heijunka.LinePitch(string lineID)  (lines 655-666)
+    public void Start()  (lines 671-683)
+    public CreateLinePitch ng.data.requirements.heijunka.LinePitch( ng.data.Line line )  (lines 685-701)
+    protected void CreateLinePitch()  (lines 702-721)
+    public string GetReport()  (lines 723-737)
+
+  public class PitchStats  (lines 740-756)
+    --- Properties (1) ---
+    public bool IsCountCritical  (line 745)
+
+  public class NoPitchDataForTodayException : ng.data.exceptions.ObjectNotFoundException  (lines 758-761)
+    --- Constructors (1) ---
+    public NoPitchDataForTodayException(string msg )  (line 760)
+
+  public class PitchDataNeedsReloadingException : System.Exception  (lines 762-765)
+    --- Constructors (1) ---
+    public PitchDataNeedsReloadingException(string  msg )  (line 764)
+
+  public class LinePitch : ng.server.IEventManager  (lines 767-3356)
+    --- Properties (19) ---
+    public System.Collections.IList System.Collections.IList  (line 809)
+    public bool Replan  (line 818)
+    public ng.data.requirements.heijunka.ShiftPitch ng.data.requirements.heijunka.ShiftPitch  (line 865)
+    public bool IsCountCritical  (line 873)
+    public double MinutesBehind  (line 1078)
+    public double MinutesPerPart  (line 1420)
+    public int WorkMinutesPerPitch  (line 1448)
+    public bool MustPickInOrder  (line 1459)
+    public ng.data.requirements.heijunka.HeijunkaProductionSchedule ng.data.requirements.heijunka.HeijunkaProductionSchedule  (line 1475)
+    public string LineID  (line 1486)
+    public int PartsPerPitch  (line 1494)
+    public ng.data.requirements.heijunka.Pitch ng.data.requirements.heijunka.Pitch  (line 2419)
+    public System.Threading.Thread System.Threading.Thread  (line 2581)
+    public System.DateTime System.DateTime  (line 2589)
+    public ng.data.requirements.heijunka.ServerPitch ng.data.requirements.heijunka.ServerPitch  (line 3063)
+    public ArrayList ArrayList  (line 3121)
+    public System.Collections.IList System.Collections.IList  (line 3322)
+    public string ServiceName  (line 3333)
+    public string ServiceDescription  (line 3341)
+    --- Constructors (1) ---
+    public LinePitch(ng.data.requirements.heijunka.ServerPitch _ServerPitch,ng.data.Line _Line)  (line 801)
+    --- Methods (43) ---
+    public void LoadProductionSchedule()  (lines 830-862)
+    internal bool SleepForPitch( System.TimeSpan ts )  (lines 925-968)
+    public void Kill()  (lines 970-983)
+    public void Wakeup(bool replan)  (lines 984-1016)
+    public double GetMinutesBehind( Pitch fromPitch )  (lines 1018-1076)
+    public void UpdateStats()  (lines 1088-1155)
+    public bool IsExtendedShiftRunning(System.DateTime _dateTime)  (lines 1157-1212)
+    public long GetLastPitchRow()  (lines 1213-1256)
+    public int GetCumCountFromStats(ng.data.requirements.heijunka.Pitch _currentPitch)  (lines 1258-1417)
+    public void Load(bool newDataOnly, object o_date)  (lines 1522-1536)
+    private void MoveShiftToHistory( ShiftPitch sp )  (lines 1538-1580)
+    private void PurgeData( int daysOld )  (lines 1582-1633)
+    private void Load(IDbConnection conn, bool newDataOnly,object o_date)  (lines 1635-2038)
+    private void SetPartsPerPitch( ng.data.requirements.heijunka.Pitch p, ng.data.requirements.heijunka.HeijunkaForecastEntry fce )  (lines 2040-2078)
+    private bool PreparePitches( System.Collections.ArrayList listOfPitches )  (lines 2079-2226)
+    private void DeletePitch(System.DateTime _PitchStartDate,System.DateTime _PitchEndDate,int _PitchNbr)  (lines 2228-2248)
+    public GetLineOptions ng.data.requirements.heijunka.HeijunkaLineSetupOptions()  (lines 2250-2254)
+    protected void SetOverPlan(Pitch _currentPitch)  (lines 2264-2309)
+    public void OnPitch( Pitch p , string mode )  (lines 2311-2417)
+    public GetNextPitch ng.data.requirements.heijunka.Pitch( ng.data.requirements.heijunka.Pitch _pitch )  (lines 2428-2457)
+    public void OnPitchItem( Pitch p , AbstractPitchDetail ap, string mode )  (lines 2459-2481)
+    public bool EnforceShiftExtension( ShiftPitch sp, string mode )  (lines 2483-2579)
+    private void Run()  (lines 2601-2980)
+    public int GetPitchCount(System.DateTime dt, bool includeInUseItems)  (lines 2982-3028)
+    public void Start()  (lines 3030-3062)
+    public GetShiftPitch ng.data.requirements.heijunka.ShiftPitch(ng.data.requirements.heijunka.AbstractPitchDetail ap)  (lines 3075-3086)
+    public void Add(ng.data.requirements.heijunka.AbstractPitchDetail ap)  (lines 3088-3097)
+    public void Add(ng.data.requirements.heijunka.ShiftPitch sp)  (lines 3100-3103)
+    public string GetLine(ng.data.requirements.heijunka.AbstractPitchDetail ap)  (lines 3105-3108)
+    public void GetReport(System.Text.StringBuilder sb)  (lines 3110-3118)
+    protected void DispatchList()  (lines 3161-3173)
+    protected void DispatchPitch(Pitch pitch)  (lines 3176-3179)
+    public void RefreshPitchDisplay()  (lines 3181-3185)
+    public void DispatchCurrentPitch()  (lines 3187-3193)
+    protected void DispatchAO(Pitch pitch, AONonWorkingPitch ao)  (lines 3195-3199)
+    protected void DispatchUpdate(Pitch pitch, object value)  (lines 3201-3211)
+    public void DispatchCurrentIndex()  (lines 3213-3223)
+    public void DispatchStats()  (lines 3225-3235)
+    public GetStats PitchStats()  (lines 3237-3243)
+    public bool TriggerEvent(string eventName)  (lines 3246-3272)
+    public bool TriggerEvent()  (lines 3274-3312)
+    public bool SetEventData(string eventName, string method, object data)  (lines 3314-3317)
+    public void Dispose()  (lines 3351-3354)
+
+  public class ShiftPitch  (lines 3358-3675)
+    --- Properties (8) ---
+    public string ShiftName  (line 3399)
+    public System.Collections.SortedList System.Collections.SortedList  (line 3411)
+    public ng.data.requirements.heijunka.LinePitch ng.data.requirements.heijunka.LinePitch  (line 3419)
+    public DateTime DateTime  (line 3427)
+    public bool Replan  (line 3439)
+    public bool ExtendedShift  (line 3449)
+    public DateTime DateTime  (line 3525)
+    public string LineID  (line 3595)
+    --- Constructors (2) ---
+    public ShiftPitch()  (line 3372)
+    public ShiftPitch()  (line 3607)
+    --- Methods (13) ---
+    public void Clear()  (lines 3383-3397)
+    public void Start()  (lines 3460-3473)
+    public GetLastScheduledPitch Pitch()  (lines 3479-3492)
+    public GetFirstScheduledPitch Pitch()  (lines 3494-3510)
+    public void RunPitch(Pitch p )  (lines 3512-3523)
+    public GetNextPitch ng.data.requirements.heijunka.Pitch( ng.data.requirements.heijunka.Pitch _pitch )  (lines 3537-3561)
+    public bool IsLastPitch( ng.data.requirements.heijunka.Pitch _pitch )  (lines 3563-3594)
+    public void Add(Pitch pitch)  (lines 3612-3616)
+    public Add Pitch(ng.data.requirements.heijunka.AbstractPitchDetail ap)  (lines 3618-3634)
+    public bool ContainsPitch( ng.data.requirements.heijunka.Pitch _pitch )  (lines 3636-3639)
+    public GetPitch ng.data.requirements.heijunka.Pitch(ng.data.requirements.heijunka.AbstractPitchDetail ap)  (lines 3641-3653)
+    public bool IsShift(ng.data.requirements.heijunka.AbstractPitchDetail ap)  (lines 3655-3661)
+    public void GetReport(System.Text.StringBuilder sb)  (lines 3663-3673)
+
+  public class PitchList : System.Collections.Specialized.NameObjectCollectionBase, System.Collections.IList  (lines 3677-3858)
+    --- Properties (4) ---
+     bool IsReadOnly  (line 3758)
+    public bool IsFixedSize  (line 3809)
+    public bool IsSynchronized  (line 3834)
+    public object SyncRoot  (line 3848)
+    --- Constructors (2) ---
+    public PitchList()  (line 3681)
+    public PitchList(System.Collections.IList shiftPitches)  (line 3694)
+    --- Methods (13) ---
+    public override void GetObjectData()  (lines 3686-3691)
+    public void Add(Pitch pitch)  (lines 3705-3708)
+    public void Remove(Pitch pitch)  (lines 3710-3713)
+    public bool Contains(Pitch pitch)  (lines 3731-3739)
+    public int IndexOf(Pitch pitch)  (lines 3741-3755)
+    public void RemoveAt(int index)  (lines 3766-3769)
+    public void Insert(int index, object value)  (lines 3771-3774)
+     void Remove(object value)  (lines 3776-3779)
+     bool Contains(object value)  (lines 3781-3784)
+    public void Clear()  (lines 3786-3789)
+     int IndexOf(object value)  (lines 3791-3801)
+     int Add(object value)  (lines 3803-3807)
+    public void CopyTo(Array array, int index)  (lines 3843-3846)
+
+  public class AOPitchData  (lines 3860-3905)
+    --- Properties (4) ---
+    public DateTime DateTime  (line 3867)
+    public DateTime DateTime  (line 3875)
+    public string PartsPerPitch  (line 3883)
+    public string Description  (line 3891)
+    --- Constructors (1) ---
+    public AOPitchData(Pitch pitch, AONonWorkingPitch ao)  (line 3899)
+
+  public class Pitch  (lines 3907-4747)
+    --- Properties (21) ---
+    public int CumOffset  (line 3987)
+    public bool HasAODetail  (line 3995)
+    public bool ResetCum  (line 4036)
+    public PitchStatus PitchStatus  (line 4048)
+    public PitchType PitchType  (line 4138)
+    public ng.data.requirements.heijunka.AbstractPitchDetail ng.data.requirements.heijunka.AbstractPitchDetail  (line 4149)
+    public System.Collections.SortedList System.Collections.SortedList  (line 4157)
+    public System.TimeSpan System.TimeSpan  (line 4165)
+    public System.TimeSpan System.TimeSpan  (line 4200)
+    public System.TimeSpan System.TimeSpan  (line 4232)
+    public int PitchNbr  (line 4267)
+    public DateTime DateTime  (line 4279)
+    public DateTime DateTime  (line 4291)
+    public long RowID  (line 4303)
+    public int PartsPerPitch  (line 4332)
+    public int CalculatedPartsPerPitch  (line 4346)
+    public int OrderQty  (line 4360)
+    public double CumCount  (line 4370)
+    public int OverPlanQty  (line 4383)
+    public ng.data.requirements.heijunka.ShiftPitch ng.data.requirements.heijunka.ShiftPitch  (line 4395)
+    public ng.data.requirements.JobItem ng.data.requirements.JobItem  (line 4657)
+    --- Constructors (2) ---
+    public Pitch()  (line 3978)
+    public Pitch()  (line 4004)
+    --- Methods (10) ---
+    internal void SetCumOffsetStatistics(int qty)  (lines 3982-3985)
+    public void UpdateNonWork(string desc)  (lines 4061-4136)
+    public void Clear()  (lines 4315-4331)
+    public void RefreshPitchFromDB()  (lines 4403-4435)
+    public void AdjustCumQuantity( int _Qty)  (lines 4439-4456)
+    public void Add(ng.data.requirements.heijunka.AbstractPitchDetail ap)  (lines 4458-4533)
+    public void Start()  (lines 4535-4655)
+    public virtual void DeletePitch(ng.data.requirements.heijunka.Pitch _pitch)  (lines 4668-4693)
+    public virtual void UpdatePitch()  (lines 4695-4726)
+    public void GetReport(System.Text.StringBuilder sb)  (lines 4728-4746)
+
+  public class ExtendedShiftPitch : ng.data.requirements.heijunka.Pitch  (lines 4749-4796)
+    --- Constructors (1) ---
+    public ExtendedShiftPitch()  (line 4759)
+    --- Methods (1) ---
+    public static CreateNew ExtendedShiftPitch( System.DateTime _start, System.DateTime _end, ShiftPitch _sp, AbstractPitchDetail _apd)  (lines 4761-4792)
+
+  public class OvertimePitch : ng.data.requirements.heijunka.Pitch  (lines 4798-4801)
+
+
+================================================================================
+AST STATISTICS (Depth Comparison)
+================================================================================
+Depth-4 AST:  606 nodes,     39,378 chars   (~9,844 tokens)
+Depth-7 AST:  11,859 nodes,  796,511 chars  (~199,127 tokens)
+Filtered (lines 766-900): 696 nodes, 47,817 chars  (~11,954 tokens)
+
+Total symbols extracted: 221
+  method: 92
+  property: 87
+  constructor: 18
+  class: 17
+  delegate: 4
+  enum: 2
+  namespace: 1
+
+================================================================================
+REAL DATA: HeijunkaData.cs — PROGRAM MAP (from depth-5 AST)
+================================================================================
+
+# Program Map: HeijunkaData.cs
+# (Generated from tree-sitter AST, depth=5, ~39K tokens)
+
+namespace ng.data.requirements.heijunka  (lines 7-4803)
+
+  public enum PitchType  (lines 14-14)
+
+  public enum PitchStatus  (lines 15-15)
+
+  public class HeijunkaLineSetupOptions  (lines 18-86)
+
+  public class CumToleranceEntry  (lines 88-141)
+
+  public delegate PitchDelegate  (lines 143-144)
+
+  public delegate PitchItemDelegate  (lines 146-147)
+
+  public delegate LinePitchDelegate  (lines 149-150)
+
+  public delegate LinePitchItemDelegate  (lines 152-153)
+
+  public abstract class AbstractPitchDetail  (lines 155-442)
+
+  public class WorkingPitch : AbstractPitchDetail  (lines 444-544)
+
+  public class NonWorkingPitch : AbstractPitchDetail  (lines 546-587)
+
+  public class AONonWorkingPitch : NonWorkingPitch  (lines 588-593)
+
+  public class ServerPitch  (lines 595-738)
+
+  public class PitchStats  (lines 740-756)
+
+  public class NoPitchDataForTodayException : ng.data.exceptions.ObjectNotFoundException  (lines 758-761)
+
+  public class PitchDataNeedsReloadingException : System.Exception  (lines 762-765)
+
+  public class LinePitch : ng.server.IEventManager  (lines 767-3356)
+
+  public class ShiftPitch  (lines 3358-3675)
+
+  public class PitchList : System.Collections.Specialized.NameObjectCollectionBase, System.Collections.IList  (lines 3677-3858)
+
+  public class AOPitchData  (lines 3860-3905)
+
+  public class Pitch  (lines 3907-4747)
+
+  public class ExtendedShiftPitch : ng.data.requirements.heijunka.Pitch  (lines 4749-4796)
+
+  public class OvertimePitch : ng.data.requirements.heijunka.Pitch  (lines 4798-4801)
+
+
+================================================================================
+AST STATISTICS (depth=5)
+================================================================================
+Nodes: 2,271
+Size:  155,558 chars (~38,889 tokens)
+Total symbols: 24
+  class: 17
+  delegate: 4
+  enum: 2
+  namespace: 1
+
+================================================================================
+REAL DATA: HeijunkaData.cs — PROGRAM MAP (from depth-6 AST)
+================================================================================
+
+# Program Map: HeijunkaData.cs
+# (Generated from tree-sitter AST, depth=6)
+
+namespace ng.data.requirements.heijunka  (lines 7-4803)
+
+  public enum PitchType  (lines 14-14)
+
+  public enum PitchStatus  (lines 15-15)
+
+  public class HeijunkaLineSetupOptions  (lines 18-86)
+    --- Properties (5) ---
+    public ng.data.Line ng.data.Line  (line 33)
+    public object SyncRoot  (line 42)
+    public ng.data.requirements.heijunka.CumToleranceEntry ng.data.requirements.heijunka.CumToleranceEntry  (line 49)
+    public ng.data.requirements.heijunka.CumToleranceEntry ng.data.requirements.heijunka.CumToleranceEntry  (line 61)
+    public ng.data.requirements.heijunka.CumToleranceEntry ng.data.requirements.heijunka.CumToleranceEntry  (line 73)
+    --- Constructors (1) ---
+    public public HeijunkaLineSetupOptions( ng.data.Line _line )  (line 28)
+
+  public class CumToleranceEntry  (lines 88-141)
+    --- Properties (2) ---
+    public double From  (line 101)
+    public object Data  (line 130)
+    --- Constructors (1) ---
+    public public CumToleranceEntry(double _from  )  (line 95)
+    --- Methods (1) ---
+    public Qualifies()  (lines 114-128)
+
+  public delegate PitchDelegate  (lines 143-144)
+
+  public delegate PitchItemDelegate  (lines 146-147)
+
+  public delegate LinePitchDelegate  (lines 149-150)
+
+  public delegate LinePitchItemDelegate  (lines 152-153)
+
+  public abstract class AbstractPitchDetail  (lines 155-442)
+    --- Properties (20) ---
+    public virtual string DataIndicator  (line 184)
+    public virtual bool Replan  (line 200)
+    public virtual string EnterpriseName  (line 211)
+    public virtual string DivisionName  (line 222)
+    public string PitchItemID  (line 234)
+    public System.TimeSpan System.TimeSpan  (line 246)
+    public virtual string InstanceName  (line 255)
+    public virtual string LineID  (line 266)
+    public virtual PitchType PitchType  (line 278)
+    public virtual DateTime DateTime  (line 290)
+    public virtual DateTime DateTime  (line 301)
+    public virtual string ShiftName  (line 313)
+    public virtual int PitchNbr  (line 325)
+    public virtual string DivisionIntCode  (line 336)
+    public virtual string SiteIntCode  (line 347)
+    public virtual string LineIntCode  (line 359)
+    public virtual DateTime DateTime  (line 371)
+    public virtual DateTime DateTime  (line 383)
+    public virtual long Row_ID  (line 395)
+    public int CumCount  (line 408)
+
+  public class WorkingPitch : AbstractPitchDetail  (lines 444-544)
+    --- Constructors (2) ---
+    public WorkingPitch()  (line 447)
+    public public WorkingPitch()  (line 464)
+    --- Methods (2) ---
+    public PitchInterval()  (lines 468-477)
+    public Save()  (lines 479-541)
+
+  public class NonWorkingPitch : AbstractPitchDetail  (lines 546-587)
+    --- Properties (1) ---
+    public string NonWorkingDesc  (line 575)
+    --- Constructors (2) ---
+    public public NonWorkingPitch()  (line 551)
+    public NonWorkingPitch()  (line 555)
+
+  public class AONonWorkingPitch : NonWorkingPitch  (lines 588-593)
+    --- Constructors (1) ---
+    public public AONonWorkingPitch( ng.data.requirements.heijunka.AbstractPitchDetail ap ) :base(ap) {}  (line 591)
+
+  public class ServerPitch  (lines 595-738)
+    --- Properties (2) ---
+    public static bool HasStarted  (line 604)
+    public System.Collections.IList System.Collections.IList  (line 613)
+    --- Methods (9) ---
+    public KillAll()  (lines 621-627)
+    public public void Add(ng.data.requirements.heijunka.LinePitch lP)  (lines 630-633)
+    public public void Add(ng.data.requirements.heijunka.Pitch pitch)  (lines 635-638)
+    public ng.data.requirements.heijunka.LinePitch()  (lines 642-653)
+    public ng.data.requirements.heijunka.LinePitch()  (lines 655-666)
+    public Start()  (lines 671-683)
+    public ng.data.requirements.heijunka.LinePitch()  (lines 685-701)
+    protected CreateLinePitch()  (lines 702-721)
+    public GetReport()  (lines 723-737)
+
+  public class PitchStats  (lines 740-756)
+    --- Properties (1) ---
+    public bool IsCountCritical  (line 745)
+
+  public class NoPitchDataForTodayException : ng.data.exceptions.ObjectNotFoundException  (lines 758-761)
+    --- Constructors (1) ---
+    public public NoPitchDataForTodayException(string msg ) : base( msg ) {}  (line 760)
+
+  public class PitchDataNeedsReloadingException : System.Exception  (lines 762-765)
+    --- Constructors (1) ---
+    public public PitchDataNeedsReloadingException(string  msg ) : base( msg ) {}  (line 764)
+
+  public class LinePitch : ng.server.IEventManager  (lines 767-3356)
+    --- Properties (19) ---
+    public System.Collections.IList System.Collections.IList  (line 809)
+    public bool Replan  (line 818)
+    public ng.data.requirements.heijunka.ShiftPitch ng.data.requirements.heijunka.ShiftPitch  (line 865)
+    public bool IsCountCritical  (line 873)
+    public double MinutesBehind  (line 1078)
+    public double MinutesPerPart  (line 1420)
+    public int WorkMinutesPerPitch  (line 1448)
+    public bool MustPickInOrder  (line 1459)
+    public ng.data.requirements.heijunka.HeijunkaProductionSchedule ng.data.requirements.heijunka.HeijunkaProductionSchedule  (line 1475)
+    public string LineID  (line 1486)
+    public int PartsPerPitch  (line 1494)
+    public ng.data.requirements.heijunka.Pitch ng.data.requirements.heijunka.Pitch  (line 2419)
+    public System.Threading.Thread System.Threading.Thread  (line 2581)
+    public System.DateTime System.DateTime  (line 2589)
+    public ng.data.requirements.heijunka.ServerPitch ng.data.requirements.heijunka.ServerPitch  (line 3063)
+    public ArrayList ArrayList  (line 3121)
+    public System.Collections.IList System.Collections.IList  (line 3322)
+    public string ServiceName  (line 3333)
+    public string ServiceDescription  (line 3341)
+    --- Constructors (1) ---
+    public LinePitch()  (line 801)
+    --- Methods (43) ---
+    public LoadProductionSchedule()  (lines 830-862)
+    internal SleepForPitch()  (lines 925-968)
+    public Kill()  (lines 970-983)
+    public Wakeup()  (lines 984-1016)
+    public GetMinutesBehind()  (lines 1018-1076)
+    public UpdateStats()  (lines 1088-1155)
+    public IsExtendedShiftRunning()  (lines 1157-1212)
+    public GetLastPitchRow()  (lines 1213-1256)
+    public GetCumCountFromStats()  (lines 1258-1417)
+    public Load()  (lines 1522-1536)
+    private MoveShiftToHistory()  (lines 1538-1580)
+    private PurgeData()  (lines 1582-1633)
+    private Load()  (lines 1635-2038)
+    private SetPartsPerPitch()  (lines 2040-2078)
+    private PreparePitches()  (lines 2079-2226)
+    private DeletePitch()  (lines 2228-2248)
+    public ng.data.requirements.heijunka.HeijunkaLineSetupOptions()  (lines 2250-2254)
+    protected SetOverPlan()  (lines 2264-2309)
+    public OnPitch()  (lines 2311-2417)
+    public ng.data.requirements.heijunka.Pitch()  (lines 2428-2457)
+    public OnPitchItem()  (lines 2459-2481)
+    public EnforceShiftExtension()  (lines 2483-2579)
+    private Run()  (lines 2601-2980)
+    public GetPitchCount()  (lines 2982-3028)
+    public Start()  (lines 3030-3062)
+    public ng.data.requirements.heijunka.ShiftPitch()  (lines 3075-3086)
+    public Add()  (lines 3088-3097)
+    public public void Add(ng.data.requirements.heijunka.ShiftPitch sp)  (lines 3100-3103)
+    public GetLine()  (lines 3105-3108)
+    public GetReport()  (lines 3110-3118)
+    protected DispatchList()  (lines 3161-3173)
+    protected protected void DispatchPitch(Pitch pitch)  (lines 3176-3179)
+    public public void RefreshPitchDisplay()  (lines 3181-3185)
+    public DispatchCurrentPitch()  (lines 3187-3193)
+    protected DispatchAO()  (lines 3195-3199)
+    protected DispatchUpdate()  (lines 3201-3211)
+    public DispatchCurrentIndex()  (lines 3213-3223)
+    public DispatchStats()  (lines 3225-3235)
+    public PitchStats()  (lines 3237-3243)
+    public TriggerEvent()  (lines 3246-3272)
+    public TriggerEvent()  (lines 3274-3312)
+    public public bool SetEventData(string eventName, string method, object data)  (lines 3314-3317)
+    public public void Dispose()  (lines 3351-3354)
+
+  public class ShiftPitch  (lines 3358-3675)
+    --- Properties (8) ---
+    public string ShiftName  (line 3399)
+    public System.Collections.SortedList System.Collections.SortedList  (line 3411)
+    public ng.data.requirements.heijunka.LinePitch ng.data.requirements.heijunka.LinePitch  (line 3419)
+    public DateTime DateTime  (line 3427)
+    public bool Replan  (line 3439)
+    public bool ExtendedShift  (line 3449)
+    public DateTime DateTime  (line 3525)
+    public string LineID  (line 3595)
+    --- Constructors (2) ---
+    public ShiftPitch()  (line 3372)
+    public public ShiftPitch()  (line 3607)
+    --- Methods (13) ---
+    public Clear()  (lines 3383-3397)
+    public Start()  (lines 3460-3473)
+    public Pitch()  (lines 3479-3492)
+    public Pitch()  (lines 3494-3510)
+    public RunPitch()  (lines 3512-3523)
+    public ng.data.requirements.heijunka.Pitch()  (lines 3537-3561)
+    public IsLastPitch()  (lines 3563-3594)
+    public Add()  (lines 3612-3616)
+    public Pitch()  (lines 3618-3634)
+    public ContainsPitch()  (lines 3636-3639)
+    public ng.data.requirements.heijunka.Pitch()  (lines 3641-3653)
+    public IsShift()  (lines 3655-3661)
+    public GetReport()  (lines 3663-3673)
+
+  public class PitchList : System.Collections.Specialized.NameObjectCollectionBase, System.Collections.IList  (lines 3677-3858)
+    --- Properties (4) ---
+     bool IsReadOnly  (line 3758)
+    public bool IsFixedSize  (line 3809)
+    public bool IsSynchronized  (line 3834)
+    public object SyncRoot  (line 3848)
+    --- Constructors (2) ---
+    public PitchList()  (line 3681)
+    public PitchList()  (line 3694)
+    --- Methods (13) ---
+    public override GetObjectData()  (lines 3686-3691)
+    public public void Add(Pitch pitch)  (lines 3705-3708)
+    public public void Remove(Pitch pitch)  (lines 3710-3713)
+    public Contains()  (lines 3731-3739)
+    public IndexOf()  (lines 3741-3755)
+    public public void RemoveAt(int index)  (lines 3766-3769)
+    public Insert()  (lines 3771-3774)
+     void System.Collections.IList.Remove(object value)  (lines 3776-3779)
+     Contains()  (lines 3781-3784)
+    public public void Clear()  (lines 3786-3789)
+     IndexOf()  (lines 3791-3801)
+     Add()  (lines 3803-3807)
+    public public void CopyTo(Array array, int index)  (lines 3843-3846)
+
+  public class AOPitchData  (lines 3860-3905)
+    --- Properties (4) ---
+    public DateTime DateTime  (line 3867)
+    public DateTime DateTime  (line 3875)
+    public string PartsPerPitch  (line 3883)
+    public string Description  (line 3891)
+    --- Constructors (1) ---
+    public AOPitchData()  (line 3899)
+
+  public class Pitch  (lines 3907-4747)
+    --- Properties (21) ---
+    public int CumOffset  (line 3987)
+    public bool HasAODetail  (line 3995)
+    public bool ResetCum  (line 4036)
+    public PitchStatus PitchStatus  (line 4048)
+    public PitchType PitchType  (line 4138)
+    public ng.data.requirements.heijunka.AbstractPitchDetail ng.data.requirements.heijunka.AbstractPitchDetail  (line 4149)
+    public System.Collections.SortedList System.Collections.SortedList  (line 4157)
+    public System.TimeSpan System.TimeSpan  (line 4165)
+    public System.TimeSpan System.TimeSpan  (line 4200)
+    public System.TimeSpan System.TimeSpan  (line 4232)
+    public int PitchNbr  (line 4267)
+    public DateTime DateTime  (line 4279)
+    public DateTime DateTime  (line 4291)
+    public long RowID  (line 4303)
+    public int PartsPerPitch  (line 4332)
+    public int CalculatedPartsPerPitch  (line 4346)
+    public int OrderQty  (line 4360)
+    public double CumCount  (line 4370)
+    public int OverPlanQty  (line 4383)
+    public ng.data.requirements.heijunka.ShiftPitch ng.data.requirements.heijunka.ShiftPitch  (line 4395)
+    public ng.data.requirements.JobItem ng.data.requirements.JobItem  (line 4657)
+    --- Constructors (2) ---
+    public public Pitch()  (line 3978)
+    public Pitch()  (line 4004)
+    --- Methods (10) ---
+    internal internal void SetCumOffsetStatistics(int qty)  (lines 3982-3985)
+    public UpdateNonWork()  (lines 4061-4136)
+    public Clear()  (lines 4315-4331)
+    public RefreshPitchFromDB()  (lines 4403-4435)
+    public AdjustCumQuantity()  (lines 4439-4456)
+    public Add()  (lines 4458-4533)
+    public Start()  (lines 4535-4655)
+    public virtual DeletePitch()  (lines 4668-4693)
+    public virtual UpdatePitch()  (lines 4695-4726)
+    public GetReport()  (lines 4728-4746)
+
+  public class ExtendedShiftPitch : ng.data.requirements.heijunka.Pitch  (lines 4749-4796)
+    --- Constructors (1) ---
+    public ExtendedShiftPitch()  (line 4759)
+    --- Methods (1) ---
+    public static ExtendedShiftPitch()  (lines 4761-4792)
+
+  public class OvertimePitch : ng.data.requirements.heijunka.Pitch  (lines 4798-4801)
+
+
+================================================================================
+STATISTICS
+================================================================================
+Raw AST (depth=6):      411,056 chars   148,093 tokens
+Program Map text:        12,846 chars     3,769 tokens
+
+Total symbols: 221
+  method: 92
+  property: 87
+  constructor: 18
+  class: 17
+  delegate: 4
+  enum: 2
+  namespace: 1

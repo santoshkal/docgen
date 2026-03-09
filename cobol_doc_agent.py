@@ -83,6 +83,39 @@ from llm_fallback import LLMFallbackManager, invoke_llm_with_fallback
 from run_logger import init_run_logger, get_run_logger
 
 # ============================================================================
+# FATAL LLM ERROR HANDLING
+# ============================================================================
+
+class LLMFatalError(Exception):
+    """Non-retryable LLM error (limit exhausted, CLI crash). Stops file processing."""
+    pass
+
+def is_fatal_llm_error(error: Exception) -> bool:
+    """Check if an LLM error is non-retryable."""
+    error_str = str(error).lower()
+    fatal_patterns = [
+        'command failed with exit code',
+        'fatal error in message reader',
+        'cli not found',
+        'claude code cli not found',
+    ]
+    return any(pattern in error_str for pattern in fatal_patterns)
+
+# ============================================================================
+# LANGUAGE ADAPTER ACCESSOR
+# ============================================================================
+
+_current_adapter = None
+
+def get_current_adapter():
+    """Get the current language adapter (lazily defaults to COBOL)."""
+    global _current_adapter
+    if _current_adapter is None:
+        from adapter_registry import get_adapter
+        _current_adapter = get_adapter('cobol')
+    return _current_adapter
+
+# ============================================================================
 # STATE DEFINITION
 # ============================================================================
 
@@ -117,6 +150,12 @@ class AgentState(TypedDict):
     superbol_cfg: Dict[str, Any]
     gnucobol_analysis: Dict[str, Any]
     ctags_outline: Dict[str, Any]
+    # Normalized metadata keys (language-agnostic, used by adapter-driven pipeline)
+    structural_outline: Dict[str, Any]
+    symbol_table: Dict[str, Any]
+    static_analysis: Dict[str, Any]
+    syntax_tree: Dict[str, Any]
+    control_flow_graph: Dict[str, Any]
     called_by_graph: Dict[str, List[str]]  # PHASE 3: Reverse call graph (target → [callers])
 
     # Two-Pass Generation Mode
@@ -128,7 +167,8 @@ class AgentState(TypedDict):
     # Source Code Extraction (Phase 1 Integration)
     enable_source_extraction: bool  # Whether to extract source code for sections (default: False)
     compress_source: bool  # Whether to compress source (remove comments/blanks) (default: True)
-    cobol_file_path: Optional[str]  # Path to COBOL source file for extraction
+    cobol_file_path: Optional[str]  # Path to source file for extraction (legacy COBOL key)
+    source_file_path: Optional[str]  # Path to source file for extraction (language-agnostic alias)
 
     # Multi-File Support (Phase 3 Integration)
     resolve_copybooks: bool  # Whether to resolve and include copybook content (default: False)
@@ -279,8 +319,11 @@ def generate_metadata_node(state: AgentState) -> AgentState:
             cobol_files = sorted([f.name for f in discovered_files])
             print(f"Auto-discovered {len(cobol_files)} COBOL files")
 
-        # Generate metadata for all COBOL files
-        generate_metadata_sync(workspace_path, metadata_dir, cobol_files, servers_config)
+        # Generate metadata for all source files
+        # Pass full_config so factory can detect tools declarations for config-driven generation
+        full_config = state.get("full_config")
+        generate_metadata_sync(workspace_path, metadata_dir, cobol_files, servers_config,
+                               config=full_config)
 
         print(f"\n✓ Metadata generation complete")
 
@@ -519,8 +562,8 @@ def load_metadata_node(state: AgentState) -> AgentState:
 
         # PHASE 3: Build reverse call graph for "Called by" relationships
         called_by_graph = build_reverse_call_graph(
-            state["superbol_cfg"],
-            state["ctags_outline"]
+            state.get("superbol_cfg", {}),
+            state.get("ctags_outline", {})
         )
 
         # Store in state for use in filtered contexts
@@ -1548,13 +1591,19 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
             return _build_full_context_for_section(state, section)
 
     # Build full metadata (for filtered modes)
+    # Use .get() for all metadata keys — non-COBOL languages won't have superbol/gnucobol
     full_metadata = {
         "program_name": state["program_name"],
         "timestamp": datetime.now().isoformat(),
-        "superbol_symbols": state["superbol_symbols"],
-        "superbol_cfg": state["superbol_cfg"],
-        "gnucobol_analysis": state["gnucobol_analysis"],
-        "ctags_outline": state["ctags_outline"],
+        "superbol_symbols": state.get("superbol_symbols", {}),
+        "superbol_cfg": state.get("superbol_cfg", {}),
+        "gnucobol_analysis": state.get("gnucobol_analysis", {}),
+        "ctags_outline": state.get("ctags_outline", {}),
+        "structural_outline": state.get("structural_outline", {}),
+        "symbol_table": state.get("symbol_table", {}),
+        "static_analysis": state.get("static_analysis", {}),
+        "syntax_tree": state.get("syntax_tree", {}),
+        "control_flow_graph": state.get("control_flow_graph", {}),
         "called_by_graph": state.get("called_by_graph", {})  # PHASE 3: Include reverse call graph
     }
 
@@ -1636,14 +1685,11 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
     elif state.get("enable_source_extraction", False) and not SOURCE_EXTRACTION_AVAILABLE:
         print(f"  ⚠ Warning: Source extraction enabled but modules not available")
 
-    # Generate COBOL Program Map for code context (repo-map inspired approach)
+    # Generate Program Map for code context (repo-map inspired approach)
     # This provides lightweight, token-efficient context showing program structure
     try:
-        from cobol_program_map import generate_cobol_program_map, generate_detailed_program_map
-
-        # Generate program map based on token budget
-        # For GPT-4.1 with 1M context, we can afford a detailed map
-        program_map = generate_detailed_program_map(
+        adapter = get_current_adapter()
+        program_map = adapter.generate_program_map(
             program_name=state["program_name"],
             metadata=full_metadata,
             token_budget=10000  # Generous for 1M context models
@@ -1652,8 +1698,6 @@ def build_section_context(state: AgentState, section: Dict[str, Any]) -> Dict[st
         filtered_context["program_map"] = program_map
         print(f"  ✓ Program map generated (~{len(program_map)//4} tokens)")
 
-    except ImportError:
-        print(f"  ⚠ Warning: cobol_program_map module not available")
     except Exception as e:
         print(f"  ⚠ Warning: Program map generation failed: {e}")
         # Continue without program map - graceful degradation
@@ -1893,8 +1937,9 @@ The following context was provided in the user prompt (embedded in JSON):
 
     # Add source code if present
     if 'source_code' in context:
+        code_lang = get_current_adapter().code_block_language
         debug_content += f"""
-```cobol
+```{code_lang}
 {context['source_code']}
 ```
 
@@ -2062,10 +2107,10 @@ OUTPUT FORMAT:
 🚨 CRITICAL RETRY INSTRUCTION 🚨
 =============================================================================
 
-You were asked to READ and RETURN the COBOL source code in response.
-But you have returned INCOMPLETE COBOL source code.
+You were asked to READ and RETURN the source code in response.
+But you have returned INCOMPLETE source code.
 
-RETURN the COMPLETE COBOL source code THIS TIME.
+RETURN the COMPLETE source code THIS TIME.
 
 DO NOT skip lines, summarize, or use ellipsis (...).
 INCLUDE EVERY SINGLE LINE from the source code provided above.
@@ -2237,9 +2282,11 @@ def process_large_file_in_chunks(
     Returns:
         Combined documentation for all chunks
     """
-    from source_chunker import chunk_large_cobol_file, format_chunk_for_llm
     from chunk_validation import ChunkDocumentationValidator
     from pathlib import Path
+
+    # Use adapter for chunking if available, otherwise fall back to source_chunker
+    adapter = get_current_adapter()
 
     file_path = chunked_file_info['file_path']
     total_lines = chunked_file_info['total_lines']
@@ -2255,14 +2302,16 @@ def process_large_file_in_chunks(
     # Get it directly from state to avoid polluting LLM context with massive data.
     ctags_metadata = None
     if state:
-        ctags_metadata = state.get('ctags_outline')
-        print(f"  → Using full unfiltered CTags from state for boundary detection")
+        # Try legacy COBOL key first, then normalized key
+        ctags_metadata = state.get('ctags_outline') or state.get('structural_outline')
+        if ctags_metadata:
+            print(f"  → Using full unfiltered structural metadata from state for boundary detection")
 
     if not ctags_metadata:
         # Fallback to context (may be filtered)
-        ctags_metadata = context.get('ctags_outline')
+        ctags_metadata = context.get('ctags_outline') or context.get('structural_outline')
         if ctags_metadata:
-            print(f"  ⚠ Using CTags from context (may be filtered)")
+            print(f"  ⚠ Using structural metadata from context (may be filtered)")
 
     # Get program map from context to calculate overhead during chunking
     program_map = context.get('program_map')
@@ -2271,12 +2320,32 @@ def process_large_file_in_chunks(
     # Using 10K tokens per chunk for granular processing
     # Program map overhead is calculated and reserved during chunking
     try:
-        chunks, verification = chunk_large_cobol_file(
+        adapter_chunks, adapter_verification = adapter.chunk_source_file(
             file_path,
             max_tokens_per_chunk=10000,  # 10K tokens per chunk (including overhead)
-            ctags_metadata=ctags_metadata,
+            metadata=ctags_metadata,
             program_map=program_map  # Pass program_map to calculate overhead
         )
+        # Convert SourceChunk objects to dicts for existing code compatibility
+        chunks = [
+            {
+                'chunk_number': c.chunk_number,
+                'start_line': c.start_line,
+                'end_line': c.end_line,
+                'line_count': c.line_count,
+                'content': c.content,
+                'estimated_tokens': c.estimated_tokens,
+            }
+            for c in adapter_chunks
+        ]
+        verification = {
+            'valid': adapter_verification.valid,
+            'total_lines': adapter_verification.total_lines,
+            'chunks': adapter_verification.chunks,
+            'coverage': adapter_verification.coverage,
+            'error': adapter_verification.error,
+            'method': adapter_verification.method,
+        }
     except Exception as e:
         print(f"  ✗ Chunking failed: {e}")
         print(f"  → Falling back to explanation without source code")
@@ -2323,9 +2392,18 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         print(f"\n  → Processing chunk {chunk_num}/{total_chunks} (lines {chunk_info['start_line']}-{chunk_info['end_line']})")
 
         # Format chunk with metadata and program map (for whole-file context)
+        from language_adapter import SourceChunk
         program_map = context.get('program_map')  # Get program map from context
-        chunk_content = format_chunk_for_llm(
-            chunk_info,
+        chunk_as_obj = SourceChunk(
+            chunk_number=chunk_info['chunk_number'],
+            start_line=chunk_info['start_line'],
+            end_line=chunk_info['end_line'],
+            line_count=chunk_info['line_count'],
+            content=chunk_info['content'],
+            estimated_tokens=chunk_info['estimated_tokens'],
+        )
+        chunk_content = adapter.format_chunk_for_llm(
+            chunk_as_obj,
             total_chunks,
             file_name,
             program_map=program_map  # Include program map in each chunk
@@ -2344,6 +2422,18 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         chunk_context['end_line'] = chunk_info['end_line']
         chunk_context['line_count'] = chunk_info['line_count']
 
+        # Add filtered syntax tree for this chunk's line range
+        # Gives LLM structural awareness without sending the full AST
+        full_syntax_tree = state.get("syntax_tree", {}) if state else {}
+        if full_syntax_tree:
+            filtered_ast = adapter.filter_ast_for_chunk(
+                full_syntax_tree,
+                chunk_info['start_line'],
+                chunk_info['end_line']
+            )
+            if filtered_ast:
+                chunk_context['syntax_tree'] = filtered_ast
+
         # Add line identifier pattern for language-agnostic validation
         chunk_info['line_identifier_pattern'] = r'^\d{6}'  # COBOL sequence numbers
 
@@ -2352,6 +2442,21 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         total_lines_in_chunk = len(chunk_lines)
 
         print(f"     Lines: {total_lines_in_chunk} total")
+
+        # Conditional betas: if chunk context exceeds 190K tokens, enable
+        # 1M context beta for this chunk's LLM call as a safety fallback
+        chunk_llm_config = llm_config
+        if llm_config:
+            from tokenizer import estimate_tokens as _est_tokens, CLAUDE_1M_BETA_FLAG
+            chunk_context_json = json.dumps(chunk_context)
+            chunk_context_tokens = _est_tokens(chunk_context_json, model=llm_config.get('model', 'unknown'))
+            existing_betas = llm_config.get('betas') or []
+            if chunk_context_tokens > 120_000 and CLAUDE_1M_BETA_FLAG not in existing_betas:
+                provider = llm_config.get('provider', '')
+                if provider in ('anthropic', 'claude_sdk'):
+                    print(f"     ⚠ Chunk context {chunk_context_tokens:,} tokens > 120K — enabling 1M context beta")
+                    chunk_llm_config = dict(llm_config)
+                    chunk_llm_config['betas'] = list(existing_betas) + [CLAUDE_1M_BETA_FLAG]
 
         # ========================================================================
         # TEST MODE: RETRIES DISABLED - Testing prompt quality alone
@@ -2409,7 +2514,7 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
                 template,
                 chunk_context,
                 {},  # section_config
-                llm_config,
+                chunk_llm_config,
                 pass_number=pass_number,
                 chunk_number=chunk_num,
                 is_retry=False,  # Never retry in test mode
@@ -2459,6 +2564,8 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             if hasattr(e, '__cause__') and e.__cause__:
                 error_details += f"\n    caused by: {e.__cause__}"
             print(f"  ✗ Attempt {attempt} failed: {error_details}")
+            if is_fatal_llm_error(e):
+                raise LLMFatalError(f"Fatal LLM error on chunk {chunk_num}: {e}") from e
             chunk_result = f"\n\n**[Chunk {chunk_num} processing failed: {e}]**\n\n"
             validation_stats['incomplete'] += 1
             # COMMENTED OUT: Retry on exception
@@ -2753,7 +2860,7 @@ Most likely they are:
 
 **OUTPUT FORMAT:**
 Show the COMPLETE source code in a code block:
-```cobol
+```{get_current_adapter().code_block_language}
 [Include every line from {start_line} to {end_line} with sequence numbers]
 ```
 
@@ -3289,7 +3396,8 @@ def extract_prose_from_explanation(explanation_md: str) -> str:
     prose = re.sub(r'\n{3,}', '\n\n', prose)
 
     # Remove "## COBOL Code (Complete Verbatim Copy)" headers since code is removed
-    prose = re.sub(r'## COBOL Code \(Complete Verbatim Copy\)\s*\n*', '', prose)
+    # Remove code verbatim copy headers (works for any language)
+    prose = re.sub(r'##\s+(?:COBOL|C#|\.NET|Java|Source)\s+Code\s*\(Complete Verbatim Copy\)\s*\n*', '', prose)
 
     return prose.strip()
 
@@ -3370,7 +3478,7 @@ def run_phase1_code_explanation(
         )
     else:
         # Fallback: no COBOL file path available
-        print(f"  ⚠ No COBOL file path - using single-pass fallback")
+        print(f"  ⚠ No source file path - using single-pass fallback")
         full_explanation = process_section_recursive(state, code_explanation_section)
 
     # Extract prose from the explanation
@@ -3507,6 +3615,8 @@ def run_phase2_sections(
 
         except Exception as e:
             print(f"      ✗ Failed: {e}")
+            if is_fatal_llm_error(e):
+                raise LLMFatalError(f"Fatal LLM error on section '{section_id}': {e}") from e
             failed_sections.append(section_id)
 
             # Create failure placeholder
@@ -3571,12 +3681,17 @@ def build_prose_based_context(
     # Build program map from metadata (text representation, not raw JSON)
     program_map = ""
     try:
-        from cobol_program_map import generate_cobol_program_map
-        program_map = generate_cobol_program_map(
-            ctags_outline=state.get("ctags_outline", {}),
-            superbol_cfg=state.get("superbol_cfg", {}),
-            top_n_paragraphs=50,
-            top_n_data_items=30
+        adapter = get_current_adapter()
+        full_metadata = {
+            k: state.get(k, {})
+            for k in ["ctags_outline", "superbol_cfg", "superbol_symbols",
+                       "gnucobol_analysis", "structural_outline", "symbol_table",
+                       "static_analysis", "syntax_tree", "control_flow_graph"]
+        }
+        program_map = adapter.generate_program_map(
+            program_name=program_name,
+            metadata=full_metadata,
+            token_budget=5000
         )
     except Exception as e:
         print(f"  ⚠ Could not generate program map: {e}")
@@ -3671,7 +3786,8 @@ def assemble_final_document(
     program_name: str,
     code_explanation: str,
     section_outputs: Dict[str, str],
-    template: Dict[str, Any]
+    template: Dict[str, Any],
+    relative_source_path: Optional[str] = None,
 ) -> str:
     """
     Phase 3: Assemble all sections into final markdown document.
@@ -3684,6 +3800,7 @@ def assemble_final_document(
         code_explanation: Full code explanation from Phase 1
         section_outputs: Section outputs from Phase 2
         template: Template dict with section order
+        relative_source_path: Relative path from workspace root to source file
 
     Returns:
         Complete markdown document
@@ -3695,8 +3812,10 @@ def assemble_final_document(
     sections = template.get("sections", [])
 
     # Build document header
+    source_display = relative_source_path or program_name
     doc_parts = [
         f"# {program_name} - Code Documentation\n",
+        f"**Source**: `{source_display}`\n",
         f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
         f"**Program**: {program_name}\n",
         "\n---\n"
@@ -3747,6 +3866,7 @@ def generate_documentation(
     preloaded_metadata: Optional[Dict[str, Any]] = None,
     enable_source_extraction: bool = True,
     auto_start_phase2: bool = True,
+    language: str = 'cobol',
 ) -> Optional[str]:
     """
     Generate documentation using the two-phase approach.
@@ -3757,23 +3877,33 @@ def generate_documentation(
     - Phase 3: Assemble final document
 
     Args:
-        program_name: Name of the COBOL program
+        program_name: Name of the program
         workspace_path: Path to source files
         metadata_dir: Path to metadata directory
         template_path: Path to YAML template
         output_dir: Path for output
         llm_config: LLM configuration
-        cobol_file_path: Optional path to specific COBOL file
+        cobol_file_path: Optional path to specific source file
         generate_metadata: Whether to generate metadata first
         servers_config: MCP servers configuration
-        preloaded_metadata: Optional pre-loaded metadata dict with keys:
-            ctags_outline, superbol_symbols, superbol_cfg, gnucobol_analysis
+        preloaded_metadata: Optional pre-loaded metadata dict
         enable_source_extraction: Enable source code extraction for chunked processing
         auto_start_phase2: If True, proceed to Phase 2 immediately; if False, pause for user confirmation
+        language: Language identifier (default: 'cobol')
 
     Returns:
         Path to generated documentation file, or None on failure
     """
+    # Initialize language adapter
+    global _current_adapter
+    from adapter_registry import get_adapter
+    adapter = get_adapter(language)
+    _current_adapter = adapter
+
+    # Default template path from adapter if not explicitly provided or if default
+    if not template_path or template_path == './cobol-doc-template.yaml':
+        if language != 'cobol':
+            template_path = str(adapter.template_path)
     print(f"\n{'#'*60}")
     print(f"# REORGANIZED DOCUMENTATION GENERATION")
     print(f"# Program: {program_name}")
@@ -3803,65 +3933,94 @@ def generate_documentation(
         if preloaded_metadata:
             print(f"→ Using preloaded metadata")
             metadata = preloaded_metadata
-            for key in ["ctags_outline", "superbol_symbols", "superbol_cfg", "gnucobol_analysis"]:
+            # Use adapter-driven metadata keys for validation
+            adapter_patterns = adapter.get_metadata_file_patterns(program_name)
+            expected_keys = list(adapter_patterns.keys())
+            # Also check legacy COBOL keys for backward compatibility
+            all_keys = set(expected_keys) | {"ctags_outline", "superbol_symbols", "superbol_cfg", "gnucobol_analysis"}
+            for key in all_keys:
                 if key in metadata and metadata[key]:
                     print(f"  ✓ {key}: loaded")
-                else:
+                elif key in expected_keys:
                     metadata[key] = {}
                     print(f"  ⚠ {key}: missing")
         else:
             print(f"→ Loading metadata from: {metadata_dir}")
             metadata = {}
 
-            # Try multiple file structure patterns
-            # Pattern 1: Subdirectory structure (ctags/, superbol/, gnucobol/)
-            # Pattern 2: Flat structure (ctags_outline.json, etc.)
-            metadata_patterns = {
-                "ctags_outline": [
-                    f"ctags/ctags-{program_name}-outline.json",
-                    "ctags_outline.json",
-                ],
-                "superbol_symbols": [
-                    f"superbol/superbol-{program_name}-doc-symbols.json",
-                    "superbol_symbols.json",
-                ],
-                "superbol_cfg": [
-                    f"superbol/superbol-cfg/{program_name}.json",
-                    "superbol_cfg.json",
-                ],
-                "gnucobol_analysis": [
-                    f"gnucobol/gnucobol-{program_name}-analysis.json",
-                    "gnucobol_analysis.json",
-                ],
-            }
+            # Use adapter-driven metadata patterns
+            adapter_patterns = adapter.get_metadata_file_patterns(program_name)
 
-            for key, patterns in metadata_patterns.items():
+            # Also include legacy COBOL fallback patterns for backward compatibility
+            if language == 'cobol':
+                legacy_patterns = {
+                    "ctags_outline": ["ctags_outline.json"],
+                    "superbol_symbols": ["superbol_symbols.json"],
+                    "superbol_cfg": ["superbol_cfg.json"],
+                    "gnucobol_analysis": ["gnucobol_analysis.json"],
+                }
+                for key, patterns in legacy_patterns.items():
+                    if key in adapter_patterns:
+                        adapter_patterns[key] = adapter_patterns[key] + patterns
+                    else:
+                        adapter_patterns[key] = patterns
+
+            for key, patterns in adapter_patterns.items():
                 loaded = False
                 for pattern in patterns:
                     file_path = metadata_dir / pattern
                     if file_path.exists():
-                        with open(file_path, 'r') as f:
-                            metadata[key] = json.load(f)
-                        print(f"  ✓ Loaded {key}: {pattern}")
-                        loaded = True
-                        break
+                        try:
+                            with open(file_path, 'r') as f:
+                                content = f.read().strip()
+                            if not content:
+                                print(f"  ⚠ Empty metadata file, skipping: {pattern}")
+                                continue
+                            metadata[key] = json.loads(content)
+                            print(f"  ✓ Loaded {key}: {pattern}")
+                            loaded = True
+                            break
+                        except json.JSONDecodeError as e:
+                            print(f"  ⚠ Invalid JSON in {pattern}: {e}")
+                            continue
                 if not loaded:
                     metadata[key] = {}
                     print(f"  ⚠ Missing {key}")
 
-        # Determine COBOL file path
+            # Map normalized keys to legacy COBOL state keys for backward compat
+            if language == 'cobol' and 'structural_outline' in metadata:
+                metadata.setdefault('ctags_outline', metadata['structural_outline'])
+
+        # Determine source file path
         if not cobol_file_path:
-            # Try to find it in workspace (includes XGEN extensions)
-            for ext in ['.cbl', '.cob', '.CBL', '.COB', '.c74', '.C74', '.XMOD', '.xmod', '.XLIB', '.xlib', '.xgn', '.XGN']:
+            # Try to find it in workspace using adapter's file extensions
+            for ext in adapter.file_extensions:
                 potential_path = workspace_path / f"{program_name}{ext}"
                 if potential_path.exists():
                     cobol_file_path = str(potential_path)
                     break
+            # Also try recursive search for languages that nest files in subdirectories
+            if not cobol_file_path and language != 'cobol':
+                for ext in adapter.file_extensions:
+                    matches = list(workspace_path.rglob(f"{program_name}{ext}"))
+                    if matches:
+                        cobol_file_path = str(matches[0])
+                        break
 
         if cobol_file_path:
-            print(f"→ COBOL source: {cobol_file_path}")
+            print(f"→ {adapter.display_name} source: {cobol_file_path}")
         else:
-            print(f"⚠ COBOL source file not found")
+            print(f"⚠ {adapter.display_name} source file not found")
+
+        # Compute relative source path from workspace root
+        # e.g., "AutolivSweden/Atoms.cs" or just "MAINPROG.cbl" for flat layouts
+        if cobol_file_path:
+            try:
+                relative_source = str(Path(cobol_file_path).relative_to(workspace_path))
+            except ValueError:
+                relative_source = Path(cobol_file_path).name
+        else:
+            relative_source = program_name
 
         # Build initial state
         state: AgentState = {
@@ -3872,9 +4031,11 @@ def generate_documentation(
             "output_dir": output_dir,
             "template": template,
             "cobol_file_path": cobol_file_path,
+            "source_file_path": cobol_file_path,  # Language-agnostic alias
             "llm_config": llm_config,
             # Enable source extraction for chunked processing of large files
             "enable_source_extraction": enable_source_extraction,
+            "relative_source_path": relative_source,
             **metadata
         }
 
@@ -3916,13 +4077,17 @@ def generate_documentation(
                     program_name=program_name,
                     code_explanation=code_explanation,
                     section_outputs=section_outputs,
-                    template=template
+                    template=template,
+                    relative_source_path=relative_source,
                 )
 
-                output_dir.mkdir(parents=True, exist_ok=True)
+                # Mirror source directory structure in output path
+                relative_dir = Path(relative_source).parent
+                output_subdir = output_dir / relative_dir
+                output_subdir.mkdir(parents=True, exist_ok=True)
                 timestamp = datetime.now().strftime("%d-%m-%Y")
                 output_filename = f"{program_name}-documentation-{timestamp}.md"
-                output_path = output_dir / output_filename
+                output_path = output_subdir / output_filename
 
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(final_doc)
@@ -3946,14 +4111,17 @@ def generate_documentation(
             program_name=program_name,
             code_explanation=code_explanation,
             section_outputs=section_outputs,
-            template=template
+            template=template,
+            relative_source_path=relative_source,
         )
 
-        # Save final document
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Save final document — mirror source directory structure in output path
+        relative_dir = Path(relative_source).parent
+        output_subdir = output_dir / relative_dir
+        output_subdir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%d-%m-%Y")
         output_filename = f"{program_name}-documentation-{timestamp}.md"
-        output_path = output_dir / output_filename
+        output_path = output_subdir / output_filename
 
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(final_doc)
@@ -4203,6 +4371,9 @@ Examples:
         servers_config = config_loader.get_servers_config()
         llm_config = config_loader.get_llm_config()
 
+        # Language configuration (default: 'cobol' for backward compatibility)
+        language = config_loader.get_language_config()
+
         # Phase 1: Source extraction configuration
         source_extraction_config = config_loader.get_source_extraction_config()
         enable_source_extraction = source_extraction_config.get('enabled', False)
@@ -4247,6 +4418,7 @@ Examples:
         metadata_checksum_path = "./metadata-checksum.yaml"
         servers_config = {}
         llm_config = {}  # Default to OpenAI gpt-4o
+        language = 'cobol'  # CLI-only mode defaults to COBOL
 
         # Phase 1: Source extraction defaults (disabled by default)
         enable_source_extraction = False
@@ -4290,21 +4462,30 @@ Examples:
         # Expand ~ to home directory
         source_path = Path(source_files_arg).expanduser()
 
-        # Determine list of COBOL files to process
+        # Determine list of source files to process
         if source_path.is_file():
             # Single file - store both stem (for program_name) and full path (for source extraction)
             cobol_files_to_process = [(source_path.stem, str(source_path))]
             workspace_path = str(source_path.parent)
             print(f"\nProcessing single file: {source_path.name}")
         elif source_path.is_dir():
-            # Directory - find all COBOL files recursively
-            from checksum_manager import get_source_files
-            cobol_file_paths = get_source_files(source_path, filter_config=file_filter_config)
+            # Directory - find all source files
+            # Use adapter for file discovery if language is not cobol
+            if language != 'cobol':
+                from adapter_registry import get_adapter
+                _adapter = get_adapter(language)
+                source_file_paths = _adapter.discover_source_files(
+                    str(source_path), filter_config=file_filter_config
+                )
+                cobol_files_to_process = sorted([(f.stem, str(f)) for f in source_file_paths])
+            else:
+                from checksum_manager import get_source_files
+                cobol_file_paths = get_source_files(source_path, filter_config=file_filter_config)
+                cobol_files_to_process = sorted([(f.stem, str(f)) for f in cobol_file_paths])
             # Store tuples of (stem, full_path)
-            cobol_files_to_process = sorted([(f.stem, str(f)) for f in cobol_file_paths])
             workspace_path = str(source_path)
             print(f"\nProcessing directory: {source_path}")
-            print(f"Found {len(cobol_files_to_process)} COBOL files")
+            print(f"Found {len(cobol_files_to_process)} {language.upper()} files")
             # Log filter configuration if active
             if file_filter_config:
                 if file_filter_config.get('extensions_include'):
@@ -4381,6 +4562,31 @@ Examples:
         # ═══════════════════════════════════════════════════════════════════
         # Check if metadata generation is needed based on checkpoint flag
         metadata_generated = checkpoint.state.get('metadata_generated', False) if checkpoint.state else False
+
+        # Override checkpoint flag when checksums indicate regeneration is needed,
+        # or when skip_existing is false (force regeneration).
+        # This allows re-running metadata without --restart (which resets everything).
+        if metadata_generated and generate_metadata:
+            if not skip_existing:
+                print(f"  → Force regeneration requested (skip_existing: false)")
+                metadata_generated = False
+            else:
+                try:
+                    from checksum_manager import should_regenerate_metadata
+                    all_source_names = [Path(fp).name for _, fp in cobol_files_to_process]
+                    should_regen, reason = should_regenerate_metadata(
+                        workspace_path=Path(workspace_path),
+                        source_checksum_path=Path(source_checksum_path),
+                        metadata_dir=Path(metadata_dir),
+                        metadata_checksum_path=Path(metadata_checksum_path),
+                        cobol_files=all_source_names
+                    )
+                    if should_regen:
+                        print(f"  → Checksum validation overrides checkpoint: {reason}")
+                        metadata_generated = False
+                except Exception as e:
+                    print(f"  ⚠ Checksum validation failed ({e}), trusting checkpoint flag")
+
         progress = checkpoint.get_progress()
         is_resuming = progress['completed'] > 0
 
@@ -4398,15 +4604,29 @@ Examples:
 
                 # Get servers config
                 servers_config_for_meta = {}
+                full_config_for_meta = None
                 if config_loader:
                     servers_config_for_meta = config_loader.get_servers_config()
+                    full_config_for_meta = config_loader.config  # Full config for factory detection
 
                 generate_metadata_sync(
                     workspace_path=workspace_path,
                     output_dir=metadata_dir,
                     cobol_files=all_cobol_files,
-                    servers_config=servers_config_for_meta
+                    servers_config=servers_config_for_meta,
+                    config=full_config_for_meta
                 )
+
+                # Save metadata checksums for future validation
+                try:
+                    from checksum_manager import save_metadata_checksums
+                    save_metadata_checksums(
+                        metadata_dir=Path(metadata_dir),
+                        metadata_checksum_path=Path(metadata_checksum_path)
+                    )
+                    print(f"✓ Metadata checksums saved to: {metadata_checksum_path}")
+                except Exception as chk_err:
+                    print(f"  ⚠ Could not save metadata checksums: {chk_err}")
 
                 # Mark metadata as generated in checkpoint
                 if checkpoint.state:
@@ -4470,6 +4690,7 @@ Examples:
                     cobol_file_path=file_path,
                     enable_source_extraction=enable_source_extraction,
                     auto_start_phase2=auto_start_phase2,
+                    language=language,
                 )
 
                 if output_path:
@@ -4515,17 +4736,22 @@ Examples:
 
     else:
         # Single program mode - use two-phase approach
-        output_path = generate_documentation(
-            program_name=program_name,
-            workspace_path=workspace,
-            metadata_dir=metadata_dir,
-            template_path=template_path,
-            output_dir=docs_path,
-            llm_config=llm_config,
-            cobol_file_path=None,  # Will be auto-detected
-            enable_source_extraction=enable_source_extraction,
-            auto_start_phase2=auto_start_phase2,
-        )
+        try:
+            output_path = generate_documentation(
+                program_name=program_name,
+                workspace_path=workspace,
+                metadata_dir=metadata_dir,
+                template_path=template_path,
+                output_dir=docs_path,
+                llm_config=llm_config,
+                cobol_file_path=None,  # Will be auto-detected
+                enable_source_extraction=enable_source_extraction,
+                auto_start_phase2=auto_start_phase2,
+                language=language,
+            )
+        except Exception as e:
+            print(f"\n✗ Fatal error: {e}")
+            output_path = None
 
         print(f"\n{'='*70}")
         print(f"Documentation generation complete!")

@@ -1,0 +1,210 @@
+# ============================================================================
+# iMES .NET/C# BATCH PROCESSING CONFIGURATION
+# ============================================================================
+#
+# This configuration is for batch processing the iMES C# codebase
+# with checkpoint/resume support.
+#
+# Usage:
+#   python cobol_doc_agent.py --config config-dotnet-imes.yaml
+#   python cobol_doc_agent.py --config config-dotnet-imes.yaml --status
+#   python cobol_doc_agent.py --config config-dotnet-imes.yaml --restart
+#
+
+# ============================================================================
+# SOURCE CONFIGURATION
+# ============================================================================
+source:
+  language: dotnet
+  mode: batch
+  source_files: ~/Downloads/iMES-master
+  workspace: ~/Downloads/iMES-master
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # FILE FILTERING
+  # ─────────────────────────────────────────────────────────────────────────
+  extensions:
+    include: ['.cs']
+
+  # File pattern exclusion - auto-generated / boilerplate files
+  exclude_files:
+    - 'AssemblyInfo.cs'
+    - '*.Designer.cs'
+    - '*.g.cs'
+    - '*.g.i.cs'
+    - 'GlobalSuppressions.cs'
+
+  # File pattern inclusion - if set, ONLY these files (overrides all other filters)
+  include_files:
+    - "SequenceManager.cs"
+    - "HeijunkaData.cs"
+    - "Script.cs"
+    - "DelphiTcscCommands.cs"
+    - "BroadcastService.cs"
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+output:
+  metadata_dir: ../output-imes/metadata-test
+  docs_path: ../output-imes/docs-test
+  create_dirs: true
+
+# ============================================================================
+# LLM CONFIGURATION - CLAUDE SDK
+# ============================================================================
+llm:
+  # Claude Agent SDK — uses Claude Code CLI subprocess, no API key needed
+  provider: claude_sdk
+  model: sonnet
+  temperature: 0.2
+
+  # Phase-specific configuration for claude_sdk provider
+  # Phase 1: Detailed code explanation (chunked processing, smaller context)
+  # Phase 2: Other sections (full context mode, requires 1M context)
+  phase1:
+    model: sonnet
+    max_thinking_tokens: 0       # Disable thinking for faster responses
+
+  phase2:
+    model: sonnet[1m]
+    betas:
+      - context-1m-2025-08-07
+
+  # Optional fallback (if primary fails, use this)
+  # fallback:
+  #   provider: claude_sdk
+  #   phase1:
+  #     model: sonnet
+  #   phase2:
+  #     model: sonnet[1m]
+  #     betas:
+  #       - context-1m-2025-08-07
+
+# ============================================================================
+# FULL CONTEXT MODE CONFIGURATION
+# ============================================================================
+full_context:
+  enabled: true
+
+  sections:
+    - executive-summary
+    - key-responsibilities
+    - business-logic
+    - overview
+    - data-flow-analysis
+    - detailed-code-explanation
+
+  program_map_overrides:
+    top_n_paragraphs: 100
+    top_n_data_items: 50
+
+  max_message_chars: 9500000
+
+  context_chaining:
+    enabled: true
+    max_tokens: null
+
+# ============================================================================
+# WORKFLOW CONFIGURATION
+# ============================================================================
+workflow:
+  auto_start_phase2: true
+
+# ============================================================================
+# PROGRAM MAP CONFIGURATION
+# ============================================================================
+program_map:
+  top_n_paragraphs: 50
+  top_n_data_items: 30
+  show_all: false
+
+  dynamic_limits:
+    enabled: true
+    small_threshold: 100
+    large_threshold: 500
+    small:
+      paragraphs: -1
+      data_items: -1
+    medium:
+      paragraphs: 200
+      data_items: 100
+    large:
+      paragraphs: 300
+      data_items: 150
+
+# ============================================================================
+# METADATA GENERATION
+# ============================================================================
+metadata:
+  generate: true
+  skip_existing: true
+  servers:
+    ctags:
+      enabled: true
+      docker_image: ctags-mcp:test
+      tools:
+        - name: generate_tags
+          args: { path: "{{workspace}}", languages: ["C#"], output_file: "/output/csharp-project.tags" }
+          output_key: project_tags
+          scope: project
+        - name: get_file_outline
+          args: { file_path: "{{source_file}}", tags_file: "/output/csharp-project.tags" }
+          output_key: structural_outline
+          scope: file
+    tree-sitter:
+      enabled: true
+      docker_image: treesitter-mcp:test
+      tools:
+        - name: get_symbols
+          args:
+            source_code: "{{source_content}}"
+            language: "c_sharp"
+          output_key: symbol_table
+          scope: file
+        - name: generate_ast
+          args:
+            source_code: "{{source_content}}"
+            language: "c_sharp"
+            include_positions: true
+            include_text: true
+            max_depth: 6
+          output_key: syntax_tree
+          scope: file
+
+# ============================================================================
+# SOURCE CODE EXTRACTION
+# ============================================================================
+source_extraction:
+  enabled: true
+  compress: true
+
+# ============================================================================
+# TEMPLATE CONFIGURATION
+# ============================================================================
+template:
+  path: ./languages/dotnet/template.yaml
+
+# ============================================================================
+# CHECKSUM VALIDATION
+# ============================================================================
+validate_checksums:
+  source_checksum_file_path: ../output-imes/source-checksum.yaml
+  metadata_checksum_file_path: ../output-imes/metadata-checksum.yaml
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  verbose: true
+  show_progress: true
+
+# ============================================================================
+# RUN LOGGING - Centralized per-run artifact capture
+# ============================================================================
+run_logging:
+  console_tee: true
+  capture_requests: true
+  capture_traces: true

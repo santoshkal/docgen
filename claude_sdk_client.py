@@ -423,6 +423,23 @@ class ClaudeSdkLLM:
 
         return " | ".join(details)
 
+    def _run_async(self, coro):
+        """Run an async coroutine, handling both standalone and nested event loop contexts."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Already inside an event loop (e.g. called from mermaid_validator's asyncio.run).
+            # Create a new thread to run asyncio.run() without conflicting.
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        else:
+            return asyncio.run(coro)
+
     def _query_with_retry(
         self,
         prompt: str,
@@ -433,7 +450,7 @@ class ClaudeSdkLLM:
 
         for attempt in range(self.max_retries):
             try:
-                return asyncio.run(self._query_async(prompt, system_prompt))
+                return self._run_async(self._query_async(prompt, system_prompt))
 
             except (CLIConnectionError, ProcessError) as e:
                 error_details = self._extract_error_details(e)
