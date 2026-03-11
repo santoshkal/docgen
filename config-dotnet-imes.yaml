@@ -59,17 +59,17 @@ llm:
   model: sonnet
   temperature: 0.2
 
+  # Beta flag for 1M context — applied conditionally when context > 120K tokens
+  betas:
+    - context-1m-2025-08-07
+
   # Phase-specific configuration for claude_sdk provider
-  # Phase 1: Detailed code explanation (chunked processing, smaller context)
-  # Phase 2: Other sections (full context mode, requires 1M context)
   phase1:
     model: sonnet
     max_thinking_tokens: 0       # Disable thinking for faster responses
 
   phase2:
-    model: sonnet[1m]
-    betas:
-      - context-1m-2025-08-07
+    model: sonnet
 
   # Optional fallback (if primary fails, use this)
   # fallback:

@@ -1967,6 +1967,61 @@ The following context was provided in the user prompt (embedded in JSON):
     return filepath
 
 
+def format_context_as_plaintext(context: Dict[str, Any]) -> str:
+    """
+    Format chunk context as structured plaintext instead of raw JSON.
+
+    Human-readable content (source code, program map) is rendered as-is
+    with real newlines and indentation. Structured data (syntax_tree)
+    remains as compact JSON.
+
+    This improves LLM comprehension compared to a single escaped JSON blob.
+    """
+    parts = []
+
+    # Header metadata
+    program = context.get('program_name', 'UNKNOWN')
+    chunk_num = context.get('chunk_number')
+    total = context.get('total_chunks')
+    start = context.get('start_line')
+    end = context.get('end_line')
+    lines = context.get('line_count')
+
+    parts.append(f"## File: {program}")
+    if chunk_num:
+        parts.append(f"Chunk: {chunk_num}/{total} (lines {start}\u2013{end}, {lines} lines)")
+    parts.append("")
+
+    # Source code (already contains program map + code as formatted markdown)
+    source = context.get('source_code', '')
+    if source:
+        parts.append(source)
+        parts.append("")
+
+    # Structured metadata — keep as JSON
+    syntax_tree = context.get('syntax_tree')
+    if syntax_tree:
+        parts.append("### Syntax Tree (filtered for this chunk)")
+        parts.append("```json")
+        parts.append(json.dumps(syntax_tree, separators=(',', ':')))
+        parts.append("```")
+        parts.append("")
+
+    # Pass through any other context keys not handled above (Phase 2 may have extras)
+    skip_keys = {'program_name', 'timestamp', 'source_file_path', 'source_code',
+                 'chunk_number', 'total_chunks', 'start_line', 'end_line',
+                 'line_count', 'syntax_tree', 'section_id'}
+    extras = {k: v for k, v in context.items() if k not in skip_keys and v}
+    if extras:
+        parts.append("### Additional Context")
+        parts.append("```json")
+        parts.append(json.dumps(extras, separators=(',', ':')))
+        parts.append("```")
+        parts.append("")
+
+    return "\n".join(parts)
+
+
 def generate_section_content(
     section_id: str,
     section_title: str,
@@ -2010,19 +2065,21 @@ def generate_section_content(
         model_name = "gpt-4o"
 
     # Build system prompt
-    system_prompt = f"""You are a technical documentation agent specializing in COBOL code analysis.
+    lang_name = get_current_adapter().display_name
+    system_prompt = f"""You are a technical documentation agent specializing in {lang_name} code analysis.
 
 Your task is to generate documentation for the section: "{section_title}" (ID: {section_id})
 
 CRITICAL REQUIREMENTS FOR CONSISTENCY:
-1. Follow the template structure EXACTLY
-2. Use ONLY information from the provided metadata - do not invent or assume
-3. If metadata is missing, explicitly state "Information not available in metadata"
-4. Use consistent formatting across all generated documents
-5. Reference line numbers when available
-6. For placeholders like {{{{program_name}}}}, replace with actual values
-7. Generate valid Markdown syntax
-8. For Mermaid diagrams, ensure valid syntax
+1. NEVER expand abbreviations or acronyms unless the expansion appears verbatim in the source code. If an acronym is not defined in the code, use it as-is without parenthetical expansion. Do NOT guess what abbreviations stand for.
+2. Follow the template structure EXACTLY
+3. Use ONLY information from the provided metadata - do not invent or assume
+4. If metadata is missing, explicitly state "Information not available in metadata"
+5. Use consistent formatting across all generated documents
+6. Reference line numbers when available
+7. For placeholders like {{{{program_name}}}}, replace with actual values
+8. Generate valid Markdown syntax
+9. For Mermaid diagrams, ensure valid syntax
 
 TEMPLATE STRUCTURE TO FOLLOW:
 {template if template else "Generate appropriate structure based on instruction"}
@@ -2095,7 +2152,7 @@ OUTPUT FORMAT:
         new_tokens = estimate_tokens(context_json, model=model_name)
         print(f"    → New context: {new_tokens:,} tokens")
 
-    metadata_str = context_json
+    metadata_str = format_context_as_plaintext(context)
 
     # RETRY ENHANCEMENT: Build retry emphasis to insert RIGHT AFTER code block
     # This creates stronger proximity/association between source code and instruction
@@ -2123,7 +2180,7 @@ INCLUDE EVERY SINGLE LINE from the source code provided above.
     # 1. Stronger proximity to the actual code content
     # 2. Creates immediate association: "this is the code" → "return it complete"
     # 3. Attention mechanism favors nearby context
-    user_prompt = f"""Generate documentation for this section using the following metadata:
+    user_prompt = f"""Generate documentation for this section.
 
 {metadata_str}
 {retry_emphasis}
@@ -2443,20 +2500,25 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
 
         print(f"     Lines: {total_lines_in_chunk} total")
 
-        # Conditional betas: if chunk context exceeds 190K tokens, enable
-        # 1M context beta for this chunk's LLM call as a safety fallback
-        chunk_llm_config = llm_config
+        # Conditional betas: strip betas by default, only enable when context > 120K.
+        # The beta flag is defined in config (llm.betas) but applied conditionally.
+        chunk_llm_config = dict(llm_config) if llm_config else {}
         if llm_config:
             from tokenizer import estimate_tokens as _est_tokens, CLAUDE_1M_BETA_FLAG
+            available_betas = llm_config.get('betas') or []
+            # Strip betas from the per-chunk config — only add when needed
+            chunk_llm_config.pop('betas', None)
             chunk_context_json = json.dumps(chunk_context)
             chunk_context_tokens = _est_tokens(chunk_context_json, model=llm_config.get('model', 'unknown'))
-            existing_betas = llm_config.get('betas') or []
-            if chunk_context_tokens > 120_000 and CLAUDE_1M_BETA_FLAG not in existing_betas:
+            if chunk_context_tokens > 120_000 and CLAUDE_1M_BETA_FLAG in available_betas:
                 provider = llm_config.get('provider', '')
                 if provider in ('anthropic', 'claude_sdk'):
                     print(f"     ⚠ Chunk context {chunk_context_tokens:,} tokens > 120K — enabling 1M context beta")
-                    chunk_llm_config = dict(llm_config)
-                    chunk_llm_config['betas'] = list(existing_betas) + [CLAUDE_1M_BETA_FLAG]
+                    chunk_llm_config['betas'] = available_betas
+                    # Switch to 1M model variant when betas enabled
+                    base_model = chunk_llm_config.get('model', 'sonnet')
+                    if '[1m]' not in base_model:
+                        chunk_llm_config['model'] = f"{base_model}[1m]"
 
         # ========================================================================
         # TEST MODE: RETRIES DISABLED - Testing prompt quality alone
@@ -3570,6 +3632,25 @@ def run_phase2_sections(
             section_context = base_context.copy()
             section_context["section_id"] = section_id
 
+            # Conditional betas for Phase 2: strip betas by default,
+            # only enable when section context > 120K tokens
+            section_llm_config = dict(llm_config) if llm_config else {}
+            if llm_config:
+                from tokenizer import estimate_tokens as _est_tokens, CLAUDE_1M_BETA_FLAG
+                available_betas = llm_config.get('betas') or []
+                section_llm_config.pop('betas', None)
+                section_context_json = json.dumps(section_context)
+                section_context_tokens = _est_tokens(section_context_json, model=llm_config.get('model', 'unknown'))
+                if section_context_tokens > 120_000 and CLAUDE_1M_BETA_FLAG in available_betas:
+                    provider = llm_config.get('provider', '')
+                    if provider in ('anthropic', 'claude_sdk'):
+                        print(f"      ⚠ Section context {section_context_tokens:,} tokens > 120K — enabling 1M context beta")
+                        section_llm_config['betas'] = available_betas
+                        # Switch to 1M model variant when betas enabled
+                        base_model = section_llm_config.get('model', 'sonnet')
+                        if '[1m]' not in base_model:
+                            section_llm_config['model'] = f"{base_model}[1m]"
+
             # Generate content using existing function
             content, section_debug_path, section_latency = generate_section_content(
                 section_id=section_id,
@@ -3578,7 +3659,7 @@ def run_phase2_sections(
                 template=section.get("template", ""),
                 context=section_context,
                 section_config=section,
-                llm_config=llm_config,
+                llm_config=section_llm_config,
                 fallback_manager=fallback_manager,
                 phase=2
             )

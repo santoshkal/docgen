@@ -206,6 +206,12 @@ def invoke_llm_with_fallback(
     # Get effective config
     if fallback_manager:
         effective_config = fallback_manager.get_llm_config(phase)
+        # Respect caller's betas decision: if caller stripped betas (conditional
+        # betas logic), don't re-add them from the phase config
+        if 'betas' not in llm_config:
+            effective_config.pop('betas', None)
+        elif llm_config.get('betas'):
+            effective_config['betas'] = llm_config['betas']
     else:
         effective_config = llm_config
 
