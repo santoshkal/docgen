@@ -171,14 +171,14 @@ class CobolAdapter(LanguageAdapter):
 
         return boundaries
 
-    def chunk_source_file(
+    def _chunk_source_file_legacy(
         self,
         file_path: str,
         max_tokens_per_chunk: int = 100000,
         metadata: Optional[Dict[str, Any]] = None,
         program_map: Optional[str] = None
     ) -> Tuple[List[SourceChunk], ChunkVerification]:
-        """Chunk a COBOL source file at paragraph/section boundaries."""
+        """Chunk a COBOL source file at paragraph/section boundaries (legacy)."""
         from source_chunker import chunk_large_cobol_file
 
         raw_chunks, raw_verification = chunk_large_cobol_file(
@@ -219,7 +219,8 @@ class CobolAdapter(LanguageAdapter):
         total_chunks: int,
         file_name: str,
         program_map: Optional[str] = None,
-        model: str = "gpt-4"
+        model: str = "gpt-4",
+        structural_context: Optional[List[str]] = None,
     ) -> str:
         """Format a COBOL chunk with metadata headers for LLM processing."""
         from source_chunker import format_chunk_for_llm as _format_chunk
@@ -234,13 +235,28 @@ class CobolAdapter(LanguageAdapter):
             'estimated_tokens': chunk.estimated_tokens,
         }
 
-        return _format_chunk(
+        formatted = _format_chunk(
             chunk=chunk_dict,
             total_chunks=total_chunks,
             file_name=file_name,
             program_map=program_map,
             model=model,
         )
+
+        # Inject structural context after the header if provided
+        if structural_context:
+            ctx_block = "\n### Structural Context\n"
+            for ctx_line in structural_context:
+                ctx_block += f"- {ctx_line}\n"
+            ctx_block += "\n"
+            # Insert after the header separator line
+            separator = "=" * 77
+            parts = formatted.split(separator, 2)
+            if len(parts) >= 3:
+                # Insert after the second separator (after "Lines: X to Y" header)
+                formatted = separator.join(parts[:2]) + separator + ctx_block + parts[2]
+
+        return formatted
 
     # =========================================================================
     # Source Extraction

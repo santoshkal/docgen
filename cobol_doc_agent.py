@@ -1912,52 +1912,7 @@ Generated: {datetime.now().isoformat()}
 {user_prompt}
 ```
 
----
-
-## Context (Metadata)
-
-The following context was provided in the user prompt (embedded in JSON):
-
-### Source Code Present
-- Has source_code: {'Yes' if 'source_code' in context else 'No'}
-- Source code length: {len(context.get('source_code', '')) if 'source_code' in context else 0} characters
-
-### Program Map Present
-- Has program_map: {'Yes' if 'program_map' in context else 'No'}
-- Program map length: {len(context.get('program_map', '')) if 'program_map' in context else 0} characters
-
-### Other Context Keys
-{chr(10).join([f"- {key}: {type(value).__name__}" for key, value in context.items() if key not in ['source_code', 'program_map']])}
-
----
-
-## Full Source Code (if present)
-
 """
-
-    # Add source code if present
-    if 'source_code' in context:
-        code_lang = get_current_adapter().code_block_language
-        debug_content += f"""
-```{code_lang}
-{context['source_code']}
-```
-
-"""
-    else:
-        debug_content += "*(No source code in context)*\n\n"
-
-    # Add program map if present
-    debug_content += "---\n\n## Program Map (if present)\n\n"
-    if 'program_map' in context:
-        debug_content += f"""
-```
-{context['program_map']}
-```
-
-"""
-    else:
-        debug_content += "*(No program map in context)*\n\n"
 
     # Write to file
     with open(filepath, 'w', encoding='utf-8') as f:
@@ -1992,7 +1947,22 @@ def format_context_as_plaintext(context: Dict[str, Any]) -> str:
         parts.append(f"Chunk: {chunk_num}/{total} (lines {start}\u2013{end}, {lines} lines)")
     parts.append("")
 
-    # Source code (already contains program map + code as formatted markdown)
+    # Structural context (from query_code-based chunking)
+    structural_context = context.get('structural_context')
+    if structural_context:
+        parts.append("### Structural Context")
+        for ctx_line in structural_context:
+            parts.append(f"- {ctx_line}")
+        parts.append("")
+
+    # Program structure map (separate from source code)
+    program_map = context.get('program_map', '')
+    if program_map:
+        parts.append("## Program Structure Map")
+        parts.append(program_map)
+        parts.append("")
+
+    # Source code (chunk content only — no embedded program map)
     source = context.get('source_code', '')
     if source:
         parts.append(source)
@@ -2009,8 +1979,9 @@ def format_context_as_plaintext(context: Dict[str, Any]) -> str:
 
     # Pass through any other context keys not handled above (Phase 2 may have extras)
     skip_keys = {'program_name', 'timestamp', 'source_file_path', 'source_code',
-                 'chunk_number', 'total_chunks', 'start_line', 'end_line',
-                 'line_count', 'syntax_tree', 'section_id'}
+                 'program_map', 'chunk_number', 'total_chunks', 'start_line',
+                 'end_line', 'line_count', 'syntax_tree', 'section_id',
+                 'structural_context'}
     extras = {k: v for k, v in context.items() if k not in skip_keys and v}
     if extras:
         parts.append("### Additional Context")
@@ -2252,15 +2223,23 @@ Remember:
                 _content = _f.read()
             # Build metadata lines to insert
             _meta_lines = f"- **LLM Latency**: {_llm_elapsed:.2f}s\n"
-            # Add usage info if available (from ClaudeSdkLLM)
+            # Add usage info if available (from ClaudeSdkLLM — both SDK and CLI paths)
             if hasattr(response, 'usage') and response.usage:
                 _usage = response.usage
+                _input = _usage.get('input_tokens', 0)
+                _cache_create = _usage.get('cache_creation_input_tokens', 0)
+                _cache_read = _usage.get('cache_read_input_tokens', 0)
+                _total_input = _input + _cache_create + _cache_read
+                if _total_input:
+                    _meta_lines += f"- **Total Input (API)**: {_total_input:,}\n"
                 if 'output_tokens' in _usage:
                     _meta_lines += f"- **Output Tokens**: {_usage['output_tokens']:,}\n"
-                if 'input_tokens' in _usage:
-                    _meta_lines += f"- **Input Tokens**: {_usage['input_tokens']:,}\n"
-                if 'cache_read_input_tokens' in _usage and _usage['cache_read_input_tokens']:
-                    _meta_lines += f"- **Cache Read Tokens**: {_usage['cache_read_input_tokens']:,}\n"
+                if _input:
+                    _meta_lines += f"- **Input Tokens (uncached)**: {_input:,}\n"
+                if _cache_create:
+                    _meta_lines += f"- **Cache Creation Tokens**: {_cache_create:,}\n"
+                if _cache_read:
+                    _meta_lines += f"- **Cache Read Tokens**: {_cache_read:,}\n"
             if hasattr(response, 'total_cost_usd') and response.total_cost_usd:
                 _meta_lines += f"- **Total Cost**: ${response.total_cost_usd:.4f}\n"
             # Insert after "Pass Number" line in Metadata block
@@ -2301,6 +2280,32 @@ def filter_context_for_code_explanation(context: Dict[str, Any]) -> Dict[str, An
         # Note: source_code, chunk info added per chunk during processing
         # Note: called_by_graph filtered per chunk's paragraphs only
     }
+
+
+def _load_query_code_results(program_name: str, metadata_dir: str) -> Optional[Dict[str, Any]]:
+    """
+    Load query_code boundary results from the metadata directory.
+
+    Searches for files matching common naming patterns produced by
+    the ConfigDrivenMCPMetadataGenerator.
+
+    Returns:
+        Parsed JSON dict if found, None otherwise.
+    """
+    from pathlib import Path
+    candidates = [
+        f"chunking_boundaries/{program_name}.json",
+        f"query-code-{program_name}-boundaries.json",
+        f"{program_name}/query-code-boundaries.json",
+    ]
+    for candidate in candidates:
+        path = Path(metadata_dir) / candidate
+        if path.exists():
+            try:
+                return json.loads(path.read_text(encoding='utf-8'))
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"  ⚠ Failed to load {path}: {e}")
+    return None
 
 
 def process_large_file_in_chunks(
@@ -2373,15 +2378,35 @@ def process_large_file_in_chunks(
     # Get program map from context to calculate overhead during chunking
     program_map = context.get('program_map')
 
+    # Derive program_name early (needed for query_code loading and caching)
+    program_name = state["program_name"] if state else context.get("program_name", "UNKNOWN")
+
+    # Load query_code results for tree-sitter based chunking (if available)
+    query_code_results = None
+    chunking_config = {}
+    if state:
+        full_config = state.get('full_config', {})
+        chunking_config = full_config.get('chunking', {})
+        metadata_dir = state.get('metadata_dir')
+        if metadata_dir and chunking_config.get('strategy') in ('query_code', 'tsg_graph'):
+            query_code_results = _load_query_code_results(program_name, str(metadata_dir))
+            if query_code_results:
+                print(f"  → Loaded chunking boundary results for structural chunking")
+            else:
+                print(f"  ⚠ No chunking boundary results found — will use fallback strategy")
+
     # Create chunks with smaller granularity for better LLM coverage
     # Using 10K tokens per chunk for granular processing
     # Program map overhead is calculated and reserved during chunking
+    max_tokens = chunking_config.get('max_tokens_per_chunk', 10000)
     try:
         adapter_chunks, adapter_verification = adapter.chunk_source_file(
             file_path,
-            max_tokens_per_chunk=10000,  # 10K tokens per chunk (including overhead)
+            max_tokens_per_chunk=max_tokens,
             metadata=ctags_metadata,
-            program_map=program_map  # Pass program_map to calculate overhead
+            program_map=program_map,
+            query_code_results=query_code_results,
+            chunking_config=chunking_config,
         )
         # Convert SourceChunk objects to dicts for existing code compatibility
         chunks = [
@@ -2430,10 +2455,16 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
     }
 
     # Load any previously cached chunk results for resume support
-    program_name = state["program_name"] if state else context.get("program_name", "UNKNOWN")
     cached_chunks = load_completed_chunks(program_name)
     if cached_chunks:
         print(f"  → Loaded {len(cached_chunks)} cached chunk results, resuming from chunk {max(cached_chunks.keys()) + 1}")
+
+    # Structural context: get declaration_map from verification (if query_code chunking was used)
+    declaration_map = getattr(adapter_verification, 'declaration_map', None)
+    seen_members: Dict[str, List[str]] = {}
+    structural_context_enabled = chunking_config.get('structural_context', True) and declaration_map is not None
+    if structural_context_enabled:
+        print(f"  → Structural context enabled ({len(declaration_map.containers)} containers)")
 
     for chunk_info in chunks:
         chunk_num = chunk_info['chunk_number']
@@ -2447,6 +2478,18 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             continue
 
         print(f"\n  → Processing chunk {chunk_num}/{total_chunks} (lines {chunk_info['start_line']}-{chunk_info['end_line']})")
+
+        # Generate structural context for this chunk (if available)
+        chunk_structural_context = None
+        if structural_context_enabled:
+            from structural_chunker import get_structural_context as _get_struct_ctx
+            chunk_structural_context = _get_struct_ctx(
+                chunk_info['start_line'], chunk_info['end_line'],
+                declaration_map, seen_members,
+            )
+            if chunk_structural_context:
+                for ctx_line in chunk_structural_context:
+                    print(f"     {ctx_line.split(chr(10))[0]}")  # Print first line only
 
         # Format chunk with metadata and program map (for whole-file context)
         from language_adapter import SourceChunk
@@ -2463,7 +2506,8 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             chunk_as_obj,
             total_chunks,
             file_name,
-            program_map=program_map  # Include program map in each chunk
+            program_map=None,           # Passed separately in chunk_context
+            structural_context=None,    # Rendered by format_context_as_plaintext()
         )
 
         # CRITICAL OPTIMIZATION: Use MINIMAL metadata for code explanation
@@ -2478,6 +2522,14 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         chunk_context['start_line'] = chunk_info['start_line']
         chunk_context['end_line'] = chunk_info['end_line']
         chunk_context['line_count'] = chunk_info['line_count']
+
+        # Pass program map as separate context key (not embedded in source_code)
+        if program_map:
+            chunk_context['program_map'] = program_map
+
+        # Add structural context to chunk_context for format_context_as_plaintext()
+        if chunk_structural_context:
+            chunk_context['structural_context'] = chunk_structural_context
 
         # Add filtered syntax tree for this chunk's line range
         # Gives LLM structural awareness without sending the full AST
@@ -2728,6 +2780,14 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
             save_chunk_result(program_name, chunk_num, no_result_doc)
             if chunk_debug_path:
                 print(f"  [DEBUG] Request logged to: {chunk_debug_path} (latency: {chunk_latency:.2f}s)")
+
+        # Update seen_members for structural context tracking across chunks
+        if structural_context_enabled:
+            from structural_chunker import update_seen_members as _update_seen
+            _update_seen(
+                chunk_info['start_line'], chunk_info['end_line'],
+                declaration_map, seen_members,
+            )
 
     # Combine all results from Pass 1
     combined_result = "\n\n".join(all_results)
@@ -3948,6 +4008,7 @@ def generate_documentation(
     enable_source_extraction: bool = True,
     auto_start_phase2: bool = True,
     language: str = 'cobol',
+    full_config: Optional[Dict[str, Any]] = None,
 ) -> Optional[str]:
     """
     Generate documentation using the two-phase approach.
@@ -4117,6 +4178,8 @@ def generate_documentation(
             # Enable source extraction for chunked processing of large files
             "enable_source_extraction": enable_source_extraction,
             "relative_source_path": relative_source,
+            # Full config for chunking strategy, query patterns, etc.
+            "full_config": full_config or {},
             **metadata
         }
 
@@ -4772,6 +4835,7 @@ Examples:
                     enable_source_extraction=enable_source_extraction,
                     auto_start_phase2=auto_start_phase2,
                     language=language,
+                    full_config=config_loader.config if config_loader else None,
                 )
 
                 if output_path:
@@ -4829,6 +4893,7 @@ Examples:
                 enable_source_extraction=enable_source_extraction,
                 auto_start_phase2=auto_start_phase2,
                 language=language,
+                full_config=config_loader.config if config_loader else None,
             )
         except Exception as e:
             print(f"\n✗ Fatal error: {e}")

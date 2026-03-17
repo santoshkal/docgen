@@ -228,14 +228,14 @@ class DotNetAdapter(LanguageAdapter):
 
         return sorted(boundaries, key=lambda b: b.line_number)
 
-    def chunk_source_file(
+    def _chunk_source_file_legacy(
         self,
         file_path: str,
         max_tokens_per_chunk: int = 100000,
         metadata: Optional[Dict[str, Any]] = None,
         program_map: Optional[str] = None
     ) -> Tuple[List[SourceChunk], ChunkVerification]:
-        """Split a C# source file into chunks at structural boundaries."""
+        """Split a C# source file into chunks at structural boundaries (ctags/regex fallback)."""
         from source_chunker import create_chunks_at_boundaries
         from tokenizer import estimate_tokens
 
@@ -294,19 +294,29 @@ class DotNetAdapter(LanguageAdapter):
         total_chunks: int,
         file_name: str,
         program_map: Optional[str] = None,
-        model: str = "gpt-4"
+        model: str = "gpt-4",
+        structural_context: Optional[List[str]] = None,
     ) -> str:
         """Format a C# chunk with metadata headers for LLM processing."""
+        import hashlib
         from tokenizer import estimate_tokens
 
-        header = f"## Chunk {chunk.chunk_number}/{total_chunks}: {file_name}\n"
-        header += f"Lines {chunk.start_line}–{chunk.end_line} ({chunk.line_count} lines, ~{chunk.estimated_tokens} tokens)\n\n"
+        chunk_hash = hashlib.sha256(chunk.content.encode('utf-8')).hexdigest()[:12]
+
+        header = f"## Hash-ID: {chunk_hash} | Chunk {chunk.chunk_number}/{total_chunks}: {file_name}\n"
+        header += f"Lines {chunk.start_line}\u2013{chunk.end_line} ({chunk.line_count} lines, ~{chunk.estimated_tokens} tokens)\n\n"
+
+        if structural_context:
+            header += "### Structural Context\n"
+            for ctx_line in structural_context:
+                header += f"- {ctx_line}\n"
+            header += "\n"
 
         if program_map:
             header += "### Program Structure Map\n"
             header += program_map + "\n\n"
 
-        header += f"### Source Code (lines {chunk.start_line}–{chunk.end_line})\n\n"
+        header += f"### Source Code (lines {chunk.start_line}\u2013{chunk.end_line})\n\n"
 
         formatted = header + "```csharp\n" + chunk.content
         if not formatted.endswith('\n'):

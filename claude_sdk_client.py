@@ -104,13 +104,14 @@ def _call_claude_cli_direct(
     betas: Optional[List[str]] = None,
     max_thinking_tokens: Optional[int] = None,
     max_output_tokens: Optional[int] = None
-) -> str:
+) -> tuple:
     """
     Call Claude CLI directly using a temp file for large prompts.
 
     This bypasses the SDK's command-line argument limitation by:
     1. Writing the prompt to a temp file
     2. Using shell to pipe the file content to claude CLI
+    3. Using --output-format json to capture usage/cost metadata
 
     Args:
         prompt: The user prompt (can be very large)
@@ -121,12 +122,12 @@ def _call_claude_cli_direct(
         max_output_tokens: Max output tokens
 
     Returns:
-        The response text from Claude
+        Tuple of (response_text, usage_dict, total_cost_usd)
     """
     cli_path = _find_claude_cli()
 
-    # Build command
-    cmd = [cli_path, "--print"]
+    # Build command — use JSON output to capture usage/cost metadata
+    cmd = [cli_path, "--print", "--output-format", "json"]
 
     if system_prompt:
         cmd.extend(["--system-prompt", system_prompt])
@@ -206,7 +207,17 @@ def _call_claude_cli_direct(
             full_error = f"Claude CLI failed (exit {result.returncode}): {'; '.join(details)}"
             raise RuntimeError(full_error)
 
-        return result.stdout.strip()
+        # Parse JSON response to extract text, usage, and cost
+        raw_output = result.stdout.strip()
+        try:
+            json_response = json.loads(raw_output)
+            response_text = json_response.get('result', '')
+            usage = json_response.get('usage', {})
+            total_cost = json_response.get('total_cost_usd')
+            return response_text, usage, total_cost
+        except (json.JSONDecodeError, KeyError):
+            # Fallback: treat as plain text if JSON parsing fails
+            return raw_output, None, None
 
     finally:
         # Clean up temp file
@@ -369,7 +380,7 @@ class ClaudeSdkLLM:
             # Use direct CLI call with temp file (bypasses ARG_MAX)
             # Run in thread pool to not block async event loop
             loop = asyncio.get_event_loop()
-            cli_response = await loop.run_in_executor(
+            cli_response, cli_usage, cli_cost = await loop.run_in_executor(
                 None,
                 lambda: _call_claude_cli_direct(
                     prompt,
@@ -380,8 +391,7 @@ class ClaudeSdkLLM:
                     self.max_output_tokens
                 )
             )
-            # Direct CLI doesn't return usage info
-            return cli_response, None, None
+            return cli_response, cli_usage, cli_cost
 
         # For small prompts, use the SDK (simpler error handling)
         options = self._build_options(system_prompt)

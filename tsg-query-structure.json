@@ -1,0 +1,1774 @@
+{
+  "tsg_query": "; C# Structural + Containment Graph with line positions\n; Produces nodes with type, name, start_row, end_row + parent\u2192child edges\n\n; === Containers (standalone nodes) ===\n\n(namespace_declaration\n  name: (_) @ns_name) @ns_def\n{\n  node ns\n  attr (ns) type = \"namespace\"\n  attr (ns) name = (source-text @ns_name)\n  attr (ns) start_row = (start-row @ns_def)\n  attr (ns) end_row = (end-row @ns_def)\n}\n\n(enum_declaration\n  name: (identifier) @enum_name) @enum_def\n{\n  node en\n  attr (en) type = \"enum\"\n  attr (en) name = (source-text @enum_name)\n  attr (en) start_row = (start-row @enum_def)\n  attr (en) end_row = (end-row @enum_def)\n}\n\n(struct_declaration\n  name: (identifier) @struct_name) @struct_def\n{\n  node st\n  attr (st) type = \"struct\"\n  attr (st) name = (source-text @struct_name)\n  attr (st) start_row = (start-row @struct_def)\n  attr (st) end_row = (end-row @struct_def)\n}\n\n(interface_declaration\n  name: (identifier) @iface_name) @iface_def\n{\n  node ifc\n  attr (ifc) type = \"interface\"\n  attr (ifc) name = (source-text @iface_name)\n  attr (ifc) start_row = (start-row @iface_def)\n  attr (ifc) end_row = (end-row @iface_def)\n}\n\n; === Class + member containment (class\u2192method, class\u2192property, etc.) ===\n\n; Class with method\n(class_declaration\n  name: (identifier) @cls1\n  body: (declaration_list\n    (method_declaration\n      name: (identifier) @meth_name) @meth_def)) @cls1_def\n{\n  node parent1\n  attr (parent1) type = \"class\"\n  attr (parent1) name = (source-text @cls1)\n  attr (parent1) start_row = (start-row @cls1_def)\n  attr (parent1) end_row = (end-row @cls1_def)\n  node child1\n  attr (child1) type = \"method\"\n  attr (child1) name = (source-text @meth_name)\n  attr (child1) start_row = (start-row @meth_def)\n  attr (child1) end_row = (end-row @meth_def)\n  edge parent1 -> child1\n}\n\n; Class with constructor\n(class_declaration\n  name: (identifier) @cls2\n  body: (declaration_list\n    (constructor_declaration\n      name: (identifier) @ctor_name) @ctor_def)) @cls2_def\n{\n  node parent2\n  attr (parent2) type = \"class\"\n  attr (parent2) name = (source-text @cls2)\n  attr (parent2) start_row = (start-row @cls2_def)\n  attr (parent2) end_row = (end-row @cls2_def)\n  node child2\n  attr (child2) type = \"constructor\"\n  attr (child2) name = (source-text @ctor_name)\n  attr (child2) start_row = (start-row @ctor_def)\n  attr (child2) end_row = (end-row @ctor_def)\n  edge parent2 -> child2\n}\n\n; Class with property\n(class_declaration\n  name: (identifier) @cls3\n  body: (declaration_list\n    (property_declaration\n      name: (identifier) @prop_name) @prop_def)) @cls3_def\n{\n  node parent3\n  attr (parent3) type = \"class\"\n  attr (parent3) name = (source-text @cls3)\n  attr (parent3) start_row = (start-row @cls3_def)\n  attr (parent3) end_row = (end-row @cls3_def)\n  node child3\n  attr (child3) type = \"property\"\n  attr (child3) name = (source-text @prop_name)\n  attr (child3) start_row = (start-row @prop_def)\n  attr (child3) end_row = (end-row @prop_def)\n  edge parent3 -> child3\n}\n\n; Class with field\n(class_declaration\n  name: (identifier) @cls4\n  body: (declaration_list\n    (field_declaration\n      (variable_declaration\n        (variable_declarator\n          (identifier) @field_name))) @field_def)) @cls4_def\n{\n  node parent4\n  attr (parent4) type = \"class\"\n  attr (parent4) name = (source-text @cls4)\n  attr (parent4) start_row = (start-row @cls4_def)\n  attr (parent4) end_row = (end-row @cls4_def)\n  node child4\n  attr (child4) type = \"field\"\n  attr (child4) name = (source-text @field_name)\n  attr (child4) start_row = (start-row @field_def)\n  attr (child4) end_row = (end-row @field_def)\n  edge parent4 -> child4\n}\n",
+  "source_file": "HeijunkaData.cs",
+  "summary": {
+    "total_raw_nodes": 541,
+    "containers": 16,
+    "standalone": 3,
+    "total_members": 269
+  },
+  "standalone": [
+    {
+      "type": "namespace",
+      "name": "ng.data.requirements.heijunka",
+      "start_row": 6,
+      "end_row": 4802
+    },
+    {
+      "type": "enum",
+      "name": "PitchType",
+      "start_row": 13,
+      "end_row": 13
+    },
+    {
+      "type": "enum",
+      "name": "PitchStatus",
+      "start_row": 14,
+      "end_row": 14
+    }
+  ],
+  "containers": [
+    {
+      "type": "class",
+      "name": "HeijunkaLineSetupOptions",
+      "start_row": 17,
+      "end_row": 85,
+      "members": [
+        {
+          "type": "field",
+          "name": "overPlanTolerance",
+          "start_row": 20,
+          "end_row": 20
+        },
+        {
+          "type": "field",
+          "name": "extendedShiftTolerance",
+          "start_row": 21,
+          "end_row": 21
+        },
+        {
+          "type": "field",
+          "name": "overTimeTolerance",
+          "start_row": 22,
+          "end_row": 22
+        },
+        {
+          "type": "field",
+          "name": "syncRoot",
+          "start_row": 23,
+          "end_row": 23
+        },
+        {
+          "type": "field",
+          "name": "line",
+          "start_row": 25,
+          "end_row": 25
+        },
+        {
+          "type": "constructor",
+          "name": "HeijunkaLineSetupOptions",
+          "start_row": 27,
+          "end_row": 30
+        },
+        {
+          "type": "property",
+          "name": "Line",
+          "start_row": 32,
+          "end_row": 39
+        },
+        {
+          "type": "property",
+          "name": "SyncRoot",
+          "start_row": 41,
+          "end_row": 47
+        },
+        {
+          "type": "property",
+          "name": "ExtendedShiftTolerance",
+          "start_row": 48,
+          "end_row": 58
+        },
+        {
+          "type": "property",
+          "name": "OverPlanTolerance",
+          "start_row": 60,
+          "end_row": 70
+        },
+        {
+          "type": "property",
+          "name": "OverTimeTolerance",
+          "start_row": 72,
+          "end_row": 82
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "CumToleranceEntry",
+      "start_row": 87,
+      "end_row": 140,
+      "members": [
+        {
+          "type": "field",
+          "name": "fromHour",
+          "start_row": 90,
+          "end_row": 90
+        },
+        {
+          "type": "field",
+          "name": "data",
+          "start_row": 92,
+          "end_row": 92
+        },
+        {
+          "type": "constructor",
+          "name": "CumToleranceEntry",
+          "start_row": 94,
+          "end_row": 98
+        },
+        {
+          "type": "property",
+          "name": "From",
+          "start_row": 100,
+          "end_row": 110
+        },
+        {
+          "type": "method",
+          "name": "Qualifies",
+          "start_row": 113,
+          "end_row": 127
+        },
+        {
+          "type": "property",
+          "name": "Data",
+          "start_row": 129,
+          "end_row": 139
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "AbstractPitchDetail",
+      "start_row": 154,
+      "end_row": 441,
+      "members": [
+        {
+          "type": "field",
+          "name": "m_sDataIndicator",
+          "start_row": 157,
+          "end_row": 157
+        },
+        {
+          "type": "field",
+          "name": "m_sRePlan",
+          "start_row": 158,
+          "end_row": 158
+        },
+        {
+          "type": "field",
+          "name": "m_sEnterpriseName",
+          "start_row": 159,
+          "end_row": 159
+        },
+        {
+          "type": "field",
+          "name": "m_sDivisionName",
+          "start_row": 160,
+          "end_row": 160
+        },
+        {
+          "type": "field",
+          "name": "m_sInstanceName",
+          "start_row": 161,
+          "end_row": 161
+        },
+        {
+          "type": "field",
+          "name": "m_sLineID",
+          "start_row": 162,
+          "end_row": 162
+        },
+        {
+          "type": "field",
+          "name": "m_dShiftStartDate",
+          "start_row": 163,
+          "end_row": 163
+        },
+        {
+          "type": "field",
+          "name": "m_dShiftEndDate",
+          "start_row": 164,
+          "end_row": 164
+        },
+        {
+          "type": "field",
+          "name": "m_sShiftName",
+          "start_row": 165,
+          "end_row": 165
+        },
+        {
+          "type": "field",
+          "name": "m_sPitchNbr",
+          "start_row": 166,
+          "end_row": 166
+        },
+        {
+          "type": "field",
+          "name": "m_sDivisionIntCode",
+          "start_row": 167,
+          "end_row": 167
+        },
+        {
+          "type": "field",
+          "name": "m_sSiteIntCode",
+          "start_row": 168,
+          "end_row": 168
+        },
+        {
+          "type": "field",
+          "name": "m_sLineIntCode",
+          "start_row": 169,
+          "end_row": 169
+        },
+        {
+          "type": "field",
+          "name": "m_dPitchStartDate",
+          "start_row": 170,
+          "end_row": 170
+        },
+        {
+          "type": "field",
+          "name": "m_dPitchEndDate",
+          "start_row": 171,
+          "end_row": 171
+        },
+        {
+          "type": "field",
+          "name": "m_sPitchItemID",
+          "start_row": 173,
+          "end_row": 173
+        },
+        {
+          "type": "field",
+          "name": "m_PitchType",
+          "start_row": 174,
+          "end_row": 174
+        },
+        {
+          "type": "field",
+          "name": "m_iRow_ID",
+          "start_row": 178,
+          "end_row": 178
+        },
+        {
+          "type": "field",
+          "name": "m_iCumCount",
+          "start_row": 181,
+          "end_row": 181
+        },
+        {
+          "type": "property",
+          "name": "DataIndicator",
+          "start_row": 183,
+          "end_row": 193
+        },
+        {
+          "type": "property",
+          "name": "Replan",
+          "start_row": 199,
+          "end_row": 209
+        },
+        {
+          "type": "property",
+          "name": "EnterpriseName",
+          "start_row": 210,
+          "end_row": 220
+        },
+        {
+          "type": "property",
+          "name": "DivisionName",
+          "start_row": 221,
+          "end_row": 231
+        },
+        {
+          "type": "property",
+          "name": "PitchItemID",
+          "start_row": 233,
+          "end_row": 243
+        },
+        {
+          "type": "property",
+          "name": "TotalTime",
+          "start_row": 245,
+          "end_row": 253
+        },
+        {
+          "type": "property",
+          "name": "InstanceName",
+          "start_row": 254,
+          "end_row": 264
+        },
+        {
+          "type": "property",
+          "name": "LineID",
+          "start_row": 265,
+          "end_row": 275
+        },
+        {
+          "type": "property",
+          "name": "PitchType",
+          "start_row": 277,
+          "end_row": 287
+        },
+        {
+          "type": "property",
+          "name": "ShiftStartDate",
+          "start_row": 289,
+          "end_row": 299
+        },
+        {
+          "type": "property",
+          "name": "ShiftEndDate",
+          "start_row": 300,
+          "end_row": 310
+        },
+        {
+          "type": "property",
+          "name": "ShiftName",
+          "start_row": 312,
+          "end_row": 322
+        },
+        {
+          "type": "property",
+          "name": "PitchNbr",
+          "start_row": 324,
+          "end_row": 334
+        },
+        {
+          "type": "property",
+          "name": "DivisionIntCode",
+          "start_row": 335,
+          "end_row": 345
+        },
+        {
+          "type": "property",
+          "name": "SiteIntCode",
+          "start_row": 346,
+          "end_row": 356
+        },
+        {
+          "type": "property",
+          "name": "LineIntCode",
+          "start_row": 358,
+          "end_row": 368
+        },
+        {
+          "type": "property",
+          "name": "PitchStartDate",
+          "start_row": 370,
+          "end_row": 380
+        },
+        {
+          "type": "property",
+          "name": "PitchEndDate",
+          "start_row": 382,
+          "end_row": 392
+        },
+        {
+          "type": "property",
+          "name": "Row_ID",
+          "start_row": 394,
+          "end_row": 404
+        },
+        {
+          "type": "property",
+          "name": "CumCount",
+          "start_row": 407,
+          "end_row": 417
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "WorkingPitch",
+      "start_row": 443,
+      "end_row": 543,
+      "members": [
+        {
+          "type": "constructor",
+          "name": "WorkingPitch",
+          "start_row": 446,
+          "end_row": 462
+        },
+        {
+          "type": "constructor",
+          "name": "WorkingPitch",
+          "start_row": 463,
+          "end_row": 465
+        },
+        {
+          "type": "method",
+          "name": "PitchInterval",
+          "start_row": 467,
+          "end_row": 476
+        },
+        {
+          "type": "method",
+          "name": "Save",
+          "start_row": 478,
+          "end_row": 540
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "NonWorkingPitch",
+      "start_row": 545,
+      "end_row": 586,
+      "members": [
+        {
+          "type": "field",
+          "name": "m_sNonWorkingDesc",
+          "start_row": 548,
+          "end_row": 548
+        },
+        {
+          "type": "constructor",
+          "name": "NonWorkingPitch",
+          "start_row": 550,
+          "end_row": 552
+        },
+        {
+          "type": "constructor",
+          "name": "NonWorkingPitch",
+          "start_row": 554,
+          "end_row": 573
+        },
+        {
+          "type": "property",
+          "name": "NonWorkingDesc",
+          "start_row": 574,
+          "end_row": 584
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "AONonWorkingPitch",
+      "start_row": 587,
+      "end_row": 592,
+      "members": [
+        {
+          "type": "constructor",
+          "name": "AONonWorkingPitch",
+          "start_row": 590,
+          "end_row": 590
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "ServerPitch",
+      "start_row": 594,
+      "end_row": 737,
+      "members": [
+        {
+          "type": "field",
+          "name": "hasStarted",
+          "start_row": 599,
+          "end_row": 599
+        },
+        {
+          "type": "field",
+          "name": "m_aLinePitch",
+          "start_row": 600,
+          "end_row": 600
+        },
+        {
+          "type": "property",
+          "name": "HasStarted",
+          "start_row": 603,
+          "end_row": 609
+        },
+        {
+          "type": "property",
+          "name": "Lines",
+          "start_row": 612,
+          "end_row": 618
+        },
+        {
+          "type": "method",
+          "name": "KillAll",
+          "start_row": 620,
+          "end_row": 626
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 629,
+          "end_row": 632
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 634,
+          "end_row": 637
+        },
+        {
+          "type": "method",
+          "name": "GetLinePitch",
+          "start_row": 641,
+          "end_row": 652
+        },
+        {
+          "type": "method",
+          "name": "GetLinePitch",
+          "start_row": 654,
+          "end_row": 665
+        },
+        {
+          "type": "method",
+          "name": "Start",
+          "start_row": 670,
+          "end_row": 682
+        },
+        {
+          "type": "method",
+          "name": "CreateLinePitch",
+          "start_row": 684,
+          "end_row": 700
+        },
+        {
+          "type": "method",
+          "name": "CreateLinePitch",
+          "start_row": 701,
+          "end_row": 720
+        },
+        {
+          "type": "method",
+          "name": "GetReport",
+          "start_row": 722,
+          "end_row": 736
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "PitchStats",
+      "start_row": 739,
+      "end_row": 755,
+      "members": [
+        {
+          "type": "field",
+          "name": "m_bIsCountCritical",
+          "start_row": 742,
+          "end_row": 742
+        },
+        {
+          "type": "property",
+          "name": "IsCountCritical",
+          "start_row": 744,
+          "end_row": 754
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "NoPitchDataForTodayException",
+      "start_row": 757,
+      "end_row": 760,
+      "members": [
+        {
+          "type": "constructor",
+          "name": "NoPitchDataForTodayException",
+          "start_row": 759,
+          "end_row": 759
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "PitchDataNeedsReloadingException",
+      "start_row": 761,
+      "end_row": 764,
+      "members": [
+        {
+          "type": "constructor",
+          "name": "PitchDataNeedsReloadingException",
+          "start_row": 763,
+          "end_row": 763
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "LinePitch",
+      "start_row": 766,
+      "end_row": 3355,
+      "members": [
+        {
+          "type": "field",
+          "name": "m_aShiftPitch",
+          "start_row": 770,
+          "end_row": 770
+        },
+        {
+          "type": "field",
+          "name": "m_allPitches",
+          "start_row": 772,
+          "end_row": 772
+        },
+        {
+          "type": "field",
+          "name": "line",
+          "start_row": 774,
+          "end_row": 774
+        },
+        {
+          "type": "field",
+          "name": "serverPitch",
+          "start_row": 775,
+          "end_row": 775
+        },
+        {
+          "type": "field",
+          "name": "hps",
+          "start_row": 776,
+          "end_row": 776
+        },
+        {
+          "type": "field",
+          "name": "currentPitch",
+          "start_row": 778,
+          "end_row": 778
+        },
+        {
+          "type": "field",
+          "name": "currentSP",
+          "start_row": 779,
+          "end_row": 779
+        },
+        {
+          "type": "field",
+          "name": "lastPitchCompleted",
+          "start_row": 780,
+          "end_row": 780
+        },
+        {
+          "type": "field",
+          "name": "lockedDate",
+          "start_row": 781,
+          "end_row": 781
+        },
+        {
+          "type": "field",
+          "name": "mustPickInOrder",
+          "start_row": 783,
+          "end_row": 783
+        },
+        {
+          "type": "field",
+          "name": "m_iWorkMinutesPerPitch",
+          "start_row": 787,
+          "end_row": 787
+        },
+        {
+          "type": "field",
+          "name": "thread",
+          "start_row": 793,
+          "end_row": 793
+        },
+        {
+          "type": "field",
+          "name": "m_bReplan",
+          "start_row": 795,
+          "end_row": 795
+        },
+        {
+          "type": "field",
+          "name": "previousShifts",
+          "start_row": 796,
+          "end_row": 796
+        },
+        {
+          "type": "constructor",
+          "name": "LinePitch",
+          "start_row": 800,
+          "end_row": 806
+        },
+        {
+          "type": "property",
+          "name": "Shifts",
+          "start_row": 808,
+          "end_row": 814
+        },
+        {
+          "type": "property",
+          "name": "Replan",
+          "start_row": 817,
+          "end_row": 827
+        },
+        {
+          "type": "method",
+          "name": "LoadProductionSchedule",
+          "start_row": 829,
+          "end_row": 861
+        },
+        {
+          "type": "property",
+          "name": "CurrentShiftPitch",
+          "start_row": 864,
+          "end_row": 870
+        },
+        {
+          "type": "property",
+          "name": "IsCountCritical",
+          "start_row": 872,
+          "end_row": 923
+        },
+        {
+          "type": "method",
+          "name": "SleepForPitch",
+          "start_row": 924,
+          "end_row": 967
+        },
+        {
+          "type": "method",
+          "name": "Kill",
+          "start_row": 969,
+          "end_row": 982
+        },
+        {
+          "type": "method",
+          "name": "Wakeup",
+          "start_row": 983,
+          "end_row": 1015
+        },
+        {
+          "type": "method",
+          "name": "GetMinutesBehind",
+          "start_row": 1017,
+          "end_row": 1075
+        },
+        {
+          "type": "property",
+          "name": "MinutesBehind",
+          "start_row": 1077,
+          "end_row": 1084
+        },
+        {
+          "type": "method",
+          "name": "UpdateStats",
+          "start_row": 1087,
+          "end_row": 1154
+        },
+        {
+          "type": "method",
+          "name": "IsExtendedShiftRunning",
+          "start_row": 1156,
+          "end_row": 1211
+        },
+        {
+          "type": "method",
+          "name": "GetLastPitchRow",
+          "start_row": 1212,
+          "end_row": 1255
+        },
+        {
+          "type": "method",
+          "name": "GetCumCountFromStats",
+          "start_row": 1257,
+          "end_row": 1416
+        },
+        {
+          "type": "property",
+          "name": "MinutesPerPart",
+          "start_row": 1419,
+          "end_row": 1445
+        },
+        {
+          "type": "property",
+          "name": "WorkMinutesPerPitch",
+          "start_row": 1447,
+          "end_row": 1457
+        },
+        {
+          "type": "property",
+          "name": "MustPickInOrder",
+          "start_row": 1458,
+          "end_row": 1472
+        },
+        {
+          "type": "property",
+          "name": "ProductionSchedule",
+          "start_row": 1474,
+          "end_row": 1484
+        },
+        {
+          "type": "property",
+          "name": "LineID",
+          "start_row": 1485,
+          "end_row": 1491
+        },
+        {
+          "type": "property",
+          "name": "PartsPerPitch",
+          "start_row": 1493,
+          "end_row": 1520
+        },
+        {
+          "type": "method",
+          "name": "Load",
+          "start_row": 1521,
+          "end_row": 1535
+        },
+        {
+          "type": "method",
+          "name": "MoveShiftToHistory",
+          "start_row": 1537,
+          "end_row": 1579
+        },
+        {
+          "type": "method",
+          "name": "PurgeData",
+          "start_row": 1581,
+          "end_row": 1632
+        },
+        {
+          "type": "method",
+          "name": "Load",
+          "start_row": 1634,
+          "end_row": 2037
+        },
+        {
+          "type": "method",
+          "name": "SetPartsPerPitch",
+          "start_row": 2039,
+          "end_row": 2077
+        },
+        {
+          "type": "method",
+          "name": "PreparePitches",
+          "start_row": 2078,
+          "end_row": 2225
+        },
+        {
+          "type": "method",
+          "name": "DeletePitch",
+          "start_row": 2227,
+          "end_row": 2247
+        },
+        {
+          "type": "method",
+          "name": "GetLineOptions",
+          "start_row": 2249,
+          "end_row": 2253
+        },
+        {
+          "type": "method",
+          "name": "SetOverPlan",
+          "start_row": 2263,
+          "end_row": 2308
+        },
+        {
+          "type": "method",
+          "name": "OnPitch",
+          "start_row": 2310,
+          "end_row": 2416
+        },
+        {
+          "type": "property",
+          "name": "CurrentPitch",
+          "start_row": 2418,
+          "end_row": 2425
+        },
+        {
+          "type": "method",
+          "name": "GetNextPitch",
+          "start_row": 2427,
+          "end_row": 2456
+        },
+        {
+          "type": "method",
+          "name": "OnPitchItem",
+          "start_row": 2458,
+          "end_row": 2480
+        },
+        {
+          "type": "method",
+          "name": "EnforceShiftExtension",
+          "start_row": 2482,
+          "end_row": 2578
+        },
+        {
+          "type": "property",
+          "name": "Thread",
+          "start_row": 2580,
+          "end_row": 2586
+        },
+        {
+          "type": "property",
+          "name": "LockedDate",
+          "start_row": 2588,
+          "end_row": 2598
+        },
+        {
+          "type": "method",
+          "name": "Run",
+          "start_row": 2600,
+          "end_row": 2979
+        },
+        {
+          "type": "method",
+          "name": "GetPitchCount",
+          "start_row": 2981,
+          "end_row": 3027
+        },
+        {
+          "type": "method",
+          "name": "Start",
+          "start_row": 3029,
+          "end_row": 3061
+        },
+        {
+          "type": "property",
+          "name": "ServerPitch",
+          "start_row": 3062,
+          "end_row": 3072
+        },
+        {
+          "type": "method",
+          "name": "GetShiftPitch",
+          "start_row": 3074,
+          "end_row": 3085
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 3087,
+          "end_row": 3096
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 3099,
+          "end_row": 3102
+        },
+        {
+          "type": "method",
+          "name": "GetLine",
+          "start_row": 3104,
+          "end_row": 3107
+        },
+        {
+          "type": "method",
+          "name": "GetReport",
+          "start_row": 3109,
+          "end_row": 3117
+        },
+        {
+          "type": "property",
+          "name": "AllPitches",
+          "start_row": 3120,
+          "end_row": 3158
+        },
+        {
+          "type": "method",
+          "name": "DispatchList",
+          "start_row": 3160,
+          "end_row": 3172
+        },
+        {
+          "type": "method",
+          "name": "DispatchPitch",
+          "start_row": 3175,
+          "end_row": 3178
+        },
+        {
+          "type": "method",
+          "name": "RefreshPitchDisplay",
+          "start_row": 3180,
+          "end_row": 3184
+        },
+        {
+          "type": "method",
+          "name": "DispatchCurrentPitch",
+          "start_row": 3186,
+          "end_row": 3192
+        },
+        {
+          "type": "method",
+          "name": "DispatchAO",
+          "start_row": 3194,
+          "end_row": 3198
+        },
+        {
+          "type": "method",
+          "name": "DispatchUpdate",
+          "start_row": 3200,
+          "end_row": 3210
+        },
+        {
+          "type": "method",
+          "name": "DispatchCurrentIndex",
+          "start_row": 3212,
+          "end_row": 3222
+        },
+        {
+          "type": "method",
+          "name": "DispatchStats",
+          "start_row": 3224,
+          "end_row": 3234
+        },
+        {
+          "type": "method",
+          "name": "GetStats",
+          "start_row": 3236,
+          "end_row": 3242
+        },
+        {
+          "type": "method",
+          "name": "TriggerEvent",
+          "start_row": 3245,
+          "end_row": 3271
+        },
+        {
+          "type": "method",
+          "name": "TriggerEvent",
+          "start_row": 3273,
+          "end_row": 3311
+        },
+        {
+          "type": "method",
+          "name": "SetEventData",
+          "start_row": 3313,
+          "end_row": 3316
+        },
+        {
+          "type": "property",
+          "name": "EventsCatalog",
+          "start_row": 3321,
+          "end_row": 3327
+        },
+        {
+          "type": "property",
+          "name": "ServiceName",
+          "start_row": 3332,
+          "end_row": 3338
+        },
+        {
+          "type": "property",
+          "name": "ServiceDescription",
+          "start_row": 3340,
+          "end_row": 3346
+        },
+        {
+          "type": "method",
+          "name": "Dispose",
+          "start_row": 3350,
+          "end_row": 3353
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "ShiftPitch",
+      "start_row": 3357,
+      "end_row": 3674,
+      "members": [
+        {
+          "type": "field",
+          "name": "pitches",
+          "start_row": 3360,
+          "end_row": 3360
+        },
+        {
+          "type": "field",
+          "name": "linePitch",
+          "start_row": 3362,
+          "end_row": 3362
+        },
+        {
+          "type": "field",
+          "name": "m_sShiftStartDate",
+          "start_row": 3364,
+          "end_row": 3364
+        },
+        {
+          "type": "field",
+          "name": "m_sShiftEndDate",
+          "start_row": 3365,
+          "end_row": 3365
+        },
+        {
+          "type": "field",
+          "name": "m_sShiftName",
+          "start_row": 3366,
+          "end_row": 3366
+        },
+        {
+          "type": "field",
+          "name": "m_sLineID",
+          "start_row": 3367,
+          "end_row": 3367
+        },
+        {
+          "type": "field",
+          "name": "extended",
+          "start_row": 3368,
+          "end_row": 3368
+        },
+        {
+          "type": "constructor",
+          "name": "ShiftPitch",
+          "start_row": 3371,
+          "end_row": 3378
+        },
+        {
+          "type": "method",
+          "name": "Clear",
+          "start_row": 3382,
+          "end_row": 3396
+        },
+        {
+          "type": "property",
+          "name": "ShiftName",
+          "start_row": 3398,
+          "end_row": 3408
+        },
+        {
+          "type": "property",
+          "name": "Pitches",
+          "start_row": 3410,
+          "end_row": 3416
+        },
+        {
+          "type": "property",
+          "name": "LinePitch",
+          "start_row": 3418,
+          "end_row": 3424
+        },
+        {
+          "type": "property",
+          "name": "ShiftStartDate",
+          "start_row": 3426,
+          "end_row": 3436
+        },
+        {
+          "type": "property",
+          "name": "Replan",
+          "start_row": 3438,
+          "end_row": 3445
+        },
+        {
+          "type": "property",
+          "name": "ExtendedShift",
+          "start_row": 3448,
+          "end_row": 3458
+        },
+        {
+          "type": "method",
+          "name": "Start",
+          "start_row": 3459,
+          "end_row": 3472
+        },
+        {
+          "type": "method",
+          "name": "GetLastScheduledPitch",
+          "start_row": 3478,
+          "end_row": 3491
+        },
+        {
+          "type": "method",
+          "name": "GetFirstScheduledPitch",
+          "start_row": 3493,
+          "end_row": 3509
+        },
+        {
+          "type": "method",
+          "name": "RunPitch",
+          "start_row": 3511,
+          "end_row": 3522
+        },
+        {
+          "type": "property",
+          "name": "ShiftEndDate",
+          "start_row": 3524,
+          "end_row": 3534
+        },
+        {
+          "type": "method",
+          "name": "GetNextPitch",
+          "start_row": 3536,
+          "end_row": 3560
+        },
+        {
+          "type": "method",
+          "name": "IsLastPitch",
+          "start_row": 3562,
+          "end_row": 3593
+        },
+        {
+          "type": "property",
+          "name": "LineID",
+          "start_row": 3594,
+          "end_row": 3604
+        },
+        {
+          "type": "constructor",
+          "name": "ShiftPitch",
+          "start_row": 3606,
+          "end_row": 3609
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 3611,
+          "end_row": 3615
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 3617,
+          "end_row": 3633
+        },
+        {
+          "type": "method",
+          "name": "ContainsPitch",
+          "start_row": 3635,
+          "end_row": 3638
+        },
+        {
+          "type": "method",
+          "name": "GetPitch",
+          "start_row": 3640,
+          "end_row": 3652
+        },
+        {
+          "type": "method",
+          "name": "IsShift",
+          "start_row": 3654,
+          "end_row": 3660
+        },
+        {
+          "type": "method",
+          "name": "GetReport",
+          "start_row": 3662,
+          "end_row": 3672
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "PitchList",
+      "start_row": 3676,
+      "end_row": 3857,
+      "members": [
+        {
+          "type": "constructor",
+          "name": "PitchList",
+          "start_row": 3680,
+          "end_row": 3683
+        },
+        {
+          "type": "method",
+          "name": "GetObjectData",
+          "start_row": 3685,
+          "end_row": 3690
+        },
+        {
+          "type": "constructor",
+          "name": "PitchList",
+          "start_row": 3693,
+          "end_row": 3702
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 3704,
+          "end_row": 3707
+        },
+        {
+          "type": "method",
+          "name": "Remove",
+          "start_row": 3709,
+          "end_row": 3712
+        },
+        {
+          "type": "method",
+          "name": "Contains",
+          "start_row": 3730,
+          "end_row": 3738
+        },
+        {
+          "type": "method",
+          "name": "IndexOf",
+          "start_row": 3740,
+          "end_row": 3754
+        },
+        {
+          "type": "property",
+          "name": "IsReadOnly",
+          "start_row": 3757,
+          "end_row": 3763
+        },
+        {
+          "type": "method",
+          "name": "RemoveAt",
+          "start_row": 3765,
+          "end_row": 3768
+        },
+        {
+          "type": "method",
+          "name": "Insert",
+          "start_row": 3770,
+          "end_row": 3773
+        },
+        {
+          "type": "method",
+          "name": "Remove",
+          "start_row": 3775,
+          "end_row": 3778
+        },
+        {
+          "type": "method",
+          "name": "Contains",
+          "start_row": 3780,
+          "end_row": 3783
+        },
+        {
+          "type": "method",
+          "name": "Clear",
+          "start_row": 3785,
+          "end_row": 3788
+        },
+        {
+          "type": "method",
+          "name": "IndexOf",
+          "start_row": 3790,
+          "end_row": 3800
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 3802,
+          "end_row": 3806
+        },
+        {
+          "type": "property",
+          "name": "IsFixedSize",
+          "start_row": 3808,
+          "end_row": 3815
+        },
+        {
+          "type": "property",
+          "name": "IsSynchronized",
+          "start_row": 3833,
+          "end_row": 3840
+        },
+        {
+          "type": "method",
+          "name": "CopyTo",
+          "start_row": 3842,
+          "end_row": 3845
+        },
+        {
+          "type": "property",
+          "name": "SyncRoot",
+          "start_row": 3847,
+          "end_row": 3854
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "AOPitchData",
+      "start_row": 3859,
+      "end_row": 3904,
+      "members": [
+        {
+          "type": "field",
+          "name": "m_pitchStart",
+          "start_row": 3862,
+          "end_row": 3862
+        },
+        {
+          "type": "field",
+          "name": "m_aoEnd",
+          "start_row": 3863,
+          "end_row": 3863
+        },
+        {
+          "type": "field",
+          "name": "m_sDescription",
+          "start_row": 3864,
+          "end_row": 3864
+        },
+        {
+          "type": "property",
+          "name": "PitchStartDate",
+          "start_row": 3866,
+          "end_row": 3872
+        },
+        {
+          "type": "property",
+          "name": "AOEnd",
+          "start_row": 3874,
+          "end_row": 3880
+        },
+        {
+          "type": "property",
+          "name": "PartsPerPitch",
+          "start_row": 3882,
+          "end_row": 3888
+        },
+        {
+          "type": "property",
+          "name": "Description",
+          "start_row": 3890,
+          "end_row": 3896
+        },
+        {
+          "type": "constructor",
+          "name": "AOPitchData",
+          "start_row": 3898,
+          "end_row": 3903
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "Pitch",
+      "start_row": 3906,
+      "end_row": 4746,
+      "members": [
+        {
+          "type": "field",
+          "name": "pitchDetails",
+          "start_row": 3909,
+          "end_row": 3909
+        },
+        {
+          "type": "field",
+          "name": "shiftPitch",
+          "start_row": 3911,
+          "end_row": 3911
+        },
+        {
+          "type": "field",
+          "name": "m_iPitchNbr",
+          "start_row": 3912,
+          "end_row": 3912
+        },
+        {
+          "type": "field",
+          "name": "m_iPitchRowID",
+          "start_row": 3913,
+          "end_row": 3913
+        },
+        {
+          "type": "field",
+          "name": "m_iCumCount",
+          "start_row": 3914,
+          "end_row": 3914
+        },
+        {
+          "type": "field",
+          "name": "m_iOrderQty",
+          "start_row": 3915,
+          "end_row": 3915
+        },
+        {
+          "type": "field",
+          "name": "currentItem",
+          "start_row": 3916,
+          "end_row": 3916
+        },
+        {
+          "type": "field",
+          "name": "m_dPitchStartDate",
+          "start_row": 3917,
+          "end_row": 3917
+        },
+        {
+          "type": "field",
+          "name": "m_dPitchEndDate",
+          "start_row": 3918,
+          "end_row": 3918
+        },
+        {
+          "type": "field",
+          "name": "m_iOverPlanQty",
+          "start_row": 3919,
+          "end_row": 3919
+        },
+        {
+          "type": "field",
+          "name": "pitchType",
+          "start_row": 3920,
+          "end_row": 3920
+        },
+        {
+          "type": "field",
+          "name": "partsPerPitch",
+          "start_row": 3921,
+          "end_row": 3921
+        },
+        {
+          "type": "field",
+          "name": "iCalculatedPartsPerPitch",
+          "start_row": 3922,
+          "end_row": 3922
+        },
+        {
+          "type": "field",
+          "name": "m_pStatus",
+          "start_row": 3923,
+          "end_row": 3923
+        },
+        {
+          "type": "field",
+          "name": "m_resetCum",
+          "start_row": 3924,
+          "end_row": 3924
+        },
+        {
+          "type": "field",
+          "name": "cumOffsetQty",
+          "start_row": 3925,
+          "end_row": 3925
+        },
+        {
+          "type": "field",
+          "name": "pitchJob",
+          "start_row": 3926,
+          "end_row": 3926
+        },
+        {
+          "type": "field",
+          "name": "m_bHasAODetail",
+          "start_row": 3927,
+          "end_row": 3927
+        },
+        {
+          "type": "constructor",
+          "name": "Pitch",
+          "start_row": 3977,
+          "end_row": 3979
+        },
+        {
+          "type": "method",
+          "name": "SetCumOffsetStatistics",
+          "start_row": 3981,
+          "end_row": 3984
+        },
+        {
+          "type": "property",
+          "name": "CumOffset",
+          "start_row": 3986,
+          "end_row": 3992
+        },
+        {
+          "type": "property",
+          "name": "HasAODetail",
+          "start_row": 3994,
+          "end_row": 4000
+        },
+        {
+          "type": "constructor",
+          "name": "Pitch",
+          "start_row": 4003,
+          "end_row": 4032
+        },
+        {
+          "type": "property",
+          "name": "ResetCum",
+          "start_row": 4035,
+          "end_row": 4045
+        },
+        {
+          "type": "property",
+          "name": "PitchStatus",
+          "start_row": 4047,
+          "end_row": 4058
+        },
+        {
+          "type": "method",
+          "name": "UpdateNonWork",
+          "start_row": 4060,
+          "end_row": 4135
+        },
+        {
+          "type": "property",
+          "name": "PitchType",
+          "start_row": 4137,
+          "end_row": 4147
+        },
+        {
+          "type": "property",
+          "name": "CurrentDetail",
+          "start_row": 4148,
+          "end_row": 4154
+        },
+        {
+          "type": "property",
+          "name": "PitchDetails",
+          "start_row": 4156,
+          "end_row": 4162
+        },
+        {
+          "type": "property",
+          "name": "TotalWorkTime",
+          "start_row": 4164,
+          "end_row": 4198
+        },
+        {
+          "type": "property",
+          "name": "WorkTimeRemaining",
+          "start_row": 4199,
+          "end_row": 4229
+        },
+        {
+          "type": "property",
+          "name": "WorkTimeElapsed",
+          "start_row": 4231,
+          "end_row": 4263
+        },
+        {
+          "type": "property",
+          "name": "PitchNbr",
+          "start_row": 4266,
+          "end_row": 4276
+        },
+        {
+          "type": "property",
+          "name": "PitchStartDate",
+          "start_row": 4278,
+          "end_row": 4288
+        },
+        {
+          "type": "property",
+          "name": "PitchEndDate",
+          "start_row": 4290,
+          "end_row": 4300
+        },
+        {
+          "type": "property",
+          "name": "RowID",
+          "start_row": 4302,
+          "end_row": 4312
+        },
+        {
+          "type": "method",
+          "name": "Clear",
+          "start_row": 4314,
+          "end_row": 4330
+        },
+        {
+          "type": "property",
+          "name": "PartsPerPitch",
+          "start_row": 4331,
+          "end_row": 4343
+        },
+        {
+          "type": "property",
+          "name": "CalculatedPartsPerPitch",
+          "start_row": 4345,
+          "end_row": 4357
+        },
+        {
+          "type": "property",
+          "name": "OrderQty",
+          "start_row": 4359,
+          "end_row": 4367
+        },
+        {
+          "type": "property",
+          "name": "CumCount",
+          "start_row": 4369,
+          "end_row": 4379
+        },
+        {
+          "type": "property",
+          "name": "OverPlanQty",
+          "start_row": 4382,
+          "end_row": 4392
+        },
+        {
+          "type": "property",
+          "name": "ShiftPitch",
+          "start_row": 4394,
+          "end_row": 4400
+        },
+        {
+          "type": "method",
+          "name": "RefreshPitchFromDB",
+          "start_row": 4402,
+          "end_row": 4434
+        },
+        {
+          "type": "method",
+          "name": "AdjustCumQuantity",
+          "start_row": 4438,
+          "end_row": 4455
+        },
+        {
+          "type": "method",
+          "name": "Add",
+          "start_row": 4457,
+          "end_row": 4532
+        },
+        {
+          "type": "method",
+          "name": "Start",
+          "start_row": 4534,
+          "end_row": 4654
+        },
+        {
+          "type": "property",
+          "name": "PitchJob",
+          "start_row": 4656,
+          "end_row": 4666
+        },
+        {
+          "type": "method",
+          "name": "DeletePitch",
+          "start_row": 4667,
+          "end_row": 4692
+        },
+        {
+          "type": "method",
+          "name": "UpdatePitch",
+          "start_row": 4694,
+          "end_row": 4725
+        },
+        {
+          "type": "method",
+          "name": "GetReport",
+          "start_row": 4727,
+          "end_row": 4745
+        }
+      ]
+    },
+    {
+      "type": "class",
+      "name": "ExtendedShiftPitch",
+      "start_row": 4748,
+      "end_row": 4795,
+      "members": [
+        {
+          "type": "constructor",
+          "name": "ExtendedShiftPitch",
+          "start_row": 4758,
+          "end_row": 4758
+        },
+        {
+          "type": "method",
+          "name": "CreateNew",
+          "start_row": 4760,
+          "end_row": 4791
+        }
+      ]
+    }
+  ]
+}

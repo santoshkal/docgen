@@ -296,8 +296,87 @@ class LanguageAdapter(ABC):
         """
         ...
 
-    @abstractmethod
     def chunk_source_file(
+        self,
+        file_path: str,
+        max_tokens_per_chunk: int = 100000,
+        metadata: Optional[Dict[str, Any]] = None,
+        program_map: Optional[str] = None,
+        query_code_results: Optional[Dict[str, Any]] = None,
+        chunking_config: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[List[SourceChunk], ChunkVerification]:
+        """
+        Split a source file into chunks for LLM processing.
+
+        If query_code_results are provided and strategy is 'query_code',
+        uses tree-sitter declaration boundaries for precise splitting.
+        Otherwise falls back to the adapter-specific legacy implementation.
+
+        Args:
+            file_path: Path to source file
+            max_tokens_per_chunk: Maximum tokens per chunk
+            metadata: Optional metadata for boundary detection
+            program_map: Optional program map (used to calculate overhead)
+            query_code_results: Optional query_code MCP tool results
+            chunking_config: Optional chunking configuration from YAML
+
+        Returns:
+            Tuple of (list of chunks, verification result)
+        """
+        chunking_config = chunking_config or {}
+        strategy = chunking_config.get('strategy', 'ctags')
+
+        # Try tree-sitter based strategies if configured and results available
+        if strategy in ('query_code', 'tsg_graph') and query_code_results:
+            from structural_chunker import (
+                build_declaration_map, build_declaration_map_from_graph,
+                chunk_at_declaration_boundaries,
+            )
+            from tokenizer import estimate_tokens
+
+            # Auto-detect format: graph output is a list of nodes with "attrs"
+            # or wrapped as {"success": true, "graph": [...]}
+            is_graph = (
+                (isinstance(query_code_results, list) and query_code_results
+                 and 'attrs' in query_code_results[0])
+                or (isinstance(query_code_results, dict)
+                    and 'graph' in query_code_results)
+            )
+
+            if is_graph:
+                decl_map = build_declaration_map_from_graph(query_code_results)
+                strategy_label = 'tsg_graph'
+            else:
+                decl_map = build_declaration_map(query_code_results)
+                strategy_label = 'query_code'
+
+            if decl_map:
+                content = Path(file_path).read_text(encoding='utf-8', errors='replace')
+                lines = content.splitlines(keepends=True)
+
+                overhead = 0
+                if program_map:
+                    overhead = estimate_tokens(program_map, model="gpt-4") + 200
+
+                print(f"  → Using {strategy_label} strategy ({len(decl_map.containers)} containers, "
+                      f"{sum(len(c.members) for c in decl_map.containers)} members)")
+
+                chunks, verification = chunk_at_declaration_boundaries(
+                    lines, decl_map, max_tokens_per_chunk, overhead
+                )
+                # Attach declaration_map for structural context generation later
+                verification.declaration_map = decl_map
+                return chunks, verification
+            else:
+                print(f"  ⚠ {strategy_label} results could not be parsed — falling back to {chunking_config.get('fallback_strategy', 'ctags')}")
+
+        # Fallback to legacy adapter-specific implementation
+        return self._chunk_source_file_legacy(
+            file_path, max_tokens_per_chunk, metadata, program_map
+        )
+
+    @abstractmethod
+    def _chunk_source_file_legacy(
         self,
         file_path: str,
         max_tokens_per_chunk: int = 100000,
@@ -305,16 +384,10 @@ class LanguageAdapter(ABC):
         program_map: Optional[str] = None
     ) -> Tuple[List[SourceChunk], ChunkVerification]:
         """
-        Split a source file into chunks for LLM processing.
+        Legacy chunking implementation (ctags/regex based).
 
-        Args:
-            file_path: Path to source file
-            max_tokens_per_chunk: Maximum tokens per chunk
-            metadata: Optional metadata for boundary detection
-            program_map: Optional program map (used to calculate overhead)
-
-        Returns:
-            Tuple of (list of chunks, verification result)
+        Each adapter implements this with its language-specific logic.
+        Called as fallback when query_code results are unavailable.
         """
         ...
 
@@ -325,7 +398,8 @@ class LanguageAdapter(ABC):
         total_chunks: int,
         file_name: str,
         program_map: Optional[str] = None,
-        model: str = "gpt-4"
+        model: str = "gpt-4",
+        structural_context: Optional[List[str]] = None,
     ) -> str:
         """
         Format a chunk with metadata headers for LLM processing.
@@ -336,6 +410,8 @@ class LanguageAdapter(ABC):
             file_name: Name of the source file
             program_map: Optional program map for whole-file context
             model: Model name for token estimation
+            structural_context: Optional list of structural context strings
+                (e.g., "**Continues**: class LinePitch — 9 of 43 members")
 
         Returns:
             Formatted string with metadata + content ready for LLM
@@ -619,7 +695,38 @@ class LanguageAdapter(ABC):
         """
         if not syntax_tree:
             return {}
-        return self._filter_ast_nodes(syntax_tree, start_line, end_line)
+
+        # Handle tree-sitter MCP wrapper: {"success": true, "ast": {...}, ...}
+        # The actual tree is nested under "ast" key — unwrap before filtering
+        tree_to_filter = syntax_tree
+        is_wrapped = False
+        if 'ast' in syntax_tree and isinstance(syntax_tree.get('ast'), dict):
+            tree_to_filter = syntax_tree['ast']
+            is_wrapped = True
+
+        filtered = self._filter_ast_nodes(tree_to_filter, start_line, end_line)
+
+        # Re-wrap if the input was wrapped
+        if is_wrapped and filtered:
+            result = {k: v for k, v in syntax_tree.items() if k != 'ast'}
+            result['ast'] = filtered
+            # Update node_count to reflect the filtered tree, not the full file
+            if 'node_count' in result:
+                result['node_count'] = self._count_ast_nodes(filtered)
+            return result
+
+        return filtered if filtered else {}
+
+    @staticmethod
+    def _count_ast_nodes(node: Any) -> int:
+        """Count nodes in a filtered AST tree."""
+        if isinstance(node, dict):
+            count = 1
+            for v in node.values():
+                if isinstance(v, list):
+                    count += sum(LanguageAdapter._count_ast_nodes(item) for item in v)
+            return count
+        return 0
 
     def _filter_ast_nodes(
         self,

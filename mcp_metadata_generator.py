@@ -450,10 +450,12 @@ class ConfigDrivenMCPMetadataGenerator:
     metadata.servers section and runs the declared tools.
     """
 
-    def __init__(self, workspace_path: str, output_base_dir: str, servers_config: Dict[str, Any]):
+    def __init__(self, workspace_path: str, output_base_dir: str, servers_config: Dict[str, Any],
+                 full_config: Dict[str, Any] = None):
         self.workspace_path = Path(workspace_path).absolute()
         self.output_base_dir = Path(output_base_dir).absolute()
         self.servers_config = servers_config
+        self.full_config = full_config or {}
         self.mcp_client: MCPClient = None
 
     def get_mcp_config(self) -> Dict[str, Any]:
@@ -486,7 +488,8 @@ class ConfigDrivenMCPMetadataGenerator:
 
         return {"mcpServers": mcp_servers}
 
-    def _substitute_placeholders(self, args: Dict[str, Any], source_file: str = "", program_name: str = "") -> Dict[str, Any]:
+    def _substitute_placeholders(self, args: Dict[str, Any], source_file: str = "",
+                                 program_name: str = "", extra_placeholders: Dict[str, str] = None) -> Dict[str, Any]:
         """Replace {{placeholders}} in tool arguments."""
         # Compute workspace-relative path for source file
         # e.g., "AutolivSweden/Atoms.cs" for nested files, "MAINPROG.cbl" for flat
@@ -497,6 +500,8 @@ class ConfigDrivenMCPMetadataGenerator:
                 relative_source = Path(source_file).name
         else:
             relative_source = ""
+
+        extra = extra_placeholders or {}
 
         result = {}
         for key, value in args.items():
@@ -513,8 +518,42 @@ class ConfigDrivenMCPMetadataGenerator:
                 value = value.replace('{{workspace}}', '/workspace')
                 value = value.replace('{{source_file}}', f'/workspace/{relative_source}' if relative_source else '/workspace')
                 value = value.replace('{{program_name}}', program_name)
+                # Apply extra placeholders (e.g., {{chunking_query}})
+                for placeholder, replacement in extra.items():
+                    value = value.replace(f'{{{{{placeholder}}}}}', replacement)
             result[key] = value
         return result
+
+    def _build_extra_placeholders(self, args: Dict[str, Any]) -> Dict[str, str]:
+        """Build extra placeholder replacements from config (e.g., chunking_query)."""
+        extra: Dict[str, str] = {}
+
+        # Check if any arg references {{chunking_query}}
+        has_chunking_query = any(
+            isinstance(v, str) and '{{chunking_query}}' in v
+            for v in args.values()
+        )
+
+        if has_chunking_query:
+            # Resolve from chunking.queries.<language> in full config
+            chunking_config = self.full_config.get('chunking', {})
+            queries = chunking_config.get('queries', {})
+            # Detect language from source config or from the args themselves
+            language = args.get('language', '')
+            source_lang = self.full_config.get('source', {}).get('language', '')
+            # Map config language ids to tree-sitter language ids
+            lang_map = {'dotnet': 'c_sharp', 'cobol': 'cobol', 'java': 'java',
+                        'python': 'python', 'typescript': 'typescript', 'go': 'go'}
+            ts_lang = language or lang_map.get(source_lang, source_lang)
+
+            query_pattern = queries.get(ts_lang, '')
+            if query_pattern:
+                extra['chunking_query'] = query_pattern
+                print(f"  → Resolved {{{{chunking_query}}}} for language '{ts_lang}' ({len(query_pattern)} chars)")
+            else:
+                print(f"  ⚠ No chunking query found for language '{ts_lang}' in config")
+
+        return extra
 
     async def initialize(self):
         """Initialize MCP client and create sessions."""
@@ -593,12 +632,16 @@ class ConfigDrivenMCPMetadataGenerator:
                         output_dir = self.output_base_dir / output_key
                         output_dir.mkdir(parents=True, exist_ok=True)
 
+                        # Build extra placeholders (e.g., resolve {{chunking_query}} from config)
+                        extra_placeholders = self._build_extra_placeholders(base_args)
+
                         for source_file in source_files:
                             program_name = Path(source_file).stem
                             args = self._substitute_placeholders(
                                 base_args,
                                 source_file=source_file,
-                                program_name=program_name
+                                program_name=program_name,
+                                extra_placeholders=extra_placeholders,
                             )
 
                             print(f"  Running {tool_name} for {program_name}...")
@@ -660,7 +703,8 @@ def create_metadata_generator(config: Dict[str, Any], workspace_path: str, outpu
         if isinstance(s, dict)
     )
     if has_tools:
-        return ConfigDrivenMCPMetadataGenerator(workspace_path, output_base_dir, servers_config)
+        return ConfigDrivenMCPMetadataGenerator(workspace_path, output_base_dir, servers_config,
+                                                full_config=config)
     return MCPMetadataGenerator(workspace_path, output_base_dir, servers_config)
 
 

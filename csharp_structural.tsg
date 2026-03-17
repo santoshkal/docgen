@@ -1,0 +1,128 @@
+; C# Structural + Containment Graph with line positions
+; Produces nodes with type, name, start_row, end_row + parent→child edges
+
+; === Containers (standalone nodes) ===
+
+(namespace_declaration
+  name: (_) @ns_name) @ns_def
+{
+  node ns
+  attr (ns) type = "namespace"
+  attr (ns) name = (source-text @ns_name)
+  attr (ns) start_row = (start-row @ns_def)
+  attr (ns) end_row = (end-row @ns_def)
+}
+
+(enum_declaration
+  name: (identifier) @enum_name) @enum_def
+{
+  node en
+  attr (en) type = "enum"
+  attr (en) name = (source-text @enum_name)
+  attr (en) start_row = (start-row @enum_def)
+  attr (en) end_row = (end-row @enum_def)
+}
+
+(struct_declaration
+  name: (identifier) @struct_name) @struct_def
+{
+  node st
+  attr (st) type = "struct"
+  attr (st) name = (source-text @struct_name)
+  attr (st) start_row = (start-row @struct_def)
+  attr (st) end_row = (end-row @struct_def)
+}
+
+(interface_declaration
+  name: (identifier) @iface_name) @iface_def
+{
+  node ifc
+  attr (ifc) type = "interface"
+  attr (ifc) name = (source-text @iface_name)
+  attr (ifc) start_row = (start-row @iface_def)
+  attr (ifc) end_row = (end-row @iface_def)
+}
+
+; === Class + member containment (class→method, class→property, etc.) ===
+
+; Class with method
+(class_declaration
+  name: (identifier) @cls1
+  body: (declaration_list
+    (method_declaration
+      name: (identifier) @meth_name) @meth_def)) @cls1_def
+{
+  node parent1
+  attr (parent1) type = "class"
+  attr (parent1) name = (source-text @cls1)
+  attr (parent1) start_row = (start-row @cls1_def)
+  attr (parent1) end_row = (end-row @cls1_def)
+  node child1
+  attr (child1) type = "method"
+  attr (child1) name = (source-text @meth_name)
+  attr (child1) start_row = (start-row @meth_def)
+  attr (child1) end_row = (end-row @meth_def)
+  edge parent1 -> child1
+}
+
+; Class with constructor
+(class_declaration
+  name: (identifier) @cls2
+  body: (declaration_list
+    (constructor_declaration
+      name: (identifier) @ctor_name) @ctor_def)) @cls2_def
+{
+  node parent2
+  attr (parent2) type = "class"
+  attr (parent2) name = (source-text @cls2)
+  attr (parent2) start_row = (start-row @cls2_def)
+  attr (parent2) end_row = (end-row @cls2_def)
+  node child2
+  attr (child2) type = "constructor"
+  attr (child2) name = (source-text @ctor_name)
+  attr (child2) start_row = (start-row @ctor_def)
+  attr (child2) end_row = (end-row @ctor_def)
+  edge parent2 -> child2
+}
+
+; Class with property
+(class_declaration
+  name: (identifier) @cls3
+  body: (declaration_list
+    (property_declaration
+      name: (identifier) @prop_name) @prop_def)) @cls3_def
+{
+  node parent3
+  attr (parent3) type = "class"
+  attr (parent3) name = (source-text @cls3)
+  attr (parent3) start_row = (start-row @cls3_def)
+  attr (parent3) end_row = (end-row @cls3_def)
+  node child3
+  attr (child3) type = "property"
+  attr (child3) name = (source-text @prop_name)
+  attr (child3) start_row = (start-row @prop_def)
+  attr (child3) end_row = (end-row @prop_def)
+  edge parent3 -> child3
+}
+
+; Class with field
+(class_declaration
+  name: (identifier) @cls4
+  body: (declaration_list
+    (field_declaration
+      (variable_declaration
+        (variable_declarator
+          (identifier) @field_name))) @field_def)) @cls4_def
+{
+  node parent4
+  attr (parent4) type = "class"
+  attr (parent4) name = (source-text @cls4)
+  attr (parent4) start_row = (start-row @cls4_def)
+  attr (parent4) end_row = (end-row @cls4_def)
+  node child4
+  attr (child4) type = "field"
+  attr (child4) name = (source-text @field_name)
+  attr (child4) start_row = (start-row @field_def)
+  attr (child4) end_row = (end-row @field_def)
+  edge parent4 -> child4
+}
