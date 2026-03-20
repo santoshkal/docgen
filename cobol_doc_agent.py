@@ -32,19 +32,19 @@ except ImportError:
 
 # Import Claude Agent SDK support
 try:
-    from claude_sdk_client import ClaudeSdkLLM, CLAUDE_SDK_AVAILABLE
+    from claude_sdk_client import CLAUDE_SDK_AVAILABLE, ClaudeSdkLLM
 except ImportError:
     CLAUDE_SDK_AVAILABLE = False
     print("⚠ Warning: claude_sdk_client not available. Claude SDK provider disabled.")
 
 # Import Source Extraction (Phase 1-3)
 try:
-    from source_integration import (
-        extract_source_for_section,
-        extract_source_multi_file  # Phase 3: Multi-file support
-    )
+    from multi_file_resolver import (CalledProgramResolver,  # Phase 3
+                                     CopybookResolver)
     from section_requirements import should_extract_source
-    from multi_file_resolver import CopybookResolver, CalledProgramResolver  # Phase 3
+    from source_integration import \
+        extract_source_multi_file  # Phase 3: Multi-file support
+    from source_integration import extract_source_for_section
     SOURCE_EXTRACTION_AVAILABLE = True
     MULTI_FILE_AVAILABLE = True
 except ImportError as e:
@@ -54,8 +54,9 @@ except ImportError as e:
 
 # Import Full Context Mode modules (Epic 2 & 3)
 try:
+    from context_strategy import (get_strategy_for_state,
+                                  should_use_full_context)
     from full_context_builder import FullContextBuilder
-    from context_strategy import should_use_full_context, get_strategy_for_state
     from full_context_prompts import build_full_context_prompt
     FULL_CONTEXT_AVAILABLE = True
 except ImportError as e:
@@ -64,23 +65,18 @@ except ImportError as e:
 
 # Import Context Chaining modules (Epic 4)
 try:
-    from context_chain import (
-        ContextChain,
-        build_chained_context,
-        should_use_chaining,
-        FULL_CONTEXT_SECTION_ORDER
-    )
+    from context_chain import (FULL_CONTEXT_SECTION_ORDER, ContextChain,
+                               build_chained_context, should_use_chaining)
     CONTEXT_CHAINING_AVAILABLE = True
 except ImportError as e:
     CONTEXT_CHAINING_AVAILABLE = False
     print(f"⚠ Warning: Context chaining modules not found: {e}")
 
+from llm_fallback import LLMFallbackManager, invoke_llm_with_fallback
+# Import Run Logger
+from run_logger import get_run_logger, init_run_logger
 # Import Tokenizer and Fallback modules
 from tokenizer import estimate_tokens, get_token_limit
-from llm_fallback import LLMFallbackManager, invoke_llm_with_fallback
-
-# Import Run Logger
-from run_logger import init_run_logger, get_run_logger
 
 # ============================================================================
 # FATAL LLM ERROR HANDLING
@@ -261,9 +257,14 @@ def create_llm(llm_config: Dict[str, Any]):
         # Get beta features from config (e.g., for 1M context)
         betas = llm_config.get('betas')
 
-        # Get thinking/output token settings
+        # Get thinking config (new) or fall back to deprecated max_thinking_tokens
+        thinking = llm_config.get('thinking')
         max_thinking_tokens = llm_config.get('max_thinking_tokens')
         max_output_tokens = llm_config.get('max_output_tokens')
+
+        # Normalize string shorthand: "disabled" → {"type": "disabled"}, "adaptive" → {"type": "adaptive"}
+        if isinstance(thinking, str):
+            thinking = {"type": thinking}
 
         # ClaudeSdkLLM accepts temperature for compatibility but ignores it
         return ClaudeSdkLLM(
@@ -271,7 +272,8 @@ def create_llm(llm_config: Dict[str, Any]):
             temperature=temperature,
             api_key=api_key,
             betas=betas,
-            max_thinking_tokens=max_thinking_tokens,
+            thinking=thinking,
+            max_thinking_tokens=max_thinking_tokens,  # Deprecated fallback
             max_output_tokens=max_output_tokens
         )
 
@@ -296,8 +298,8 @@ def generate_metadata_node(state: AgentState) -> AgentState:
 
     Checksums ensure metadata integrity and detect corruption/incompleteness.
     """
-    from mcp_metadata_generator import generate_metadata_sync
     from checksum_manager import save_metadata_checksums
+    from mcp_metadata_generator import generate_metadata_sync
 
     print(f"\n{'='*70}")
     print("Metadata Generation via MCP Servers")
@@ -1846,6 +1848,7 @@ def _write_llm_request_debug_file(
     """
     import os
     from pathlib import Path
+
     from source_chunker import estimate_tokens
 
     # Create request directory in centralized run dir
@@ -1993,6 +1996,70 @@ def format_context_as_plaintext(context: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _update_debug_file_on_success(filepath, elapsed: float, response):
+    """Insert success metadata (latency, usage, cost) into the request debug file."""
+    if not filepath:
+        return
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        meta = f"- **LLM Latency**: {elapsed:.2f}s\n"
+        meta += f"- **Status**: SUCCESS\n"
+        if hasattr(response, 'usage') and response.usage:
+            u = response.usage
+            inp = u.get('input_tokens', 0)
+            cc = u.get('cache_creation_input_tokens', 0)
+            cr = u.get('cache_read_input_tokens', 0)
+            total_in = inp + cc + cr
+            if total_in:
+                meta += f"- **Total Input (API)**: {total_in:,}\n"
+            if 'output_tokens' in u:
+                meta += f"- **Output Tokens**: {u['output_tokens']:,}\n"
+            if inp:
+                meta += f"- **Input Tokens (uncached)**: {inp:,}\n"
+            if cc:
+                meta += f"- **Cache Creation Tokens**: {cc:,}\n"
+            if cr:
+                meta += f"- **Cache Read Tokens**: {cr:,}\n"
+        if hasattr(response, 'total_cost_usd') and response.total_cost_usd:
+            meta += f"- **Total Cost**: ${response.total_cost_usd:.4f}\n"
+        content = content.replace("\n\n## Token Counts", f"\n{meta}\n## Token Counts")
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+    except Exception:
+        pass
+
+
+def _update_debug_file_on_failure(filepath, elapsed: float, error: Exception):
+    """Insert failure metadata into the request debug file."""
+    if not filepath:
+        return
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        # Classify the error
+        error_str = str(error)
+        if 'timed out' in error_str.lower():
+            error_type = "TIMEOUT"
+        elif 'rate' in error_str.lower() and 'limit' in error_str.lower():
+            error_type = "RATE_LIMITED"
+        elif 'context' in error_str.lower() and ('overflow' in error_str.lower() or 'too long' in error_str.lower()):
+            error_type = "CONTEXT_OVERFLOW"
+        elif 'exit code' in error_str.lower():
+            error_type = "CLI_ERROR"
+        else:
+            error_type = "ERROR"
+
+        meta = f"- **LLM Latency**: {elapsed:.2f}s\n"
+        meta += f"- **Status**: FAILED ({error_type})\n"
+        meta += f"- **Error**: {error_str[:500]}\n"
+        content = content.replace("\n\n## Token Counts", f"\n{meta}\n## Token Counts")
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+    except Exception:
+        pass
+
+
 def generate_section_content(
     section_id: str,
     section_title: str,
@@ -2078,8 +2145,6 @@ OUTPUT FORMAT:
     context_json = json.dumps(context)
     context_tokens = estimate_tokens(context_json, model=model_name)
 
-    print(f"  → Context: {context_tokens:,} tokens (limit: {MAX_INPUT_TOKENS:,} for {model_name})")
-
     if context_tokens > MAX_INPUT_TOKENS:
         print(f"  ⚠ TRUNCATION NEEDED: {context_tokens:,} tokens exceeds {MAX_INPUT_TOKENS:,} limit")
 
@@ -2163,6 +2228,11 @@ Remember:
 - Generate valid Markdown and Mermaid syntax
 """
 
+    # Log actual input token count (system + user prompt as sent to LLM)
+    _sys_tokens = estimate_tokens(system_prompt, model=model_name)
+    _usr_tokens = estimate_tokens(user_prompt, model=model_name)
+    print(f"  → Context: {_sys_tokens + _usr_tokens:,} tokens (limit: {MAX_INPUT_TOKENS:,} for {model_name})")
+
     # Call LLM
     messages = [
         SystemMessage(content=system_prompt),
@@ -2196,17 +2266,23 @@ Remember:
     # Use fallback-aware invocation if fallback_manager provided
     import time as _time
     _llm_start = _time.monotonic()
-    if fallback_manager and llm_config:
-        response = invoke_llm_with_fallback(
-            llm_config=llm_config,
-            messages=messages,
-            fallback_manager=fallback_manager,
-            phase=phase
-        )
-    else:
-        response = llm.invoke(messages)
-    _llm_elapsed = _time.monotonic() - _llm_start
-    content = response.content
+    try:
+        if fallback_manager and llm_config:
+            response = invoke_llm_with_fallback(
+                llm_config=llm_config,
+                messages=messages,
+                fallback_manager=fallback_manager,
+                phase=phase
+            )
+        else:
+            response = llm.invoke(messages)
+        _llm_elapsed = _time.monotonic() - _llm_start
+        content = response.content
+    except Exception as _llm_error:
+        _llm_elapsed = _time.monotonic() - _llm_start
+        # Write failure metadata to the debug file (request body already on disk)
+        _update_debug_file_on_failure(_debug_filepath, _llm_elapsed, _llm_error)
+        raise  # Re-raise so the caller's error handling still works
 
     # End LLM call tracking
     if tracer:
@@ -2217,40 +2293,7 @@ Remember:
         )
 
     # Insert latency and usage into the Metadata block of the debug file
-    if _debug_filepath:
-        try:
-            with open(_debug_filepath, 'r', encoding='utf-8') as _f:
-                _content = _f.read()
-            # Build metadata lines to insert
-            _meta_lines = f"- **LLM Latency**: {_llm_elapsed:.2f}s\n"
-            # Add usage info if available (from ClaudeSdkLLM — both SDK and CLI paths)
-            if hasattr(response, 'usage') and response.usage:
-                _usage = response.usage
-                _input = _usage.get('input_tokens', 0)
-                _cache_create = _usage.get('cache_creation_input_tokens', 0)
-                _cache_read = _usage.get('cache_read_input_tokens', 0)
-                _total_input = _input + _cache_create + _cache_read
-                if _total_input:
-                    _meta_lines += f"- **Total Input (API)**: {_total_input:,}\n"
-                if 'output_tokens' in _usage:
-                    _meta_lines += f"- **Output Tokens**: {_usage['output_tokens']:,}\n"
-                if _input:
-                    _meta_lines += f"- **Input Tokens (uncached)**: {_input:,}\n"
-                if _cache_create:
-                    _meta_lines += f"- **Cache Creation Tokens**: {_cache_create:,}\n"
-                if _cache_read:
-                    _meta_lines += f"- **Cache Read Tokens**: {_cache_read:,}\n"
-            if hasattr(response, 'total_cost_usd') and response.total_cost_usd:
-                _meta_lines += f"- **Total Cost**: ${response.total_cost_usd:.4f}\n"
-            # Insert after "Pass Number" line in Metadata block
-            _content = _content.replace(
-                "\n\n## Token Counts",
-                f"\n{_meta_lines}\n## Token Counts"
-            )
-            with open(_debug_filepath, 'w', encoding='utf-8') as _f:
-                _f.write(_content)
-        except Exception:
-            pass
+    _update_debug_file_on_success(_debug_filepath, _llm_elapsed, response)
 
     print(f"  ✓ Generated {len(content)} characters for {section_id} ({_llm_elapsed:.1f}s)")
 
@@ -2280,6 +2323,52 @@ def filter_context_for_code_explanation(context: Dict[str, Any]) -> Dict[str, An
         # Note: source_code, chunk info added per chunk during processing
         # Note: called_by_graph filtered per chunk's paragraphs only
     }
+
+
+def _resolve_chunk_token_limit(
+    chunking_config: Dict[str, Any],
+    llm_config: Optional[Dict[str, Any]] = None
+) -> int:
+    """
+    Resolve the max tokens per chunk — explicit value or dynamic auto-sizing.
+
+    When max_tokens_per_chunk is "auto", calculates:
+        chunk_limit = (model_context_limit - overhead_buffer) * target_pct / 100
+
+    Config keys (under chunking.auto_chunk_sizing):
+        model_context_limit: Model's input context window (default: 200000)
+        overhead_buffer: Reserved for program map, AST, etc. (default: 10000)
+        target_pct: Chunk as percentage of available context (default: 15)
+
+    Falls back to 10000 if not configured.
+    """
+    raw_value = chunking_config.get('max_tokens_per_chunk', 10000)
+
+    # Explicit integer — use as-is
+    if isinstance(raw_value, (int, float)) and not isinstance(raw_value, bool):
+        return int(raw_value)
+
+    # "auto" — dynamic sizing from config
+    if str(raw_value).lower() == 'auto':
+        sizing = chunking_config.get('auto_chunk_sizing', {})
+        model_context_limit = sizing.get('model_context_limit', 200000)
+        overhead_buffer = sizing.get('overhead_buffer', 10000)
+        target_pct = sizing.get('target_pct', 10)
+
+        available = model_context_limit - overhead_buffer
+        chunk_limit = int(available * target_pct / 100)
+
+        # Sanity bounds: at least 5K, at most 100K
+        chunk_limit = max(5000, min(chunk_limit, 100000))
+
+        print(f"  → Auto chunk sizing: {model_context_limit:,} context"
+              f" - {overhead_buffer:,} buffer = {available:,} available"
+              f" × {target_pct}% = {chunk_limit:,} tokens/chunk")
+        return chunk_limit
+
+    # Unrecognized value — fall back to default
+    print(f"  ⚠ Unrecognized max_tokens_per_chunk value '{raw_value}', using default 10000")
+    return 10000
 
 
 def _load_query_code_results(program_name: str, metadata_dir: str) -> Optional[Dict[str, Any]]:
@@ -2344,8 +2433,9 @@ def process_large_file_in_chunks(
     Returns:
         Combined documentation for all chunks
     """
-    from chunk_validation import ChunkDocumentationValidator
     from pathlib import Path
+
+    from chunk_validation import ChunkDocumentationValidator
 
     # Use adapter for chunking if available, otherwise fall back to source_chunker
     adapter = get_current_adapter()
@@ -2395,10 +2485,8 @@ def process_large_file_in_chunks(
             else:
                 print(f"  ⚠ No chunking boundary results found — will use fallback strategy")
 
-    # Create chunks with smaller granularity for better LLM coverage
-    # Using 10K tokens per chunk for granular processing
-    # Program map overhead is calculated and reserved during chunking
-    max_tokens = chunking_config.get('max_tokens_per_chunk', 10000)
+    # Resolve chunk token limit — explicit integer or "auto" (dynamic sizing)
+    max_tokens = _resolve_chunk_token_limit(chunking_config, llm_config)
     try:
         adapter_chunks, adapter_verification = adapter.chunk_source_file(
             file_path,
@@ -2482,7 +2570,8 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         # Generate structural context for this chunk (if available)
         chunk_structural_context = None
         if structural_context_enabled:
-            from structural_chunker import get_structural_context as _get_struct_ctx
+            from structural_chunker import \
+                get_structural_context as _get_struct_ctx
             chunk_structural_context = _get_struct_ctx(
                 chunk_info['start_line'], chunk_info['end_line'],
                 declaration_map, seen_members,
@@ -2556,7 +2645,8 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         # The beta flag is defined in config (llm.betas) but applied conditionally.
         chunk_llm_config = dict(llm_config) if llm_config else {}
         if llm_config:
-            from tokenizer import estimate_tokens as _est_tokens, CLAUDE_1M_BETA_FLAG
+            from tokenizer import CLAUDE_1M_BETA_FLAG
+            from tokenizer import estimate_tokens as _est_tokens
             available_betas = llm_config.get('betas') or []
             # Strip betas from the per-chunk config — only add when needed
             chunk_llm_config.pop('betas', None)
@@ -2881,8 +2971,9 @@ def perform_gap_filling_pass2(
     Returns:
         Combined gap-fill documentation
     """
-    from chunk_validation import ChunkDocumentationValidator
     from pathlib import Path
+
+    from chunk_validation import ChunkDocumentationValidator
 
     print(f"\n" + "="*80)
     print(f"PASS 2: GAP-FILLING")
@@ -3208,9 +3299,11 @@ def perform_gap_filling(state: AgentState) -> None:
     Returns:
         None (modifies state in-place)
     """
-    from verify_markdown_reconstruction import extract_cobol_lines_from_markdown, find_missing_ranges
-    from source_chunker import chunk_large_cobol_file
     from pathlib import Path
+
+    from source_chunker import chunk_large_cobol_file
+    from verify_markdown_reconstruction import (
+        extract_cobol_lines_from_markdown, find_missing_ranges)
 
     print("\n" + "="*80)
     print("TWO-PASS GAP FILLING")
@@ -3696,7 +3789,8 @@ def run_phase2_sections(
             # only enable when section context > 120K tokens
             section_llm_config = dict(llm_config) if llm_config else {}
             if llm_config:
-                from tokenizer import estimate_tokens as _est_tokens, CLAUDE_1M_BETA_FLAG
+                from tokenizer import CLAUDE_1M_BETA_FLAG
+                from tokenizer import estimate_tokens as _est_tokens
                 available_betas = llm_config.get('betas') or []
                 section_llm_config.pop('betas', None)
                 section_context_json = json.dumps(section_context)

@@ -28,8 +28,10 @@ MODEL_TOKEN_LIMITS: Dict[str, int] = {
     "gpt-4": 6000,            # 8K context → 6K input max
     "gpt-3.5-turbo": 14000,   # 16K context → 14K input max
 
-    # Claude models (standard context)
+    # Claude models (standard context — 200K)
+    "claude-opus-4-6": 180000,           # 200K context → 180K input max
     "claude-opus-4-5": 180000,           # 200K context → 180K input max
+    "claude-sonnet-4-6": 180000,         # 200K context → 180K input max
     "claude-sonnet-4-20250514": 180000,  # 200K context → 180K input max
     "claude-haiku-4-5-20251001": 180000, # 200K context → 180K input max
     "sonnet": 180000,                    # Alias

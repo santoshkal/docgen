@@ -46,8 +46,8 @@ source:
 # OUTPUT CONFIGURATION
 # ============================================================================
 output:
-  metadata_dir: ../output-imes/metadata-tsg
-  docs_path: ../output-imes/docs-tsg
+  metadata_dir: ../output-imes/metadata-5p
+  docs_path: ../output-imes/docs-5p
   create_dirs: true
 
 # ============================================================================
@@ -66,7 +66,7 @@ llm:
   # Phase-specific configuration for claude_sdk provider
   phase1:
     model: claude-opus-4-6
-    max_thinking_tokens: 0       # Disable thinking for faster responses
+    thinking: disabled            # Options: disabled, adaptive, or {type: enabled, budget_tokens: N}
 
   phase2:
     model: claude-opus-4-6
@@ -192,8 +192,15 @@ chunking:
   # Strategy: "tsg_graph" (tree-sitter-graph), "query_code" (tree-sitter), "ctags" (legacy)
   strategy: tsg_graph
 
-  # Maximum tokens per chunk (default: 10000)
-  max_tokens_per_chunk: 10000
+  # Source code chunk sizing — set to "auto" for dynamic sizing based on model context,
+  # or an explicit integer (e.g., 10000) to override.
+  max_tokens_per_chunk: auto
+
+  # Dynamic chunk sizing (only used when max_tokens_per_chunk is "auto")
+  auto_chunk_sizing:
+    model_context_limit: 200000   # Model input context window (tokens)
+    overhead_buffer: 10000        # Reserved for program map, AST, structural context, etc.
+    target_pct: 05                # Chunk = this % of (model_context_limit - overhead_buffer)
 
   # Include structural context headers in chunks sent to LLM
   # (e.g., "**Continues**: class LinePitch — 9 of 43 members")

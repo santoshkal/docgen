@@ -102,7 +102,7 @@ def _call_claude_cli_direct(
     system_prompt: Optional[str] = None,
     model: Optional[str] = None,
     betas: Optional[List[str]] = None,
-    max_thinking_tokens: Optional[int] = None,
+    thinking: Optional[Dict[str, Any]] = None,
     max_output_tokens: Optional[int] = None
 ) -> tuple:
     """
@@ -153,9 +153,14 @@ def _call_claude_cli_direct(
         env = os.environ.copy()
         env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(max_output_tokens)
 
-    # Add max thinking tokens if specified (0 = disable thinking)
-    if max_thinking_tokens is not None:
-        cmd.extend(["--max-thinking-tokens", str(max_thinking_tokens)])
+    # Convert ThinkingConfig to CLI flags (CLI uses --max-thinking-tokens)
+    if thinking is not None:
+        thinking_type = thinking.get('type', '')
+        if thinking_type == 'disabled':
+            cmd.extend(["--max-thinking-tokens", "0"])
+        elif thinking_type == 'enabled':
+            budget = thinking.get('budget_tokens', 10000)
+            cmd.extend(["--max-thinking-tokens", str(budget)])
 
     # Write prompt to temp file and read via stdin
     with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
@@ -171,7 +176,7 @@ def _call_claude_cli_direct(
                 stdin=prompt_file,
                 capture_output=True,
                 text=True,
-                timeout=600,  # 10 minute timeout
+                timeout=1200,  # 20 minute timeout (large chunks with Opus can take 15+ min)
                 env=env
             )
 
@@ -278,7 +283,8 @@ class ClaudeSdkLLM:
         temperature: Optional[float] = None,  # Accepted but ignored (for compatibility)
         api_key: Optional[str] = None,  # Accepted but ignored (uses Claude Code auth)
         betas: Optional[List[str]] = None,  # Beta features (e.g., ['context-1m-2025-08-07'])
-        max_thinking_tokens: Optional[int] = None,  # Set to 0 to disable thinking
+        max_thinking_tokens: Optional[int] = None,  # Deprecated: use thinking instead
+        thinking: Optional[Dict[str, Any]] = None,  # ThinkingConfig: {"type": "disabled"}, {"type": "enabled", "budget_tokens": N}, {"type": "adaptive"}
         max_output_tokens: Optional[int] = None,  # Max output tokens (default 32K, can set to 64K)
     ):
         if not CLAUDE_SDK_AVAILABLE:
@@ -295,8 +301,19 @@ class ClaudeSdkLLM:
         self.allowed_tools = allowed_tools
         self.cwd = cwd
         self.betas = betas
-        self.max_thinking_tokens = max_thinking_tokens
         self.max_output_tokens = max_output_tokens
+
+        # Thinking config: new `thinking` param takes precedence over deprecated `max_thinking_tokens`
+        if thinking is not None:
+            self.thinking = thinking
+        elif max_thinking_tokens is not None:
+            # Backward compat: convert deprecated max_thinking_tokens to ThinkingConfig
+            if max_thinking_tokens == 0:
+                self.thinking = {"type": "disabled"}
+            else:
+                self.thinking = {"type": "enabled", "budget_tokens": max_thinking_tokens}
+        else:
+            self.thinking = None
 
         # Temperature is accepted for compatibility but silently ignored by Claude SDK
         # (No need to log as this is expected behavior)
@@ -343,9 +360,9 @@ class ClaudeSdkLLM:
         if self.betas:
             opts["betas"] = self.betas
 
-        # Set max thinking tokens (0 = disable thinking for faster responses)
-        if self.max_thinking_tokens is not None:
-            opts["max_thinking_tokens"] = self.max_thinking_tokens
+        # Set thinking configuration (new API — takes precedence over deprecated max_thinking_tokens)
+        if self.thinking is not None:
+            opts["thinking"] = self.thinking
 
         # Set max output tokens via env variable
         if self.max_output_tokens is not None:
@@ -387,7 +404,7 @@ class ClaudeSdkLLM:
                     system_prompt,
                     self.model,
                     self.betas,
-                    self.max_thinking_tokens,
+                    self.thinking,
                     self.max_output_tokens
                 )
             )
