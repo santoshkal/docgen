@@ -230,6 +230,13 @@ sections:
         event_handler, error_handling, business_logic, infrastructure, entry_point]
       - Entry point: [true/false]
 
+      **Cross-References** (use the "Cross-References (verified from LSP analysis)" data
+      provided in the context — these are verified relationships, not guesses):
+      - Dependencies: [list types/methods this block uses from other files, with file paths]
+      - Dependents: [list other files that reference symbols defined in this block, with counts]
+      - Internal refs: [list intra-file references — which methods read/write which fields]
+      - If no cross-reference data is provided in context, write: "No cross-reference data available."
+
       **Call Flow:**
       MANDATORY — list all method call relationships:
       - MethodA → calls → MethodB
@@ -247,6 +254,31 @@ sections:
       - ClassA INHERITS BaseClass
       - ClassA IMPLEMENTS IInterface
       - Property PropertyName { get; set; } TYPE TypeName
+
+      ### Questionnaire for Chunk-ID: {{ CHUNK-ID }}
+
+      Generate exactly 5 questions that can be answered SOLELY from this chunk's code and explanation.
+      Each question must be specific — reference actual class names, method names, field names, or
+      patterns visible in this chunk. Do NOT ask generic questions.
+
+      Mix the following question types:
+      1. **C# Language** — about a specific C# feature used in this chunk (inheritance, generics,
+         async/await, events, delegates, LINQ, access modifiers, interfaces, attributes, etc.)
+      2. **Domain / Business Logic** — about the business rule, workflow, or domain operation
+         this chunk implements (what does it do, why, what are the edge cases?)
+      3. **Architecture / Design Pattern** — about the structural choice (why this base class,
+         why this pattern, how does this fit in the larger system, what would change if...)
+      4. **Code Logic** — about the control flow, conditional branches, loop mechanics, or
+         data transformation in a specific method
+      5. **Cross-References / Dependencies** — about how this chunk relates to other parts of
+         the codebase (if cross-reference data is available), or about field/method usage patterns
+
+      Format each question as:
+      **Q1 (C# Language):** [question]
+      **Q2 (Domain):** [question]
+      **Q3 (Architecture):** [question]
+      **Q4 (Code Logic):** [question]
+      **Q5 (Cross-Reference):** [question]
 
       ### Coverage Self-Assessment
 

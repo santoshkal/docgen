@@ -1980,11 +1980,18 @@ def format_context_as_plaintext(context: Dict[str, Any]) -> str:
         parts.append("```")
         parts.append("")
 
+    # Cross-references from multilspy metadata (if available)
+    cross_refs = context.get('cross_references')
+    if cross_refs:
+        parts.append("### Cross-References (verified from LSP analysis)")
+        parts.append(cross_refs)
+        parts.append("")
+
     # Pass through any other context keys not handled above (Phase 2 may have extras)
     skip_keys = {'program_name', 'timestamp', 'source_file_path', 'source_code',
                  'program_map', 'chunk_number', 'total_chunks', 'start_line',
                  'end_line', 'line_count', 'syntax_tree', 'section_id',
-                 'structural_context'}
+                 'structural_context', 'cross_references'}
     extras = {k: v for k, v in context.items() if k not in skip_keys and v}
     if extras:
         parts.append("### Additional Context")
@@ -2619,6 +2626,18 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
         # Add structural context to chunk_context for format_context_as_plaintext()
         if chunk_structural_context:
             chunk_context['structural_context'] = chunk_structural_context
+
+        # Add cross-reference context from multilspy metadata (if available)
+        if state and state.get("relationship_provider"):
+            rel_provider = state["relationship_provider"]
+            # Use relative path — metadata keys are relative (e.g., "DataCommands/PickList.cs")
+            source_file = state.get("relative_source_path", "") or state.get("source_file_path", "")
+            cross_ref_context = rel_provider.get_context_for_chunk(
+                source_file, chunk_info['start_line'], chunk_info['end_line']
+            )
+            if cross_ref_context:
+                chunk_context['cross_references'] = cross_ref_context
+                print(f"     Cross-references: injected for lines {chunk_info['start_line']}-{chunk_info['end_line']}")
 
         # Add filtered syntax tree for this chunk's line range
         # Gives LLM structural awareness without sending the full AST
@@ -4276,6 +4295,21 @@ def generate_documentation(
             "full_config": full_config or {},
             **metadata
         }
+
+        # ═══════════════════════════════════════════════════════════════
+        # Initialize Relationship Provider (multilspy cross-references)
+        # ═══════════════════════════════════════════════════════════════
+        # Looks for cross_references/ subdirectory under the metadata_dir
+        cross_ref_path = Path(metadata_dir) / "cross_references"
+        if cross_ref_path.exists() and (cross_ref_path / "symbol_index.json").exists():
+            try:
+                from relationship_provider import RelationshipProvider
+                state["relationship_provider"] = RelationshipProvider(str(cross_ref_path))
+                print(f"→ Cross-reference metadata loaded from {cross_ref_path}")
+            except Exception as e:
+                print(f"⚠ Could not load cross-reference provider: {e}")
+        else:
+            print(f"→ No cross-reference metadata at {cross_ref_path} (optional)")
 
         # ═══════════════════════════════════════════════════════════════
         # Initialize LLM Fallback Manager (if fallback configured)

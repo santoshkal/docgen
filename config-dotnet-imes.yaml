@@ -36,7 +36,11 @@ source:
 
   # File pattern inclusion - if set, ONLY these files (overrides all other filters)
   include_files:
-    - "SequenceManager.cs"
+    - "IScriptCommand.cs"
+    - "DefaultScriptCommand.cs"
+    - "ItemLooper.cs"
+    - "PickList.cs"
+    # - "SequenceManager.cs"
     # - "HeijunkaData.cs"
     # - "Script.cs"
     # - "DelphiTcscCommands.cs"
@@ -54,7 +58,6 @@ output:
 # LLM CONFIGURATION - CLAUDE SDK
 # ============================================================================
 llm:
-  # Claude Agent SDK — uses Claude Code CLI subprocess, no API key needed
   provider: claude_sdk
   model: claude-opus-4-6
   temperature: 0.2
