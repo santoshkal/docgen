@@ -255,30 +255,59 @@ sections:
       - ClassA IMPLEMENTS IInterface
       - Property PropertyName { get; set; } TYPE TypeName
 
-      ### Questionnaire for Chunk-ID: {{ CHUNK-ID }}
+      ### Chunk Summary for Chunk-ID: {{ CHUNK-ID }}
 
-      Generate exactly 5 questions that can be answered SOLELY from this chunk's code and explanation.
-      Each question must be specific — reference actual class names, method names, field names, or
-      patterns visible in this chunk. Do NOT ask generic questions.
+      Write a single sentence (max 50 words) summarizing what this chunk defines
+      or implements. Use actual class/method names. This is used for retrieval ranking.
 
-      Mix the following question types:
-      1. **C# Language** — about a specific C# feature used in this chunk (inheritance, generics,
-         async/await, events, delegates, LINQ, access modifiers, interfaces, attributes, etc.)
-      2. **Domain / Business Logic** — about the business rule, workflow, or domain operation
-         this chunk implements (what does it do, why, what are the edge cases?)
-      3. **Architecture / Design Pattern** — about the structural choice (why this base class,
-         why this pattern, how does this fit in the larger system, what would change if...)
-      4. **Code Logic** — about the control flow, conditional branches, loop mechanics, or
-         data transformation in a specific method
-      5. **Cross-References / Dependencies** — about how this chunk relates to other parts of
-         the codebase (if cross-reference data is available), or about field/method usage patterns
+      Format:
+      **Summary:** [one sentence]
 
-      Format each question as:
-      **Q1 (C# Language):** [question]
-      **Q2 (Domain):** [question]
-      **Q3 (Architecture):** [question]
-      **Q4 (Code Logic):** [question]
-      **Q5 (Cross-Reference):** [question]
+      ### Retrieval Tags for Chunk-ID: {{ CHUNK-ID }}
+
+      List 10-20 keywords and phrases that a developer might search for when
+      looking for this code. Include: class names, method names, field names,
+      enum values, base class names, interface names, design pattern names,
+      domain terms, and any abbreviations or acronyms used in the code.
+
+      Format as a single comma-separated line:
+      **Tags:** tag1, tag2, tag3, ...
+
+      ### Retrieval Questions for Chunk-ID: {{ CHUNK-ID }}
+
+      Generate 10-15 questions that a developer or analyst might naturally ask
+      when working with this codebase, and that can be answered from THIS chunk.
+
+      PURPOSE: These questions serve as retrieval anchors. When a user asks a
+      question about the codebase, we match their query against these questions
+      to locate the right chunk. Therefore:
+
+      - Write questions the way a REAL PERSON would ask them — natural language,
+        not academic. Think: "How does X work?", "What happens when Y?",
+        "Where is Z configured?"
+      - Each question must be answerable from this chunk's code and explanation.
+      - Use ACTUAL names from the code (class names, method names, field names,
+        parameter names, enum values). These are the search terms users will use.
+      - Cover different angles of the same code — a user might ask about the
+        same method from a "what does it do" angle, a "how does it work" angle,
+        or a "when is it called" angle.
+      - Include both high-level questions ("What is the purpose of PickList?")
+        and specific ones ("What happens when PickOrder is set to Alternating?").
+      - If cross-reference data is available, include questions about dependencies
+        and relationships ("Which classes extend DefaultScriptCommand?",
+        "Where is m_pickList used?").
+
+      Vary the question styles across:
+      - "What/How/Why" explanation questions
+      - "Where is X defined/used/configured" location questions
+      - "What happens when/if" behavior questions
+      - "How does X relate to Y" relationship questions
+      - "What are the possible values/states/modes of" enumeration questions
+
+      Format as a numbered list:
+      1. [question]
+      2. [question]
+      ...
 
       ### Coverage Self-Assessment
 
