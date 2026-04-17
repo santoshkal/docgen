@@ -4299,17 +4299,20 @@ def generate_documentation(
         # ═══════════════════════════════════════════════════════════════
         # Initialize Relationship Provider (multilspy cross-references)
         # ═══════════════════════════════════════════════════════════════
-        # Looks for cross_references/ subdirectory under the metadata_dir
-        cross_ref_path = Path(metadata_dir) / "cross_references"
-        if cross_ref_path.exists() and (cross_ref_path / "symbol_index.json").exists():
-            try:
-                from relationship_provider import RelationshipProvider
-                state["relationship_provider"] = RelationshipProvider(str(cross_ref_path))
-                print(f"→ Cross-reference metadata loaded from {cross_ref_path}")
-            except Exception as e:
-                print(f"⚠ Could not load cross-reference provider: {e}")
-        else:
-            print(f"→ No cross-reference metadata at {cross_ref_path} (optional)")
+        cross_ref_dir = (full_config or {}).get("output", {}).get("cross_references_dir")
+        if cross_ref_dir:
+            cross_ref_path = Path(cross_ref_dir)
+            if not cross_ref_path.is_dir():
+                raise FileNotFoundError(
+                    f"cross_references_dir configured but not found: {cross_ref_path}"
+                )
+            if not any(cross_ref_path.glob("*.json")):
+                raise FileNotFoundError(
+                    f"cross_references_dir is empty (no JSON files): {cross_ref_path}"
+                )
+            from relationship_provider import RelationshipProvider
+            state["relationship_provider"] = RelationshipProvider(str(cross_ref_path))
+            print(f"→ Cross-reference metadata loaded from {cross_ref_path}")
 
         # ═══════════════════════════════════════════════════════════════
         # Initialize LLM Fallback Manager (if fallback configured)

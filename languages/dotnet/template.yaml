@@ -106,6 +106,26 @@ sections:
       **External Dependencies (Categorized):**
       {{dependencies_list}}
 
+      ### Questionnaire for Executive Summary
+
+      Generate 5-7 ATOMIC questions answerable ENTIRELY from THIS Executive Summary section.
+
+      Each question MUST:
+      - Be ATOMIC: focus on ONE specific topic, fact, or concept
+        (no compound "and"/"or" questions).
+      - Be SHORT: a single, direct question.
+      - Be ANSWERABLE from THIS section's content alone.
+      - Use NATURAL phrasing — how a developer/analyst would actually ask.
+      - Reference ACTUAL names from the section content
+        (class names, interface names, dependency names, namespaces).
+
+      Vary angles: purpose, responsibilities, dependencies, architectural role.
+
+      Format as a numbered list:
+      1. [question]
+      2. [question]
+      ...
+
 #######################################################################################
 # PROGRAM STRUCTURE
 #######################################################################################
@@ -167,6 +187,33 @@ sections:
           **Type**: {{member_type}}
           **Purpose**: {{inferred_purpose}}
           **Used In**: {{usage_locations}}
+
+      - id: program-structure-questionnaire
+        title: Questionnaire for Program Structure
+        instruction: |
+          Generate 5-7 ATOMIC questions answerable ENTIRELY from THIS Program
+          Structure section (namespace/type hierarchy, using directives, fields
+          and properties).
+
+          Each question MUST:
+          - Be ATOMIC: focus on ONE specific topic, fact, or concept
+            (no compound "and"/"or" questions).
+          - Be SHORT: a single, direct question.
+          - Be ANSWERABLE from THIS section's content alone.
+          - Use NATURAL phrasing — how a developer/analyst would actually ask.
+          - Reference ACTUAL names from the section content
+            (namespace names, class/interface names, field/property names,
+            using directive names).
+
+          Vary angles: type hierarchy, member visibility, usage directives,
+          field/property purposes, member locations.
+
+        template: |
+          1. [question]
+          2. [question]
+          3. [question]
+          4. [question]
+          5. [question]
 
 #######################################################################################
 # DETAILED CODE EXPLANATION
@@ -412,6 +459,32 @@ sections:
         template: |
           | {{method}} | {{line}} | {{calls_out}} | {{param_count}} | {{complexity_level}} | {{role}} |
 
+      - id: control-flow-questionnaire
+        title: Questionnaire for Control Flow Analysis
+        instruction: |
+          Generate 5-7 ATOMIC questions answerable ENTIRELY from THIS Control
+          Flow Analysis section (control-flow diagram, external calls, method
+          complexity).
+
+          Each question MUST:
+          - Be ATOMIC: focus on ONE specific topic, fact, or concept
+            (no compound "and"/"or" questions).
+          - Be SHORT: a single, direct question.
+          - Be ANSWERABLE from THIS section's content alone.
+          - Use NATURAL phrasing — how a developer/analyst would actually ask.
+          - Reference ACTUAL names from the section content
+            (method names, entry points, external service names).
+
+          Vary angles: entry points, call chains, external calls, complexity,
+          method roles, error-handling paths.
+
+        template: |
+          1. [question]
+          2. [question]
+          3. [question]
+          4. [question]
+          5. [question]
+
 #######################################################################################
 # DATA FLOW ANALYSIS
 #######################################################################################
@@ -459,6 +532,31 @@ sections:
           - Location: Line {{line_number}}
           - Operation: {{operation_type}}
           - Purpose: {{inferred_purpose}}
+
+      - id: data-flow-questionnaire
+        title: Questionnaire for Data Flow Analysis
+        instruction: |
+          Generate 5-7 ATOMIC questions answerable ENTIRELY from THIS Data Flow
+          Analysis section (data-flow diagram, transformations, sources/sinks).
+
+          Each question MUST:
+          - Be ATOMIC: focus on ONE specific topic, fact, or concept
+            (no compound "and"/"or" questions).
+          - Be SHORT: a single, direct question.
+          - Be ANSWERABLE from THIS section's content alone.
+          - Use NATURAL phrasing — how a developer/analyst would actually ask.
+          - Reference ACTUAL names from the section content
+            (data element names, parameter names, transformation steps).
+
+          Vary angles: data sources, transformations, sinks, LINQ operations,
+          read/write locations, business purpose of a transformation.
+
+        template: |
+          1. [question]
+          2. [question]
+          3. [question]
+          4. [question]
+          5. [question]
 
 #######################################################################################
 # ASSEMBLY REFERENCES & DEPENDENCIES
@@ -519,6 +617,32 @@ sections:
 
           **Purpose & Integration**:
           {{inferred_purpose_and_integration}}
+
+      - id: assembly-references-questionnaire
+        title: Questionnaire for Assembly References & Dependencies
+        instruction: |
+          Generate 5-7 ATOMIC questions answerable ENTIRELY from THIS Assembly
+          References & Dependencies section (dependency table, hierarchy,
+          per-dependency details).
+
+          Each question MUST:
+          - Be ATOMIC: focus on ONE specific topic, fact, or concept
+            (no compound "and"/"or" questions).
+          - Be SHORT: a single, direct question.
+          - Be ANSWERABLE from THIS section's content alone.
+          - Use NATURAL phrasing — how a developer/analyst would actually ask.
+          - Reference ACTUAL names from the section content
+            (dependency/package/namespace names, calling method names).
+
+          Vary angles: framework vs third-party vs internal, usage frequency,
+          where a dependency is used, integration purpose, importance.
+
+        template: |
+          1. [question]
+          2. [question]
+          3. [question]
+          4. [question]
+          5. [question]
 
 #######################################################################################
 # BUSINESS LOGIC EXPLANATION
@@ -586,6 +710,32 @@ sections:
           **Error Handling**:
           {{error_handling_approach}}
 
+      - id: business-logic-questionnaire
+        title: Questionnaire for Business Logic Explanation
+        instruction: |
+          Generate 5-7 ATOMIC questions answerable ENTIRELY from THIS Business
+          Logic Explanation section (execution sequence, business operations
+          catalog).
+
+          Each question MUST:
+          - Be ATOMIC: focus on ONE specific topic, fact, or concept
+            (no compound "and"/"or" questions).
+          - Be SHORT: a single, direct question.
+          - Be ANSWERABLE from THIS section's content alone.
+          - Use NATURAL phrasing — how a developer/analyst would actually ask.
+          - Reference ACTUAL names from the section content
+            (operation names, primary methods, business terms).
+
+          Vary angles: business purpose of an operation, primary vs supporting
+          methods, data requirements, process flow steps, error handling.
+
+        template: |
+          1. [question]
+          2. [question]
+          3. [question]
+          4. [question]
+          5. [question]
+
 #######################################################################################
 # ERROR HANDLING
 #######################################################################################
@@ -612,6 +762,28 @@ sections:
       **Error Recovery**:
       {{error_recovery_approach}}
 
+      ### Questionnaire for Error Handling Strategy
+
+      Generate 5-7 ATOMIC questions answerable ENTIRELY from THIS Error
+      Handling Strategy section.
+
+      Each question MUST:
+      - Be ATOMIC: focus on ONE specific topic, fact, or concept
+        (no compound "and"/"or" questions).
+      - Be SHORT: a single, direct question.
+      - Be ANSWERABLE from THIS section's content alone.
+      - Use NATURAL phrasing — how a developer/analyst would actually ask.
+      - Reference ACTUAL names from the section content
+        (exception type names, custom exception classes, validation points).
+
+      Vary angles: caught vs thrown exceptions, validation guards, recovery
+      behavior, logging, custom exception types.
+
+      Format as a numbered list:
+      1. [question]
+      2. [question]
+      ...
+
 #######################################################################################
 # TECHNICAL DETAILS
 #######################################################################################
@@ -635,6 +807,31 @@ sections:
         columns: [Dependency Type, Name, Category, Count, Lines]
         template: |
           | {{dependency_type}} | {{dependency_name}} | {{dependency_category}} | {{usage_count}} | {{line_numbers}} |
+
+      - id: technical-details-questionnaire
+        title: Questionnaire for Technical Details
+        instruction: |
+          Generate 5-7 ATOMIC questions answerable ENTIRELY from THIS Technical
+          Details section (code metrics, dependencies matrix).
+
+          Each question MUST:
+          - Be ATOMIC: focus on ONE specific topic, fact, or concept
+            (no compound "and"/"or" questions).
+          - Be SHORT: a single, direct question.
+          - Be ANSWERABLE from THIS section's content alone.
+          - Use NATURAL phrasing — how a developer/analyst would actually ask.
+          - Reference ACTUAL names/values from the section content
+            (metric names and values, dependency names, line numbers).
+
+          Vary angles: code metrics (LOC, complexity), dependency types,
+          dependency usage counts, line locations.
+
+        template: |
+          1. [question]
+          2. [question]
+          3. [question]
+          4. [question]
+          5. [question]
 
 #######################################################################################
 # CODE REFERENCES & METADATA APPENDIX

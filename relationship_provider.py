@@ -2,8 +2,11 @@
 Relationship Provider — loads pre-generated multilspy metadata and provides
 chunk-scoped cross-reference context for the documentation pipeline.
 
+Loads per-source-file JSONs from the directory configured via
+output.cross_references_dir in the config YAML.
+
 Usage:
-    provider = RelationshipProvider("/path/to/metadata")
+    provider = RelationshipProvider("/path/to/cross_references/per_file")
     context = provider.get_context_for_chunk("DataCommands/PickList.cs", 43, 218)
 
 The returned context is a plaintext string ready to inject into the LLM prompt.
@@ -12,7 +15,7 @@ The returned context is a plaintext string ready to inject into the LLM prompt.
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,60 +26,89 @@ NOISE_KINDS = {"NAMESPACE"}
 TYPE_KINDS = {"CLASS", "INTERFACE", "ENUM", "STRUCT"}
 
 
+def _safe_filename(file_path: str) -> str:
+    """Convert a source file path to the safe filename used in per_file/ directory."""
+    return file_path.replace("/", "__").replace("\\", "__")
+
+
+class _FileData:
+    """Cross-reference data for a single source file."""
+    __slots__ = ("symbols", "cross_file_outgoing", "cross_file_incoming", "intra_file_refs")
+
+    def __init__(
+        self,
+        symbols: List[dict],
+        cross_file_outgoing: List[dict],
+        cross_file_incoming: List[dict],
+        intra_file_refs: List[dict],
+    ):
+        self.symbols = symbols
+        self.cross_file_outgoing = cross_file_outgoing
+        self.cross_file_incoming = cross_file_incoming
+        self.intra_file_refs = intra_file_refs
+
+
 class RelationshipProvider:
-    """Loads multilspy metadata and slices it per chunk."""
+    """Loads per-file multilspy metadata and slices it per chunk."""
 
-    def __init__(self, metadata_dir: str):
-        self.metadata_dir = Path(metadata_dir)
-        self._symbol_index: Dict[str, List[dict]] = {}
-        self._cross_file_edges: List[dict] = []
-        self._intra_file_resolved: List[dict] = []
-        self._loaded = False
+    def __init__(self, cross_references_dir: str):
+        """
+        Args:
+            cross_references_dir: Path to directory containing per-source-file
+                                  JSON files (e.g., DataCommands__PickList.cs.json)
+        """
+        self._cross_ref_dir = Path(cross_references_dir)
+        # Cache for loaded per-file data (keyed by file_path)
+        self._file_cache: Dict[str, Optional[_FileData]] = {}
 
-    def _load(self):
-        """Lazy-load metadata files."""
-        if self._loaded:
-            return
+        if not self._cross_ref_dir.is_dir():
+            raise FileNotFoundError(
+                f"Cross-references directory not found: {self._cross_ref_dir}"
+            )
 
-        si_path = self.metadata_dir / "symbol_index.json"
-        cross_path = self.metadata_dir / "cross_file_edges.json"
-        intra_path = self.metadata_dir / "intra_file_resolved.json"
+    def _load_file_data(self, file_path: str) -> Optional[_FileData]:
+        """Load cross-reference data for a single source file from its per-file JSON."""
+        if file_path in self._file_cache:
+            return self._file_cache[file_path]
 
-        if not si_path.exists():
-            logger.warning(f"No symbol_index.json in {self.metadata_dir}")
-            self._loaded = True
-            return
+        json_path = self._cross_ref_dir / f"{_safe_filename(file_path)}.json"
+        if not json_path.exists():
+            self._file_cache[file_path] = None
+            return None
 
-        with open(si_path) as f:
-            self._symbol_index = json.load(f)
-        logger.info(f"Loaded symbol index: {sum(len(v) for v in self._symbol_index.values())} "
-                     f"symbols across {len(self._symbol_index)} files")
+        with open(json_path) as f:
+            raw = json.load(f)
 
-        if cross_path.exists():
-            with open(cross_path) as f:
-                self._cross_file_edges = json.load(f)
-            logger.info(f"Loaded {len(self._cross_file_edges)} cross-file edges")
+        data = _FileData(
+            symbols=raw.get("symbols", []),
+            cross_file_outgoing=raw.get("cross_file_outgoing", []),
+            cross_file_incoming=raw.get("cross_file_incoming", []),
+            intra_file_refs=raw.get("intra_file_refs", []),
+        )
+        self._file_cache[file_path] = data
+        logger.info(f"Loaded cross-references for {file_path}: "
+                     f"{len(data.symbols)} symbols, "
+                     f"{len(data.cross_file_outgoing)} outgoing, "
+                     f"{len(data.cross_file_incoming)} incoming, "
+                     f"{len(data.intra_file_refs)} intra")
+        return data
 
-        if intra_path.exists():
-            with open(intra_path) as f:
-                self._intra_file_resolved = json.load(f)
-            logger.info(f"Loaded {len(self._intra_file_resolved)} intra-file relationships")
-
-        self._loaded = True
-
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
     def has_data_for_file(self, file_path: str) -> bool:
         """Check if we have metadata for this file."""
-        self._load()
-        return file_path in self._symbol_index
+        return self._load_file_data(file_path) is not None
 
     def get_symbols_for_chunk(
         self, file_path: str, start_line: int, end_line: int
     ) -> List[dict]:
         """Get symbols whose range overlaps with the chunk."""
-        self._load()
-        file_syms = self._symbol_index.get(file_path, [])
+        data = self._load_file_data(file_path)
+        if not data:
+            return []
         return [
-            s for s in file_syms
+            s for s in data.symbols
             if s.get("range_start") is not None
             and s.get("range_end") is not None
             and s["range_start"] <= end_line
@@ -87,30 +119,36 @@ class RelationshipProvider:
         self, file_path: str, start_line: int, end_line: int
     ) -> List[dict]:
         """Symbols defined in this chunk that are referenced from other files."""
+        data = self._load_file_data(file_path)
+        if not data:
+            return []
         return [
-            e for e in self._cross_file_edges
-            if e["defined_in"] == file_path
-            and start_line <= e["defined_at_line"] <= end_line
+            e for e in data.cross_file_outgoing
+            if start_line <= e["defined_at_line"] <= end_line
         ]
 
     def get_cross_file_incoming(
         self, file_path: str, start_line: int, end_line: int
     ) -> List[dict]:
         """Symbols from other files that are referenced within this chunk's line range."""
+        data = self._load_file_data(file_path)
+        if not data:
+            return []
         return [
-            e for e in self._cross_file_edges
-            if e["referenced_in"] == file_path
-            and start_line <= e["referenced_at_line"] <= end_line
+            e for e in data.cross_file_incoming
+            if start_line <= e["referenced_at_line"] <= end_line
         ]
 
     def get_intra_file_refs(
         self, file_path: str, start_line: int, end_line: int
     ) -> List[dict]:
         """Intra-file relationships where the reference occurs in this chunk."""
+        data = self._load_file_data(file_path)
+        if not data:
+            return []
         return [
-            e for e in self._intra_file_resolved
-            if e["file"] == file_path
-            and start_line <= e["reference_at_line"] <= end_line
+            e for e in data.intra_file_refs
+            if start_line <= e["reference_at_line"] <= end_line
         ]
 
     def get_context_for_chunk(
@@ -122,9 +160,7 @@ class RelationshipProvider:
         Returns None if no metadata is available for this file.
         Returns a formatted string ready to inject into the LLM prompt.
         """
-        self._load()
-
-        if file_path not in self._symbol_index:
+        if not self.has_data_for_file(file_path):
             return None
 
         symbols = self.get_symbols_for_chunk(file_path, start_line, end_line)
@@ -182,16 +218,12 @@ class RelationshipProvider:
         Build a high-level cross-reference summary for the entire file.
         Useful for Phase 2 section generation (executive summary, dependencies).
         """
-        self._load()
-
-        if file_path not in self._symbol_index:
+        data = self._load_file_data(file_path)
+        if not data:
             return None
 
-        file_syms = self._symbol_index.get(file_path, [])
-
-        # All cross-file edges for this file
-        outgoing = [e for e in self._cross_file_edges if e["defined_in"] == file_path]
-        incoming = [e for e in self._cross_file_edges if e["referenced_in"] == file_path]
+        outgoing = data.cross_file_outgoing
+        incoming = data.cross_file_incoming
 
         if not outgoing and not incoming:
             return None
@@ -199,11 +231,10 @@ class RelationshipProvider:
         parts = []
 
         # Type-level symbols defined in this file
-        types = [s for s in file_syms if s.get("kind_name") in TYPE_KINDS]
+        types = [s for s in data.symbols if s.get("kind_name") in TYPE_KINDS]
         if types:
             parts.append("**Types defined in this file:**")
             for t in types:
-                # Count outgoing refs for this type
                 type_refs = [
                     e for e in outgoing
                     if e["symbol"] == t["name"] and e["defined_at_line"] == t.get("line")
@@ -243,7 +274,6 @@ class RelationshipProvider:
 
 def _summarize_incoming(edges: List[dict]) -> List[str]:
     """Summarize cross-file dependencies: what symbols this chunk uses from other files."""
-    # Group by symbol name first to detect overrides (e.g., setupParameters in 170 files)
     by_symbol: Dict[str, list] = {}
     for e in edges:
         by_symbol.setdefault(e["symbol"], []).append(e)
@@ -254,12 +284,10 @@ def _summarize_incoming(edges: List[dict]) -> List[str]:
         kind = symbol_edges[0]["kind"]
 
         if len(source_files) > 5:
-            # Override/common symbol — summarize instead of listing each file
             lines.append(
                 f"{kind} `{symbol}`: defined in {len(source_files)} files (common override/interface method)"
             )
         else:
-            # Few sources — list each
             for src_file in sorted(source_files):
                 file_edges = [e for e in symbol_edges if e["defined_in"] == src_file]
                 src_line = file_edges[0]["defined_at_line"]
@@ -271,7 +299,6 @@ def _summarize_incoming(edges: List[dict]) -> List[str]:
 
 def _summarize_outgoing(edges: List[dict]) -> List[str]:
     """Summarize cross-file dependents: symbols defined here, used elsewhere."""
-    # Group by symbol
     grouped: Dict[str, Dict] = {}
     for e in edges:
         key = f"{e['symbol']}|{e['defined_at_line']}"
@@ -300,7 +327,6 @@ def _summarize_outgoing(edges: List[dict]) -> List[str]:
 
 def _summarize_intra(edges: List[dict]) -> List[str]:
     """Summarize intra-file relationships: who references whom within this chunk."""
-    # Group by from_symbol → to_symbol
     grouped: Dict[str, Dict] = {}
     for e in edges:
         key = f"{e['from_symbol']}→{e['to_symbol']}"

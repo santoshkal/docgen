@@ -26,6 +26,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from collections import defaultdict
 from datetime import datetime
 
 from mcp import ClientSession
@@ -629,6 +630,104 @@ def resolve_intra_file_references(symbol_index: dict, output_dir: Path):
 
 
 # ---------------------------------------------------------------------------
+# Post-processing: write per-source-file cross-reference JSONs
+# ---------------------------------------------------------------------------
+NOISE_KINDS = {"NAMESPACE"}
+
+
+def write_per_file_cross_references(symbol_index: dict, output_dir: Path,
+                                     cross_ref_output_dir: Path = None):
+    """
+    Split monolithic cross-reference data into per-source-file JSONs.
+
+    Each file gets a single JSON containing only its own symbols, cross-file
+    edges (both directions), and intra-file resolved relationships.
+    This allows the doc agent to load only the data it needs per file.
+
+    Reads:  symbol_index.json, cross_file_edges.json, intra_file_resolved.json
+            from output_dir (where the monolithic files live)
+    Writes: <target>/per_file/<safe_filename>.json
+
+    Args:
+        symbol_index: dict of file_path → symbol list
+        output_dir: directory containing monolithic JSON files
+        cross_ref_output_dir: target directory for per-file output (defaults to output_dir)
+    """
+    target_dir = cross_ref_output_dir or output_dir
+
+    print(f"\n{'='*60}")
+    print("Post-processing: Writing per-file cross-reference JSONs")
+    print(f"{'='*60}")
+    if cross_ref_output_dir:
+        print(f"  Target: {cross_ref_output_dir}")
+
+    # Load edge lists
+    cross_path = output_dir / "cross_file_edges.json"
+    intra_path = output_dir / "intra_file_resolved.json"
+
+    cross_file_edges = []
+    if cross_path.exists():
+        with open(cross_path) as f:
+            cross_file_edges = json.load(f)
+
+    intra_file_resolved = []
+    if intra_path.exists():
+        with open(intra_path) as f:
+            intra_file_resolved = json.load(f)
+
+    # Collect all known files
+    all_files = set(symbol_index.keys())
+
+    # Index cross_file_edges by defined_in and referenced_in
+    outgoing_by_file = defaultdict(list)
+    incoming_by_file = defaultdict(list)
+    for edge in cross_file_edges:
+        if edge.get("kind", "") in NOISE_KINDS:
+            continue
+        outgoing_by_file[edge["defined_in"]].append(edge)
+        incoming_by_file[edge["referenced_in"]].append(edge)
+        all_files.add(edge["defined_in"])
+        all_files.add(edge["referenced_in"])
+
+    # Index intra_file_resolved by file
+    intra_by_file = defaultdict(list)
+    for ref in intra_file_resolved:
+        if ref.get("to_kind", "") in NOISE_KINDS:
+            continue
+        intra_by_file[ref["file"]].append(ref)
+        all_files.add(ref["file"])
+
+    # Write per-file JSONs
+    per_file_dir = target_dir / "per_file"
+    per_file_dir.mkdir(parents=True, exist_ok=True)
+
+    files_written = 0
+    for file_path in sorted(all_files):
+        symbols = symbol_index.get(file_path, [])
+        outgoing = outgoing_by_file.get(file_path, [])
+        incoming = incoming_by_file.get(file_path, [])
+        intra = intra_by_file.get(file_path, [])
+
+        if not symbols and not outgoing and not incoming and not intra:
+            continue
+
+        per_file_data = {
+            "file": file_path,
+            "symbols": symbols,
+            "cross_file_outgoing": outgoing,
+            "cross_file_incoming": incoming,
+            "intra_file_refs": intra,
+        }
+
+        out_name = file_path.replace("/", "__").replace("\\", "__")
+        write_json(per_file_dir / f"{out_name}.json", per_file_data)
+        files_written += 1
+
+    print(f"  Written {files_written} per-file JSONs to {per_file_dir}")
+    return files_written
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator with auto-restart
 # ---------------------------------------------------------------------------
 async def run_single_session(
@@ -694,7 +793,8 @@ async def run_single_session(
     return True
 
 
-async def run_metadata_generation(workspace: str, output_dir: str, resume: bool = False):
+async def run_metadata_generation(workspace: str, output_dir: str, resume: bool = False,
+                                   cross_ref_output: Path = None):
     """Main orchestration with auto-restart on OmniSharp failures."""
 
     workspace_path = str(Path(workspace).resolve())
@@ -776,6 +876,7 @@ async def run_metadata_generation(workspace: str, output_dir: str, resume: bool 
         with open(si_path) as f:
             symbol_index = json.load(f)
         resolve_intra_file_references(symbol_index, output_path)
+        write_per_file_cross_references(symbol_index, output_path, cross_ref_output)
 
     # Write final summary
     total_syms = sum(len(v) for v in symbol_index.values()) if si_path.exists() else 0
@@ -835,9 +936,17 @@ def main():
     )
     parser.add_argument("--resume", "-r", action="store_true")
     parser.add_argument("--status", "-s", action="store_true")
+    parser.add_argument(
+        "--cross-ref-output",
+        default=None,
+        help="Directory for per-file cross-reference JSONs "
+             "(e.g., ../output-imes/metadata-5p/cross_references). "
+             "If not set, writes to the --output directory.",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output).resolve()
+    cross_ref_output = Path(args.cross_ref_output).resolve() if args.cross_ref_output else None
 
     if args.status:
         if not (output_dir / "checkpoint.json").exists():
@@ -851,7 +960,8 @@ def main():
                 FailureLog(output_dir).summary()
         return
 
-    asyncio.run(run_metadata_generation(args.workspace, args.output, args.resume))
+    asyncio.run(run_metadata_generation(args.workspace, args.output, args.resume,
+                                         cross_ref_output))
 
 
 if __name__ == "__main__":

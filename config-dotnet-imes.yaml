@@ -37,9 +37,9 @@ source:
   # File pattern inclusion - if set, ONLY these files (overrides all other filters)
   include_files:
     - "IScriptCommand.cs"
-    - "DefaultScriptCommand.cs"
-    - "ItemLooper.cs"
-    - "PickList.cs"
+    # - "DefaultScriptCommand.cs"
+    # - "ItemLooper.cs"
+    # - "PickList.cs"
     # - "SequenceManager.cs"
     # - "HeijunkaData.cs"
     # - "Script.cs"
@@ -50,8 +50,9 @@ source:
 # OUTPUT CONFIGURATION
 # ============================================================================
 output:
-  metadata_dir: ../output-imes/metadata-5p
-  docs_path: ../output-imes/docs-5p
+  metadata_dir: ../output-imes/metadata-phase1
+  cross_references_dir: ../output-imes/metadata-5p/cross_references/per_file
+  docs_path: ../output-imes/docs-phase1
   create_dirs: true
 
 # ============================================================================
