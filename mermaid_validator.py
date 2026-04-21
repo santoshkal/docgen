@@ -57,7 +57,10 @@ class MermaidValidator:
         self,
         docker_image: str = "mermaid-mcp:test",
         llm_config: Optional[Dict[str, Any]] = None,
-        fallback_manager: Optional[Any] = None
+        fallback_manager: Optional[Any] = None,
+        docker_args: Optional[List[str]] = None,
+        tool_name: str = "validate",
+        max_retries: int = 3,
     ):
         """
         Initialize the Mermaid validator.
@@ -66,12 +69,20 @@ class MermaidValidator:
             docker_image: Docker image name for Mermaid MCP server
             llm_config: LLM configuration for fixing invalid diagrams
             fallback_manager: Optional LLMFallbackManager for automatic fallback on errors
+            docker_args: Arguments passed to `docker` before the image name
+                (e.g. ["run", "-i", "--rm"]). Defaults to that list when None.
+            tool_name: Name of the MCP tool to call for single-block validation.
+            max_retries: Maximum LLM-rewrite attempts per invalid block.
         """
         self.docker_image = docker_image
         self.llm_config: Dict[str, Any] = llm_config or {}
         self.fallback_manager = fallback_manager
         self.mcp_client: Optional[MCPClient] = None
-        self.max_retries = 3
+        self.docker_args: List[str] = (
+            list(docker_args) if docker_args is not None else ["run", "-i", "--rm"]
+        )
+        self.tool_name = tool_name
+        self.max_retries = max_retries
 
     def get_mcp_config(self) -> Dict[str, Any]:
         """
@@ -81,12 +92,7 @@ class MermaidValidator:
             "mcpServers": {
                 "mermaid": {
                     "command": "docker",
-                    "args": [
-                        "run",
-                        "-i",
-                        "--rm",
-                        self.docker_image
-                    ]
+                    "args": [*self.docker_args, self.docker_image],
                 }
             }
         }
@@ -144,7 +150,7 @@ class MermaidValidator:
             if self.mcp_client is None:
                 return False, "MCP client not initialized"
             session = self.mcp_client.get_session("mermaid")
-            result = await session.call_tool("validate", {"code": code})
+            result = await session.call_tool(self.tool_name, {"code": code})
 
             # Parse the result
             if hasattr(result, 'content') and result.content:
@@ -668,12 +674,15 @@ def validate_section_mermaid_sync(
     llm_config: Dict[str, Any],
     mcp_client: Optional["MCPClient"] = None,
     docker_image: str = "mermaid-mcp:test",
-    fallback_manager: Optional[Any] = None
+    fallback_manager: Optional[Any] = None,
+    docker_args: Optional[List[str]] = None,
+    tool_name: str = "validate",
+    max_retries: int = 3,
 ) -> Tuple[str, MermaidSectionStats]:
     """
     Synchronous wrapper for per-section mermaid validation.
 
-    Called from run_phase2_sections() after each section is generated.
+    Called from the Phase 2 orchestrator after each section is generated.
 
     Args:
         section_id: Section identifier
@@ -682,6 +691,10 @@ def validate_section_mermaid_sync(
         mcp_client: Optional existing MCP client (to reuse connection)
         docker_image: Mermaid MCP Docker image name
         fallback_manager: Optional LLMFallbackManager for automatic fallback on errors
+        docker_args: Arguments passed to `docker` before the image name.
+            Defaults to ["run", "-i", "--rm"] when None.
+        tool_name: Name of the MCP tool to call for single-block validation.
+        max_retries: Maximum LLM-rewrite attempts per invalid block.
 
     Returns:
         Tuple of (fixed_section_content, stats_dict)
@@ -690,7 +703,10 @@ def validate_section_mermaid_sync(
         validator = MermaidValidator(
             docker_image=docker_image,
             llm_config=llm_config,
-            fallback_manager=fallback_manager
+            fallback_manager=fallback_manager,
+            docker_args=docker_args,
+            tool_name=tool_name,
+            max_retries=max_retries,
         )
 
         # Check if section has any mermaid blocks first (quick check)

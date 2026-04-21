@@ -67,23 +67,118 @@ llm:
   betas:
     - context-1m-2025-08-07
 
-  # Phase-specific configuration for claude_sdk provider
+  # Phase 1 (code explanation): chunked per-block generator.
   phase1:
     model: claude-opus-4-6
     thinking: disabled            # Options: disabled, adaptive, or {type: enabled, budget_tokens: N}
 
-  phase2:
-    model: claude-opus-4-6
+  # Phase 2 (RLM REPL + PageIndex). Replaces the legacy per-section Phase 2.
+  # `root_model` drives the ClaudeSDKClient multi-turn loop that writes ```repl``` blocks;
+  # `sub_model` serves the sub-LLM calls fired from within those blocks
+  # (llm_query / llm_query_batched).
+  rlm:
+    root_model: claude-opus-4-6
+    sub_model: claude-opus-4-6
+    max_output_tokens: 64000
+    max_thinking_tokens: 0        # 0 disables thinking (faster responses)
+    max_iterations: 10            # Root-LLM turns per section before forcing FINAL
 
-  # Optional fallback (if primary fails, use this)
+  # Optional fallback (triggered on unrecoverable LLM error, then session-wide).
+  # `fallback.rlm` mirrors `llm.rlm` and is used by Phase 2 once the fallback
+  # manager has been triggered.
   # fallback:
   #   provider: claude_sdk
   #   phase1:
   #     model: sonnet
-  #   phase2:
-  #     model: sonnet[1m]
-  #     betas:
-  #       - context-1m-2025-08-07
+  #   rlm:
+  #     root_model: claude-sonnet-4-6
+  #     sub_model: claude-sonnet-4-6
+  #     max_output_tokens: 32000
+  #     max_iterations: 10
+
+# ============================================================================
+# PAGEINDEX CONFIGURATION (Phase 2 input)
+# ============================================================================
+# The Phase 2 RLM pipeline first builds a PageIndex tree from the Phase 1
+# code-explanation markdown. The tree provides chunk → block hierarchy with
+# per-chunk tags/retrieval_questions and per-block purpose/technical_details/
+# cross_references — used by the root LLM for targeted retrieval.
+pageindex:
+  enabled: true
+
+  # Mode: "extract" (zero-LLM, parses Purpose/Technical/CrossRef/CallFlow/DataFlow
+  # blocks from the structured Phase 1 doc — instant, free) or "llm" (Claude
+  # summaries via the PageIndex project — requires RLM_DEMO_PATH env var).
+  mode: extract
+
+  # Used only when mode: llm
+  model: claude-opus-4-6
+  # concurrency: 4              # Defaults to os.cpu_count()
+  # thinning: false
+  # min_token_threshold: 500
+
+  # Include full text content in block nodes (used by root LLM for retrieval).
+  include_text: true
+
+  # Force regeneration even if the PageIndex JSON already exists on disk.
+  regenerate: true
+
+  # Where to persist the generated tree. Defaults to `{output.docs_path}/page_index/`.
+  # output_dir: ../output-imes/metadata-5p/page_index
+
+# ============================================================================
+# RLM (Phase 2) CONFIGURATION
+# ============================================================================
+# Drives the RLM REPL + deterministic-generator loop. Defaults match
+# ~/rlm/demo/pipeline-config.yaml.
+rlm:
+  # Sections dispatched to the RLM REPL (in template order).
+  sections:
+    - executive-summary
+    - program-structure
+    - control-flow-analysis
+    - data-flow-analysis
+    - inter-program-communication
+    - business-logic
+    - error-handling
+    - technical-details
+    - code-references
+
+  # Sections handled statically in Phase 3 assembly (no Phase 2 LLM call).
+  skip_sections:
+    - document-header
+    - detailed-code-explanation
+    - metadata-appendix
+
+  # Sections emitted by pure-Python deterministic generators (zero LLM calls)
+  # when the required metadata is present. Falls back to RLM if generator
+  # returns None.
+  deterministic_sections:
+    - control-flow-analysis
+    - assembly-references
+    - code-references
+    - technical-details
+
+# ============================================================================
+# MERMAID VALIDATION (Phase 2 post-processing)
+# ============================================================================
+# After each Phase 2 section is generated, any ```mermaid block inside it is
+# validated via a Docker-based MCP server. Invalid diagrams are handed to an
+# LLM to repair (with the full section as context) and re-validated up to
+# `max_retries` times.
+mermaid_validator:
+  enabled: true
+  docker_image: mermaid-mcp:test
+  # Arguments passed to `docker` (before the image name). `--rm` keeps the
+  # container ephemeral; `-i` keeps stdin open for the MCP stdio transport.
+  docker_args:
+    - run
+    - -i
+    - --rm
+  # Name of the MCP tool on the mermaid server used to check a block.
+  tool_name: validate
+  # Max number of LLM-rewrite attempts per invalid block before giving up.
+  max_retries: 3
 
 # ============================================================================
 # FULL CONTEXT MODE CONFIGURATION

@@ -254,8 +254,14 @@ def create_llm(llm_config: Dict[str, Any]):
                 "Also ensure Claude Code CLI is installed: npm install -g @anthropic-ai/claude-code"
             )
 
-        # Get beta features from config (e.g., for 1M context)
-        betas = llm_config.get('betas')
+        # NOTE: Beta-features wiring (1M-context beta) is intentionally disabled.
+        # We force the standard 200K-token model; if a call's context exceeds
+        # that limit the SDK raises, the file is marked failed in the
+        # checkpoint, and a later restart retries it. To re-enable the 1M
+        # beta, restore the commented block below AND re-enable the matching
+        # truncation/auto-escalation paths.
+        #   betas = llm_config.get('betas')
+        betas = None
 
         # Get thinking config (new) or fall back to deprecated max_thinking_tokens
         thinking = llm_config.get('thinking')
@@ -271,7 +277,7 @@ def create_llm(llm_config: Dict[str, Any]):
             model=model,
             temperature=temperature,
             api_key=api_key,
-            betas=betas,
+            betas=betas,  # NOTE: always None — see comment above.
             thinking=thinking,
             max_thinking_tokens=max_thinking_tokens,  # Deprecated fallback
             max_output_tokens=max_output_tokens
@@ -2144,56 +2150,41 @@ OUTPUT FORMAT:
     # CRITICAL: Use compact JSON (no indent) to reduce token count
     # indent=2 adds ~50% overhead (800K → 1.2M tokens)
 
-    # TRUNCATION: Check TOKEN count before sending (model context limits)
-    # Use unified tokenizer module for token estimation and limits
-    betas = llm_config.get('betas') if llm_config else None
+    # NOTE: Beta-features wiring (1M-context beta) is intentionally disabled
+    # below — `betas=None` forces the standard 200K-token limit. Overflow is
+    # surfaced as an error (see the overflow guard further down) instead of
+    # being silently truncated. To re-enable the 1M beta, restore the line
+    # that reads from llm_config AND re-enable the truncation block and
+    # Phase 1 chunk-level auto-escalation further down.
+    #   betas = llm_config.get('betas') if llm_config else None
+    betas = None
     MAX_INPUT_TOKENS = get_token_limit(model_name, betas=betas)
 
     context_json = json.dumps(context)
     context_tokens = estimate_tokens(context_json, model=model_name)
 
     if context_tokens > MAX_INPUT_TOKENS:
-        print(f"  ⚠ TRUNCATION NEEDED: {context_tokens:,} tokens exceeds {MAX_INPUT_TOKENS:,} limit")
-
-        # Calculate reduction ratio needed
-        reduction_ratio = MAX_INPUT_TOKENS / context_tokens
-        target_chars = int(len(context_json) * reduction_ratio * 0.8)  # 80% of target for safety
-
-        # Strategy 1: Truncate source_code (largest component)
-        if "source_code" in context and context["source_code"]:
-            source = context["source_code"]
-            source_tokens = estimate_tokens(source, model=model_name)
-
-            # Calculate target source size
-            target_source_tokens = int(source_tokens * reduction_ratio * 0.7)  # Aggressive reduction
-            target_source_chars = int(len(source) * (target_source_tokens / source_tokens))
-
-            if target_source_chars > 1000:  # Keep at least 1000 chars
-                half = target_source_chars // 2
-                truncated_tokens = source_tokens - target_source_tokens
-                context["source_code"] = (
-                    source[:half] +
-                    f"\n\n... [TRUNCATED ~{truncated_tokens:,} tokens to fit model limit] ...\n\n" +
-                    source[-half:]
-                )
-                print(f"    → Truncated source_code: {source_tokens:,} → ~{target_source_tokens:,} tokens")
-
-        # Strategy 2: Remove large metadata (keep only essential)
-        for key in ["superbol_symbols", "gnucobol_analysis"]:
-            if key in context and context[key]:
-                item = context[key]
-                if isinstance(item, dict) and len(json.dumps(item)) > 50000:
-                    # Keep minimal info
-                    context[key] = {"_truncated": True, "_reason": "Token limit exceeded"}
-                    print(f"    → Removed {key} (too large)")
-                elif isinstance(item, list) and len(item) > 100:
-                    context[key] = item[:100]
-                    print(f"    → Trimmed {key}: {len(item)} → 100 items")
-
-        # Re-check token count
-        context_json = json.dumps(context)
-        new_tokens = estimate_tokens(context_json, model=model_name)
-        print(f"    → New context: {new_tokens:,} tokens")
+        # NOTE: Silent truncation is intentionally disabled. When the context
+        # for a single LLM call exceeds the model's 200K-token limit, we raise
+        # so the file is marked failed in the checkpoint (see
+        # `checkpoint_manager.mark_file_failed`) instead of silently producing
+        # a doc generated from a half-missing source. Restart — or
+        # `--retry-failed` — picks the file back up after the root cause
+        # (chunking config, metadata size) has been addressed.
+        #
+        # The original truncation strategy trimmed `source_code` to the first
+        # half + last half and dropped large metadata blobs; to restore it, see
+        # the git history for this block (cobol_doc_agent.py:2166 onward
+        # before the Option-A edit).
+        raise LLMFatalError(
+            f"Context overflow for section {section_id!r}"
+            f"{f' chunk {chunk_number}' if chunk_number is not None else ''}: "
+            f"{context_tokens:,} tokens exceeds model limit "
+            f"{MAX_INPUT_TOKENS:,} (model: {model_name}). "
+            "The 1M-context beta is disabled — reduce chunk size "
+            "(chunking.auto_chunk_sizing.target_pct) or trim metadata "
+            "and re-run."
+        )
 
     metadata_str = format_context_as_plaintext(context)
 
@@ -2660,26 +2651,37 @@ Please process this file using paragraph-by-paragraph extraction or manually rev
 
         print(f"     Lines: {total_lines_in_chunk} total")
 
-        # Conditional betas: strip betas by default, only enable when context > 120K.
-        # The beta flag is defined in config (llm.betas) but applied conditionally.
+        # NOTE: Per-chunk auto-escalation to the 1M-context model when the
+        # chunk context > 120K tokens is intentionally disabled. We force the
+        # standard 200K-token model; if a chunk exceeds that limit the
+        # overflow guard in generate_section_content() raises LLMFatalError,
+        # the file is marked failed in the checkpoint, and a restart retries
+        # it after you've tuned chunking config. To re-enable the 1M beta,
+        # uncomment the original block below AND re-enable the truncation
+        # block + betas wiring in create_llm() / the token-limit calc.
+        #
+        # Original block:
+        #   chunk_llm_config = dict(llm_config) if llm_config else {}
+        #   if llm_config:
+        #       from tokenizer import CLAUDE_1M_BETA_FLAG
+        #       from tokenizer import estimate_tokens as _est_tokens
+        #       available_betas = llm_config.get('betas') or []
+        #       chunk_llm_config.pop('betas', None)
+        #       chunk_context_json = json.dumps(chunk_context)
+        #       chunk_context_tokens = _est_tokens(chunk_context_json, model=llm_config.get('model', 'unknown'))
+        #       if chunk_context_tokens > 120_000 and CLAUDE_1M_BETA_FLAG in available_betas:
+        #           provider = llm_config.get('provider', '')
+        #           if provider in ('anthropic', 'claude_sdk'):
+        #               print(f"     ⚠ Chunk context {chunk_context_tokens:,} tokens > 120K — enabling 1M context beta")
+        #               chunk_llm_config['betas'] = available_betas
+        #               base_model = chunk_llm_config.get('model', 'sonnet')
+        #               if '[1m]' not in base_model:
+        #                   chunk_llm_config['model'] = f"{base_model}[1m]"
         chunk_llm_config = dict(llm_config) if llm_config else {}
-        if llm_config:
-            from tokenizer import CLAUDE_1M_BETA_FLAG
-            from tokenizer import estimate_tokens as _est_tokens
-            available_betas = llm_config.get('betas') or []
-            # Strip betas from the per-chunk config — only add when needed
-            chunk_llm_config.pop('betas', None)
-            chunk_context_json = json.dumps(chunk_context)
-            chunk_context_tokens = _est_tokens(chunk_context_json, model=llm_config.get('model', 'unknown'))
-            if chunk_context_tokens > 120_000 and CLAUDE_1M_BETA_FLAG in available_betas:
-                provider = llm_config.get('provider', '')
-                if provider in ('anthropic', 'claude_sdk'):
-                    print(f"     ⚠ Chunk context {chunk_context_tokens:,} tokens > 120K — enabling 1M context beta")
-                    chunk_llm_config['betas'] = available_betas
-                    # Switch to 1M model variant when betas enabled
-                    base_model = chunk_llm_config.get('model', 'sonnet')
-                    if '[1m]' not in base_model:
-                        chunk_llm_config['model'] = f"{base_model}[1m]"
+        # Strip any `betas` the YAML might carry — create_llm() also ignores
+        # it, but we belt-and-braces remove it here so it never reaches any
+        # downstream consumer that still looks at the key.
+        chunk_llm_config.pop('betas', None)
 
         # ========================================================================
         # TEST MODE: RETRIES DISABLED - Testing prompt quality alone
@@ -3738,238 +3740,9 @@ def run_phase1_code_explanation(
     return full_explanation, extracted_prose
 
 
-def run_phase2_sections(
-    state: AgentState,
-    explanation_prose: str,
-    llm_config: Dict[str, Any],
-    fallback_manager: Optional['LLMFallbackManager'] = None
-) -> Dict[str, str]:
-    """
-    Phase 2: Generate remaining sections using prose + metadata context.
-
-    This function:
-    1. Gets all sections except detailed-code-explanation
-    2. Builds prose-based context for each section
-    3. Generates each section sequentially
-    4. Handles failures gracefully (continues with other sections)
-
-    Args:
-        state: Agent state with program info and metadata
-        explanation_prose: Extracted prose from Phase 1
-        llm_config: LLM configuration
-
-    Returns:
-        Dict mapping section_id to generated content
-    """
-    program_name = state["program_name"]
-    print(f"\n{'='*60}")
-    print(f"PHASE 2: Generating Remaining Sections")
-    print(f"{'='*60}")
-
-    # Get all sections from template
-    template = state.get("template", {})
-    sections = template.get("sections", [])
-
-    # Filter out detailed-code-explanation (handled in Phase 1)
-    other_sections = [s for s in sections if s.get("id") != "detailed-code-explanation"]
-
-    print(f"  → Sections to generate: {len(other_sections)}")
-    for s in other_sections:
-        print(f"    - {s.get('id')}")
-
-    section_outputs = {}
-    failed_sections = []
-
-    # Mermaid validation stats for summary
-    mermaid_stats = {
-        'total': 0,
-        'valid': 0,
-        'fixed': 0,
-        'failed': 0,
-        'sections_with_mermaid': []
-    }
-
-    # Build base context with prose instead of source code
-    base_context = build_prose_based_context(state, explanation_prose)
-
-    # Process each section sequentially
-    for i, section in enumerate(other_sections, 1):
-        section_id = section.get("id", "unknown")
-        section_title = section.get("title", section_id)
-
-        print(f"\n  [{i}/{len(other_sections)}] Generating: {section_title}")
-
-        try:
-            # Build section-specific context
-            section_context = base_context.copy()
-            section_context["section_id"] = section_id
-
-            # Conditional betas for Phase 2: strip betas by default,
-            # only enable when section context > 120K tokens
-            section_llm_config = dict(llm_config) if llm_config else {}
-            if llm_config:
-                from tokenizer import CLAUDE_1M_BETA_FLAG
-                from tokenizer import estimate_tokens as _est_tokens
-                available_betas = llm_config.get('betas') or []
-                section_llm_config.pop('betas', None)
-                section_context_json = json.dumps(section_context)
-                section_context_tokens = _est_tokens(section_context_json, model=llm_config.get('model', 'unknown'))
-                if section_context_tokens > 120_000 and CLAUDE_1M_BETA_FLAG in available_betas:
-                    provider = llm_config.get('provider', '')
-                    if provider in ('anthropic', 'claude_sdk'):
-                        print(f"      ⚠ Section context {section_context_tokens:,} tokens > 120K — enabling 1M context beta")
-                        section_llm_config['betas'] = available_betas
-                        # Switch to 1M model variant when betas enabled
-                        base_model = section_llm_config.get('model', 'sonnet')
-                        if '[1m]' not in base_model:
-                            section_llm_config['model'] = f"{base_model}[1m]"
-
-            # Generate content using existing function
-            content, section_debug_path, section_latency = generate_section_content(
-                section_id=section_id,
-                section_title=section_title,
-                instruction=section.get("instruction", ""),
-                template=section.get("template", ""),
-                context=section_context,
-                section_config=section,
-                llm_config=section_llm_config,
-                fallback_manager=fallback_manager,
-                phase=2
-            )
-
-            print(f"      ✓ Generated ({len(content):,} chars)")
-            if section_debug_path:
-                print(f"      [DEBUG] Request logged to: {section_debug_path} (latency: {section_latency:.2f}s)")
-
-            # ─────────────────────────────────────────────────────────────
-            # MERMAID VALIDATION: Validate and fix mermaid diagrams in this section
-            # Uses full section content as context for LLM fixes
-            # ─────────────────────────────────────────────────────────────
-            if '```mermaid' in content:
-                from mermaid_validator import validate_section_mermaid_sync
-                content, section_mermaid_stats = validate_section_mermaid_sync(
-                    section_id=section_id,
-                    section_content=content,
-                    llm_config=llm_config,
-                    docker_image="mermaid-mcp:test",
-                    fallback_manager=fallback_manager
-                )
-                # Update overall stats
-                mermaid_stats['total'] += section_mermaid_stats['total']
-                mermaid_stats['valid'] += section_mermaid_stats['valid']
-                mermaid_stats['fixed'] += section_mermaid_stats['fixed']
-                mermaid_stats['failed'] += section_mermaid_stats['failed']
-                if section_mermaid_stats['total'] > 0:
-                    mermaid_stats['sections_with_mermaid'].append(section_id)
-
-            section_outputs[section_id] = content
-
-            # Save to tmp
-            save_to_tmp(content, program_name, f"section_{section_id}.md")
-
-        except Exception as e:
-            print(f"      ✗ Failed: {e}")
-            if is_fatal_llm_error(e):
-                raise LLMFatalError(f"Fatal LLM error on section '{section_id}': {e}") from e
-            failed_sections.append(section_id)
-
-            # Create failure placeholder
-            section_outputs[section_id] = f"""## {section_title}
-
-**Generation Failed**
-
-This section could not be generated due to an error:
-```
-{str(e)}
-```
-
-Please regenerate this section manually or check the logs for details.
-"""
-
-    # Summary
-    print(f"\n  → Phase 2 Summary:")
-    print(f"    Sections generated: {len(other_sections) - len(failed_sections)}/{len(other_sections)}")
-    if failed_sections:
-        print(f"    Failed sections: {', '.join(failed_sections)}")
-
-    # Mermaid validation summary
-    if mermaid_stats['total'] > 0:
-        print(f"\n  → Mermaid Validation Summary:")
-        print(f"    Total diagrams: {mermaid_stats['total']}")
-        print(f"    Already valid:  {mermaid_stats['valid']}")
-        print(f"    Fixed by LLM:   {mermaid_stats['fixed']}")
-        print(f"    Failed:         {mermaid_stats['failed']}")
-        if mermaid_stats['sections_with_mermaid']:
-            print(f"    Sections with mermaid: {', '.join(mermaid_stats['sections_with_mermaid'])}")
-
-    print(f"\n✓ Phase 2 complete")
-
-    return section_outputs
-
-
-def build_prose_based_context(
-    state: AgentState,
-    explanation_prose: str
-) -> Dict[str, Any]:
-    """
-    Build context using explanation prose instead of raw source code.
-
-    This replaces _build_full_context_for_section() for the new approach.
-
-    IMPORTANT: This function intentionally does NOT include raw metadata
-    (ctags_outline, superbol_cfg, superbol_symbols, gnucobol_analysis)
-    because they are massive JSON blobs (7+ MB). The prose from Phase 1
-    already contains all the important information extracted from the code.
-
-    Args:
-        state: Agent state with program info and metadata
-        explanation_prose: Extracted prose from Phase 1
-
-    Returns:
-        Context dict with prose + program_map (no raw metadata)
-    """
-    from source_chunker import estimate_tokens
-
-    program_name = state["program_name"]
-
-    # Build program map from metadata (text representation, not raw JSON)
-    program_map = ""
-    try:
-        adapter = get_current_adapter()
-        full_metadata = {
-            k: state.get(k, {})
-            for k in ["ctags_outline", "superbol_cfg", "superbol_symbols",
-                       "gnucobol_analysis", "structural_outline", "symbol_table",
-                       "static_analysis", "syntax_tree", "control_flow_graph"]
-        }
-        program_map = adapter.generate_program_map(
-            program_name=program_name,
-            metadata=full_metadata,
-            token_budget=5000
-        )
-    except Exception as e:
-        print(f"  ⚠ Could not generate program map: {e}")
-
-    # Context contains ONLY prose + program_map (no raw metadata)
-    # This keeps context size manageable (~130K tokens instead of 2.6M)
-    context = {
-        "program_name": program_name,
-        "timestamp": datetime.now().isoformat(),
-
-        # Prose from Phase 1 (contains all extracted code explanations)
-        "explanation_prose": explanation_prose,
-
-        # Program map for structure reference (text, not JSON)
-        "program_map": program_map,
-    }
-
-    # Log context size
-    context_json = json.dumps(context, default=str)
-    tokens = estimate_tokens(context_json)
-    print(f"    Context size: {len(context_json):,} chars (~{tokens:,} tokens)")
-
-    return context
-
+# ===========================================================================
+# Legacy Phase 2 removed — see rlm/orchestrator.py (run_phase2_rlm).
+# ===========================================================================
 
 def _normalize_section_content(content: str, section_title: str) -> str:
     """Normalize heading hierarchy within a section.
@@ -4373,11 +4146,41 @@ def generate_documentation(
                 return str(output_path)
 
         # ═══════════════════════════════════════════════════════════════
-        # PHASE 2: Generate Other Sections (includes Mermaid validation)
+        # PHASE 2: RLM REPL + PageIndex
         # ═══════════════════════════════════════════════════════════════
-        # Note: Mermaid validation is now done per-section inside run_phase2_sections()
-        # This provides section context for LLM to fix invalid diagrams
-        section_outputs = run_phase2_sections(state, prose, llm_config, fallback_manager)
+        # Imported lazily so the module still loads in environments that do
+        # not have claude-agent-sdk installed.
+        from rlm.orchestrator import run_phase2_rlm
+        section_outputs = run_phase2_rlm(
+            state=state,
+            code_explanation=code_explanation,
+            llm_config=llm_config,
+            fallback_manager=fallback_manager,
+            full_config=full_config,
+        )
+
+        # ─────────────────────────────────────────────────────────────────
+        # POST-PHASE-2: Aggregate per-section questionnaires into a single
+        # "Questionnaires for <ProgramName>" section placed after
+        # "Error Handling Strategy". Runs before Phase 3 assembly so the
+        # synthetic section flows through the normal assembly path.
+        # ─────────────────────────────────────────────────────────────────
+        from questionnaire_aggregator import (
+            aggregate_in_section_outputs,
+            inject_section_after,
+        )
+        section_outputs, _synthetic_q_section = aggregate_in_section_outputs(
+            section_outputs, program_name
+        )
+        if _synthetic_q_section:
+            template = inject_section_after(
+                template, _synthetic_q_section, after_id="error-handling"
+            )
+            state["template"] = template
+            print(
+                f"→ Questionnaires aggregated into synthetic section: "
+                f"{_synthetic_q_section['title']!r}"
+            )
 
         # ═══════════════════════════════════════════════════════════════
         # PHASE 3: Assemble Final Document
