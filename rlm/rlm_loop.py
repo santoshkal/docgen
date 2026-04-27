@@ -113,8 +113,8 @@ The REPL environment is initialized with:
 3. `section_instruction` (string) — the template instruction for the section you must generate.
 4. `section_title` (string) — the section's display title.
 5. `program_name` (string) — the program identifier.
-6. `llm_query(prompt, model=None)` — query a sub-LLM. See context metadata below for exact capacity per call.
-7. `llm_query_batched(prompts, model=None)` — concurrent sub-LLM queries. Much faster than sequential llm_query calls for independent queries. Returns results in the same order as input prompts.
+6. `llm_query(prompt, model=None, node_id=None)` — query a sub-LLM. Pass `node_id=` when the call is scoped to a specific PageIndex node; omit it (or pass `None`) for synthesis / aggregation calls that span multiple nodes.
+7. `llm_query_batched(prompts, model=None, node_ids=None)` — concurrent sub-LLM queries. Much faster than sequential `llm_query` for independent prompts. Returns results in the same order as input prompts. When each prompt is scoped to a specific PageIndex node, pass `node_ids=[...]` aligned positionally with `prompts` — use the value in each node's `node_id` field. Omit `node_ids` (or pass `None` entries) for prompts that are not node-scoped.
 8. `SHOW_VARS()` — returns all variables you have created.
 9. `print()` — view output and continue reasoning.
 
@@ -276,6 +276,29 @@ unknown = metadata.get('some_key', {})
 print(json.dumps(unknown, indent=2)[:2000])
 ```
 
+## D4. Node-ID Coverage Contract (MANDATORY when using PageIndex)
+
+Every sub-LLM call that is scoped to a specific PageIndex node MUST pass that
+node's `node_id` as the `node_id=` argument (or as an entry in the `node_ids=`
+list when calling `llm_query_batched`). This is NOT cosmetic — the pipeline
+writes a JSONL coverage log keyed by these IDs. After the section completes,
+Python code independently walks the PageIndex tree and diffs the expected
+set of node IDs against the set that actually got called. Any node that was
+not touched triggers a deterministic gap-fill pass.
+
+Rules:
+- **Per-node calls**: always pass `node_id=block['node_id']` (or chunk's
+  `node_id`). Do not fabricate IDs — use the exact string from the tree.
+- **Aggregation / synthesis calls** (combining results from several nodes):
+  omit `node_id` or pass `node_id=None`. These are not counted toward coverage.
+- **Batched calls**: when `prompts[i]` is scoped to node X, `node_ids[i]` must
+  equal `X['node_id']`. If the batch mixes scoped and un-scoped prompts, use
+  `None` for the un-scoped positions.
+- **If you skip nodes deliberately** (e.g., irrelevant to this section), the
+  gap-fill will still call a sub-LLM on them. To avoid redundant work, only
+  skip nodes when you are certain they cannot contribute — and document that
+  decision in a ```repl``` print so it appears in the trajectory log.
+
 ## E. Grounding Rules (STRICT)
 
 1. Every symbol name, line number, and numeric value in your output MUST appear verbatim in either `context` or `metadata`. Do NOT invent one. Write "Not identified in source" or omit.
@@ -358,14 +381,16 @@ query = (
     f"No preambles."
 )
 prompts = [f"{query}\\n\\n{assemble_block_context(b)}" for b in relevant_blocks]
-results = llm_query_batched(prompts)
+node_ids = [b['node_id'] for b in relevant_blocks]
+results = llm_query_batched(prompts, node_ids=node_ids)
 for i, r in enumerate(results):
     print(f"Block {relevant_blocks[i]['node_id']} findings: {r[:200]}...")
 ```
 
-Example 3 — Buffer aggregation + synthesis:
+Example 3 — Buffer aggregation + synthesis (no node_id — spans multiple nodes):
 ```repl
 combined = "\\n\\n".join(f"=== Chunk {i+1} ===\\n{r}" for i, r in enumerate(results))
+# NOTE: No node_id here — this is a cross-node synthesis call, not per-node.
 final_section = llm_query(
     f"Synthesize these extracted findings into the '{section_title}' documentation section. "
     f"Follow this template precisely:\\n{section_instruction}\\n\\n"

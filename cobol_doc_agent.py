@@ -4167,6 +4167,7 @@ def generate_documentation(
         # ─────────────────────────────────────────────────────────────────
         from questionnaire_aggregator import (
             aggregate_in_section_outputs,
+            aggregate_chunk_questionnaires_in_code_explanation,
             inject_section_after,
         )
         section_outputs, _synthetic_q_section = aggregate_in_section_outputs(
@@ -4180,6 +4181,27 @@ def generate_documentation(
             print(
                 f"→ Questionnaires aggregated into synthetic section: "
                 f"{_synthetic_q_section['title']!r}"
+            )
+
+        # Also fold per-chunk 'Retrieval Questions for Chunk-ID: ...' blocks
+        # from the Phase-1 code explanation into a second synthetic section,
+        # placed directly after the per-section aggregate above.
+        code_explanation, section_outputs, _synthetic_chunk_q = (
+            aggregate_chunk_questionnaires_in_code_explanation(
+                code_explanation, section_outputs, program_name
+            )
+        )
+        if _synthetic_chunk_q:
+            chunk_after_id = (
+                _synthetic_q_section["id"] if _synthetic_q_section else "error-handling"
+            )
+            template = inject_section_after(
+                template, _synthetic_chunk_q, after_id=chunk_after_id
+            )
+            state["template"] = template
+            print(
+                f"→ Chunk questionnaires aggregated into synthetic section: "
+                f"{_synthetic_chunk_q['title']!r}"
             )
 
         # ═══════════════════════════════════════════════════════════════

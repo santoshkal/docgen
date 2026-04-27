@@ -269,6 +269,26 @@ def count_nodes(nodes: List[Dict[str, Any]]) -> int:
     return sum(1 + count_nodes(n.get("nodes", [])) for n in nodes)
 
 
+def walk_node_ids(pageindex: Dict[str, Any]) -> List[str]:
+    """Return every `node_id` in the PageIndex tree (chunks + blocks), in
+    document order. Nodes without a `node_id` are skipped.
+
+    Used by the Phase 2 coverage verifier to compute the expected set of IDs
+    a section's RLM loop should have touched.
+    """
+    collected: List[str] = []
+
+    def _visit(nodes: List[Dict[str, Any]]) -> None:
+        for n in nodes or []:
+            nid = n.get("node_id")
+            if nid is not None:
+                collected.append(str(nid))
+            _visit(n.get("nodes", []))
+
+    _visit(pageindex.get("structure", []) if isinstance(pageindex, dict) else [])
+    return collected
+
+
 def build_pageindex(
     code_explanation: str,
     mode: str = "extract",

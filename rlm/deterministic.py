@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import traceback
 from collections import Counter, defaultdict
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -589,15 +591,189 @@ def generate_data_flow(
 
 
 # ---------------------------------------------------------------------------
+# Document Header (metadata-info sub-section)
+# ---------------------------------------------------------------------------
+
+
+def generate_document_header(
+    cross_references: Optional[Dict] = None,
+    page_index: Optional[Dict] = None,
+    program_name: str = "",
+    source_file: str = "",
+    **kwargs: Any,
+) -> Optional[str]:
+    """Render the template's `document-header → metadata-info` sub-section.
+
+    Mirrors the YAML template (languages/dotnet/template.yaml:66-72):
+        **Generated**: {{generation_timestamp}}
+        **File**: {{program_name}}.cs
+        **Source File**: {{source_file_path}}
+        **Metadata Sources**: CTags structural outline, symbol table, static analysis
+
+    Returns None only if `program_name` is empty (nothing to render); otherwise
+    always succeeds — it's a pure variable substitution.
+    """
+    if not program_name:
+        return None
+
+    # Match the file extension already suggested by source_file when possible;
+    # fall back to .cs (the .NET adapter's primary extension).
+    ext = Path(source_file).suffix if source_file else ".cs"
+    if not ext:
+        ext = ".cs"
+    file_display = f"{program_name}{ext}"
+    source_display = source_file or "(not provided)"
+
+    # Compose the list of metadata sources from what's actually on hand so the
+    # header doesn't lie about inputs that were never loaded.
+    sources: List[str] = []
+    if cross_references and isinstance(cross_references, dict):
+        if cross_references.get("symbols"):
+            sources.append("LSP symbol table (multilspy)")
+        if cross_references.get("intra_file_refs"):
+            sources.append("intra-file references")
+        if (
+            cross_references.get("cross_file_incoming")
+            or cross_references.get("cross_file_outgoing")
+        ):
+            sources.append("cross-file references")
+    if page_index and isinstance(page_index, dict) and page_index.get("structure"):
+        sources.append("PageIndex tree (Phase 1 code explanation)")
+    if not sources:
+        sources.append("No analysis metadata detected on input")
+
+    generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    return f"""## Document Information
+
+**Generated**: {generated}
+
+**File**: {file_display}
+
+**Source File**: {source_display}
+
+**Metadata Sources**: {", ".join(sources)}
+"""
+
+
+# ---------------------------------------------------------------------------
+# Metadata Appendix (ctags-summary + analysis-summary sub-sections)
+# ---------------------------------------------------------------------------
+
+
+def generate_metadata_appendix(
+    cross_references: Optional[Dict] = None,
+    page_index: Optional[Dict] = None,
+    program_name: str = "",
+    source_file: str = "",
+    **kwargs: Any,
+) -> Optional[str]:
+    """Render the template's `metadata-appendix` section.
+
+    Mirrors the YAML template (languages/dotnet/template.yaml:855-871):
+        ### Structural Outline Metadata
+        **Total Symbols**, **Namespaces**, **Types**, **Methods**, **Properties**
+
+        ### Static Analysis Metadata
+        **Cyclomatic Complexity**, **Lines of Code**, **Analysis Tool**,
+        **Analysis Success**
+
+    Populated from `cross_references.symbols` (kind counts) and
+    `page_index.structure` (max `line_end` for LOC). Fields we genuinely do not
+    compute (e.g. cyclomatic complexity) are reported as
+    "Not computed in this pipeline" rather than fabricated.
+
+    Returns None only when BOTH inputs are missing — otherwise renders what it
+    has and marks the unknowns explicitly.
+    """
+    have_xr = isinstance(cross_references, dict) and cross_references.get("symbols")
+    have_pi = isinstance(page_index, dict) and page_index.get("structure")
+    if not have_xr and not have_pi:
+        return None
+
+    # --- Structural Outline (ctags-summary) ---
+    if have_xr:
+        symbols = cross_references.get("symbols") or []
+        kind_counts = Counter(s.get("kind_name", "UNKNOWN") for s in symbols)
+        total_symbols = len(symbols)
+        namespace_count = kind_counts.get("NAMESPACE", 0)
+        type_count = (
+            kind_counts.get("CLASS", 0)
+            + kind_counts.get("INTERFACE", 0)
+            + kind_counts.get("STRUCT", 0)
+            + kind_counts.get("ENUM", 0)
+        )
+        method_count = (
+            kind_counts.get("METHOD", 0) + kind_counts.get("CONSTRUCTOR", 0)
+        )
+        property_count = (
+            kind_counts.get("PROPERTY", 0) + kind_counts.get("FIELD", 0)
+        )
+        ctags_block = (
+            "## Structural Outline Metadata\n\n"
+            f"**Total Symbols**: {total_symbols}\n\n"
+            f"**Namespaces**: {namespace_count}\n\n"
+            f"**Types**: {type_count} "
+            f"(classes {kind_counts.get('CLASS', 0)}, "
+            f"interfaces {kind_counts.get('INTERFACE', 0)}, "
+            f"structs {kind_counts.get('STRUCT', 0)}, "
+            f"enums {kind_counts.get('ENUM', 0)})\n\n"
+            f"**Methods**: {method_count} "
+            f"(methods {kind_counts.get('METHOD', 0)}, "
+            f"constructors {kind_counts.get('CONSTRUCTOR', 0)})\n\n"
+            f"**Properties**: {property_count} "
+            f"(properties {kind_counts.get('PROPERTY', 0)}, "
+            f"fields {kind_counts.get('FIELD', 0)})\n"
+        )
+    else:
+        ctags_block = (
+            "## Structural Outline Metadata\n\n"
+            "_No structural outline metadata available — cross-reference file "
+            "missing or empty for this source._\n"
+        )
+
+    # --- Static Analysis (analysis-summary) ---
+    loc_count: Optional[int] = None
+    if have_pi:
+        for chunk in page_index.get("structure", []):
+            end = chunk.get("line_end", 0)
+            if end and end > (loc_count or 0):
+                loc_count = end
+    if loc_count is None and have_xr:
+        # Fall back to the highest symbol range_end when PageIndex is absent.
+        symbols = cross_references.get("symbols") or []
+        loc_count = max(
+            (s.get("range_end", 0) for s in symbols if s.get("range_end")),
+            default=None,
+        )
+
+    analysis_success = "true" if have_xr else "partial — no cross-references"
+    loc_display = f"{loc_count}" if loc_count else "Not available"
+
+    analysis_block = (
+        "## Static Analysis Metadata\n\n"
+        "**Cyclomatic Complexity**: Not computed in this pipeline\n\n"
+        f"**Lines of Code**: {loc_display}\n\n"
+        "**Analysis Tool**: multilspy LSP + tree-sitter "
+        "(symbols, intra-file & cross-file references)\n\n"
+        f"**Analysis Success**: {analysis_success}\n"
+    )
+
+    return f"{ctags_block}\n{analysis_block}"
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
 GENERATORS = {
+    "document-header": generate_document_header,
     "control-flow-analysis": generate_control_flow,
     "assembly-references": generate_assembly_references,
     "code-references": generate_code_references,
     "technical-details": generate_technical_details,
     "data-flow-analysis": generate_data_flow,
+    "metadata-appendix": generate_metadata_appendix,
 }
 
 

@@ -28,13 +28,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from rlm import deterministic, pageindex
-from rlm.pipeline_repl import PipelineREPL
+from rlm.pipeline_repl import PipelineREPL, call_claude
 from rlm.rlm_loop import calibrate_token_ratio, run_rlm_section
 
 
@@ -52,16 +53,16 @@ DEFAULT_RLM_SECTIONS = [
 ]
 
 DEFAULT_SKIP_SECTIONS = {
-    "document-header",
     "detailed-code-explanation",
-    "metadata-appendix",
 }
 
 DEFAULT_DETERMINISTIC_SECTIONS = [
+    "document-header",
     "control-flow-analysis",
     "assembly-references",
     "code-references",
     "technical-details",
+    "metadata-appendix",
 ]
 
 
@@ -298,6 +299,7 @@ async def _process_section_async(
     fallback_manager: Optional[Any],
     sub_llm_max_chars: int,
     chars_per_token: float,
+    coverage_log_path: Optional[Path] = None,
 ) -> str:
     """Run the RLM loop once for a section, with one automatic fallback retry."""
     get_root_model, get_sub_model = _make_model_getters(
@@ -320,6 +322,8 @@ async def _process_section_async(
             llm_config=active_config,
             fallback_manager=fallback_manager,
             get_sub_model=get_sub_model,
+            coverage_log_path=coverage_log_path,
+            section_id=section_id,
         )
         try:
             repl.add_context(code_explanation, "context")
@@ -377,6 +381,207 @@ async def _process_section_async(
             f"**Generation Failed**\n\n"
             f"```\n{e}\n```\n"
         )
+
+
+# ---------------------------------------------------------------------------
+# Node-coverage verification + deterministic gap-fill
+# ---------------------------------------------------------------------------
+
+
+def _read_processed_node_ids(path: Path) -> set:
+    """Return the set of node IDs recorded in a coverage-log JSONL file.
+
+    Only successful, node-scoped calls count: `node_id` non-null and
+    `is_error == False`. The log is written by the Python plumbing in
+    `PipelineREPL`, so the contents reflect what was *actually* called — not
+    what the root LLM claimed.
+    """
+    processed: set = set()
+    if not path.exists():
+        return processed
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if entry.get("is_error"):
+                continue
+            nid = entry.get("node_id")
+            if nid is not None:
+                processed.add(str(nid))
+    return processed
+
+
+def _find_node_by_id(
+    pi: Dict[str, Any], node_id: str
+) -> Optional[Dict[str, Any]]:
+    """Depth-first search for a node with the given `node_id` in the tree."""
+    def _walk(nodes: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        for n in nodes or []:
+            if str(n.get("node_id")) == str(node_id):
+                return n
+            found = _walk(n.get("nodes", []))
+            if found is not None:
+                return found
+        return None
+
+    return _walk(pi.get("structure", []) if isinstance(pi, dict) else [])
+
+
+def _assemble_node_context(node: Dict[str, Any]) -> str:
+    """Render a PageIndex node as an enriched prompt context string.
+
+    Mirrors `assemble_block_context` from the root-LLM worked example so the
+    gap-fill sub-LLM sees the same format the root LLM would have sent.
+    """
+    parts: List[str] = []
+    title = node.get("title", f"Node {node.get('node_id', '?')}")
+    parts.append(f"Node: {title}")
+    if node.get("summary"):
+        parts.append(f"\nSummary: {node['summary']}")
+    if node.get("tags"):
+        parts.append(f"\nTags: {', '.join(str(t) for t in node['tags'])}")
+    if node.get("retrieval_questions"):
+        parts.append("\nRetrieval Questions:")
+        for q in node["retrieval_questions"]:
+            parts.append(f"  - {q}")
+    if node.get("purpose"):
+        parts.append("\nPurpose:")
+        for k, v in (node.get("purpose") or {}).items():
+            parts.append(f"  {k.replace('_', ' ').title()}: {v}")
+    if node.get("technical_details"):
+        parts.append("\nTechnical Details:")
+        for k, v in (node.get("technical_details") or {}).items():
+            parts.append(f"  {k.replace('_', ' ').title()}: {v}")
+    if node.get("cross_references"):
+        parts.append("\nCross-References:")
+        for k, v in (node.get("cross_references") or {}).items():
+            parts.append(f"  {k.replace('_', ' ').title()}: {v}")
+    if node.get("call_flow"):
+        parts.append("\nCall Flow:")
+        for entry in node["call_flow"]:
+            parts.append(f"  {entry}")
+    if node.get("data_flow"):
+        parts.append("\nData Flow:")
+        for entry in node["data_flow"]:
+            parts.append(f"  {entry}")
+    if node.get("text"):
+        parts.append(f"\n--- Full Text ---\n{node['text']}")
+    return "\n".join(parts)
+
+
+async def _gap_fill_missing_nodes(
+    missing_ids: List[str],
+    page_index: Dict[str, Any],
+    section_title: str,
+    section_instruction: str,
+    program_name: str,
+    llm_config: Dict[str, Any],
+    fallback_manager: Optional[Any],
+    get_sub_model: Callable[[], str],
+    coverage_log_path: Optional[Path],
+    section_id: str,
+) -> List[Tuple[str, str]]:
+    """Run a deterministic sub-LLM pass over each missing node.
+
+    Returns a list of `(node_id, finding_text)` pairs — one per missing node.
+    Each call is recorded in the coverage log the same way a normal sub-LLM
+    call would be, so a second coverage check after gap-fill will show 100%.
+    """
+    query_template = (
+        f"Extract information relevant to the '{section_title}' documentation section "
+        f"for program {program_name} from this PageIndex node. "
+        f"Return ONLY facts explicitly stated — do NOT infer or invent names, values, "
+        f"or line numbers. No preambles. If nothing in the node is relevant to this "
+        f"section, respond with exactly: 'No content relevant to this section.'\n\n"
+        f"Section instruction:\n{section_instruction}\n\n"
+    )
+
+    async def _run_one(node_id: str) -> Tuple[str, str]:
+        node = _find_node_by_id(page_index, node_id)
+        if node is None:
+            return node_id, f"[gap-fill] node '{node_id}' not found in PageIndex"
+        prompt = query_template + _assemble_node_context(node)
+        try:
+            text, result_info = await call_claude(
+                prompt=prompt,
+                model=get_sub_model(),
+                max_thinking_tokens=llm_config.get("max_thinking_tokens"),
+                max_output_tokens=llm_config.get("max_output_tokens"),
+                fallback_manager=fallback_manager,
+                get_model=get_sub_model,
+            )
+        except Exception as e:
+            text = f"[gap-fill error] {type(e).__name__}: {e}"
+            result_info = None
+
+        # Append a coverage-log entry for the gap-fill call so a follow-up
+        # diff would show the node as processed.
+        if coverage_log_path is not None:
+            entry = {
+                "timestamp": datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
+                "section_id": section_id,
+                "node_id": str(node_id),
+                "call_type": "gap_fill",
+                "prompt_length": len(prompt),
+                "response_length": len(text),
+                "is_error": "[gap-fill error]" in text,
+                "model": get_sub_model(),
+            }
+            try:
+                coverage_log_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(coverage_log_path, "a", encoding="utf-8") as f:
+                    json.dump(entry, f, default=str)
+                    f.write("\n")
+            except OSError:
+                pass
+
+        return node_id, text
+
+    # Limit concurrency so we don't overrun rate limits; the semaphore default
+    # matches PipelineREPL.
+    sem = asyncio.Semaphore(os.cpu_count() or 4)
+
+    async def _throttled(nid: str) -> Tuple[str, str]:
+        async with sem:
+            return await _run_one(nid)
+
+    results = await asyncio.gather(*(_throttled(nid) for nid in missing_ids))
+    return list(results)
+
+
+def _format_gap_fill_annex(
+    pairs: List[Tuple[str, str]],
+    section_title: str,
+) -> str:
+    """Render gap-fill findings as a markdown annex appended to the section."""
+    if not pairs:
+        return ""
+    lines = [
+        "",
+        "---",
+        "",
+        "### Coverage Annex — Gap-Fill Findings",
+        "",
+        "> The Phase 2 coverage verifier found PageIndex nodes that were not "
+        "processed by the RLM loop. The sections below are deterministic "
+        "per-node extracts (one sub-LLM call per missing node) generated to "
+        "complete coverage for this section.",
+        "",
+    ]
+    for node_id, text in pairs:
+        clean = text.strip()
+        if not clean or clean == "No content relevant to this section.":
+            continue
+        lines.append(f"#### Node `{node_id}`")
+        lines.append("")
+        lines.append(clean)
+        lines.append("")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -502,20 +707,29 @@ def run_phase2_rlm(
         "sections_with_mermaid": [],
     }
 
-    # Mermaid validation stats — ported from legacy run_phase2_sections
-    # (commit 62694c3b). Each generated section is post-processed through the
-    # mermaid MCP validator when it contains a ```mermaid block; invalid
-    # diagrams are handed to an LLM to repair with the full section as context.
-    mermaid_stats: Dict[str, Any] = {
-        "total": 0,
-        "valid": 0,
-        "fixed": 0,
-        "failed": 0,
-        "sections_with_mermaid": [],
-    }
-    mermaid_docker_image = (
-        (full_config.get("mermaid") or {}).get("docker_image", "mermaid-mcp:test")
+    # Node-coverage verifier — for each RLM section, record every sub-LLM
+    # call's `node_id` argument to a JSONL file. After the RLM loop returns,
+    # diff the expected set (walked from the PageIndex tree) against the
+    # actually-called set. Missing nodes trigger a deterministic gap-fill.
+    coverage_cfg = rlm_cfg.get("coverage") or {}
+    coverage_enabled = coverage_cfg.get("enabled", True)
+    coverage_gap_fill = coverage_cfg.get("gap_fill_enabled", True)
+    coverage_strict = coverage_cfg.get("strict", False)
+    coverage_log_dir = Path(
+        coverage_cfg.get("log_dir") or (log_dir / "coverage")
     )
+    if coverage_enabled:
+        coverage_log_dir.mkdir(parents=True, exist_ok=True)
+    expected_node_ids: List[str] = (
+        pageindex.walk_node_ids(page_index) if coverage_enabled else []
+    )
+    coverage_stats: Dict[str, Any] = {
+        "expected": len(expected_node_ids),
+        "sections_checked": 0,
+        "sections_complete": 0,
+        "sections_with_gaps": 0,
+        "total_gaps_filled": 0,
+    }
 
     print(f"\nTemplate has {len(sections)} sections:")
     for sec in sections:
@@ -565,6 +779,8 @@ def run_phase2_rlm(
                 )
 
         # 5b. RLM fallback
+        section_coverage_log: Optional[Path] = None
+        ran_rlm = False
         if content is None:
             if sec_id not in rlm_sections_cfg:
                 # Deterministic-only section where generator failed; skip rather
@@ -572,6 +788,9 @@ def run_phase2_rlm(
                 print(f"  [SKIP] {sec_title} ({sec_id}) — deterministic failed and not RLM-eligible")
                 continue
             instruction = _format_section_instruction(section)
+            if coverage_enabled and expected_node_ids:
+                ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                section_coverage_log = coverage_log_dir / f"{sec_id}_coverage_{ts}.jsonl"
             content = asyncio.run(
                 _process_section_async(
                     section_id=sec_id,
@@ -586,8 +805,82 @@ def run_phase2_rlm(
                     fallback_manager=fallback_manager,
                     sub_llm_max_chars=sub_llm_max_chars,
                     chars_per_token=chars_per_token,
+                    coverage_log_path=section_coverage_log,
                 )
             )
+            ran_rlm = True
+
+        # ─────────────────────────────────────────────────────────────────
+        # Node-coverage check (RLM sections only — deterministic generators
+        # are already deterministic). The diff and gap-fill are pure Python —
+        # the root LLM is never consulted about what it did or didn't process.
+        # ─────────────────────────────────────────────────────────────────
+        if (
+            ran_rlm
+            and coverage_enabled
+            and expected_node_ids
+            and section_coverage_log is not None
+        ):
+            expected_set = set(expected_node_ids)
+            processed_set = _read_processed_node_ids(section_coverage_log)
+            missing = sorted(expected_set - processed_set)
+            coverage_stats["sections_checked"] += 1
+            if not missing:
+                coverage_stats["sections_complete"] += 1
+                print(
+                    f"  [COVERAGE] {sec_id}: {len(processed_set)}/{len(expected_set)} "
+                    "nodes processed — OK"
+                )
+            else:
+                coverage_stats["sections_with_gaps"] += 1
+                print(
+                    f"  [COVERAGE] {sec_id}: {len(processed_set)}/{len(expected_set)} "
+                    f"nodes processed — MISSING {len(missing)} "
+                    f"({', '.join(missing[:10])}{'…' if len(missing) > 10 else ''})"
+                )
+                if coverage_strict:
+                    raise RuntimeError(
+                        f"Coverage check failed for section {sec_id!r}: "
+                        f"{len(missing)} PageIndex node(s) were not processed "
+                        f"({', '.join(missing[:5])}"
+                        f"{'…' if len(missing) > 5 else ''}). "
+                        "Set rlm.coverage.strict=false or rlm.coverage.gap_fill_enabled=true to recover."
+                    )
+                if coverage_gap_fill:
+                    print(
+                        f"    → Running gap-fill on {len(missing)} missing "
+                        "node(s)..."
+                    )
+                    _, get_sub_model = _make_model_getters(
+                        primary_rlm, fallback_rlm, fallback_manager
+                    )
+                    active_config = (
+                        fallback_rlm
+                        if fallback_manager and fallback_manager.is_fallback_active()
+                        else primary_rlm
+                    )
+                    pairs = asyncio.run(
+                        _gap_fill_missing_nodes(
+                            missing_ids=missing,
+                            page_index=page_index,
+                            section_title=sec_title,
+                            section_instruction=instruction,
+                            program_name=program_name,
+                            llm_config=active_config,
+                            fallback_manager=fallback_manager,
+                            get_sub_model=get_sub_model,
+                            coverage_log_path=section_coverage_log,
+                            section_id=sec_id,
+                        )
+                    )
+                    annex = _format_gap_fill_annex(pairs, sec_title)
+                    if annex:
+                        content = (content or "") + annex
+                    coverage_stats["total_gaps_filled"] += len(pairs)
+                    print(
+                        f"    → Gap-fill complete: {len(pairs)} node(s) processed, "
+                        f"annex appended ({len(annex):,} chars)"
+                    )
 
         # ─────────────────────────────────────────────────────────────────
         # Mermaid validation — validate/fix diagrams produced by either the
@@ -645,5 +938,14 @@ def run_phase2_rlm(
                 f"    Sections with mermaid: "
                 f"{', '.join(mermaid_stats['sections_with_mermaid'])}"
             )
+
+    if coverage_enabled and coverage_stats["sections_checked"] > 0:
+        print(f"\n→ Node-Coverage Summary:")
+        print(f"    Expected PageIndex nodes: {coverage_stats['expected']}")
+        print(f"    Sections checked        : {coverage_stats['sections_checked']}")
+        print(f"    Fully covered           : {coverage_stats['sections_complete']}")
+        print(f"    Gaps detected           : {coverage_stats['sections_with_gaps']}")
+        print(f"    Gap-filled (deterministic): {coverage_stats['total_gaps_filled']}")
+        print(f"    Coverage logs           : {coverage_log_dir}")
 
     return section_outputs

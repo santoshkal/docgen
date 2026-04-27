@@ -18,11 +18,14 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import os
 import sys
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 try:
     from claude_agent_sdk import (
@@ -223,6 +226,8 @@ class PipelineREPL:
         llm_config: Dict[str, Any],
         fallback_manager: Optional[Any] = None,
         get_sub_model: Optional[Callable[[], str]] = None,
+        coverage_log_path: Optional[Union[str, Path]] = None,
+        section_id: Optional[str] = None,
     ):
         """
         Args:
@@ -231,6 +236,14 @@ class PipelineREPL:
             get_sub_model: optional callable returning the current effective sub-model.
                 When provided, it is consulted before every sub-LLM call (so
                 fallback-state model swaps take effect immediately).
+            coverage_log_path: optional JSONL file path. When set, every sub-LLM
+                call from `_llm_query` / `_llm_query_batched` appends a record
+                with the `node_id` that was passed to it. Used by the Phase 2
+                orchestrator to verify that every PageIndex node was touched.
+                The log is written by the plumbing (not the LLM) and cannot be
+                fabricated.
+            section_id: optional string stamped on each coverage-log entry so
+                a single shared log file can distinguish sections.
         """
         self.llm_config = llm_config
         self._fallback_manager = fallback_manager
@@ -239,6 +252,14 @@ class PipelineREPL:
         self._sub_llm_calls = 0
         self._total_cost = 0.0
         self._pending_sub_calls: List[Dict[str, Any]] = []
+
+        self._coverage_log_path: Optional[Path] = (
+            Path(coverage_log_path) if coverage_log_path else None
+        )
+        self._section_id = section_id
+        self._coverage_log_lock = threading.Lock()
+        if self._coverage_log_path is not None:
+            self._coverage_log_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Concurrency limit for sub-LLM calls (CPU count).
         self._max_concurrent = os.cpu_count() or 4
@@ -311,8 +332,54 @@ class PipelineREPL:
             return self._get_sub_model()
         return self.llm_config.get("sub_model", "claude-sonnet-4-20250514")
 
-    def _llm_query(self, prompt: str, model: Optional[str] = None) -> str:
-        """Single sub-LLM call. `model` override is honored only for this call."""
+    def _write_coverage_entry(
+        self,
+        node_id: Optional[str],
+        call_type: str,
+        prompt_length: int,
+        response_length: int,
+        is_error: bool,
+        model: str,
+    ) -> None:
+        """Append a single coverage-log entry to the JSONL file.
+
+        Called by the Python plumbing after each real sub-LLM invocation — the
+        root LLM has no way to write or skip entries here. If no log path is
+        configured, this is a no-op.
+        """
+        if self._coverage_log_path is None:
+            return
+        entry = {
+            "timestamp": datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
+            "section_id": self._section_id,
+            "node_id": str(node_id) if node_id is not None else None,
+            "call_type": call_type,
+            "prompt_length": prompt_length,
+            "response_length": response_length,
+            "is_error": is_error,
+            "model": model,
+        }
+        with self._coverage_log_lock:
+            with open(self._coverage_log_path, "a", encoding="utf-8") as f:
+                json.dump(entry, f, default=str)
+                f.write("\n")
+
+    def _llm_query(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        node_id: Optional[str] = None,
+    ) -> str:
+        """Single sub-LLM call.
+
+        Args:
+            prompt: The prompt sent to the sub-LLM.
+            model: Optional per-call model override; only used for this call.
+            node_id: Optional PageIndex node ID this call is scoped to. When
+                provided, it is recorded in the coverage log so the orchestrator
+                can later verify that every expected node was processed. Pass
+                `None` for synthesis / non-node calls.
+        """
         sub_model = model or self._current_sub_model()
         call_start = time.time()
         try:
@@ -335,7 +402,16 @@ class PipelineREPL:
                 "response": response_text, "response_length": len(response_text),
                 "cost_usd": cost, "duration_s": round(call_elapsed, 2),
                 "usage": (result_info or {}).get("usage"), "is_error": False,
+                "node_id": str(node_id) if node_id is not None else None,
             })
+            self._write_coverage_entry(
+                node_id=node_id,
+                call_type="llm_query",
+                prompt_length=len(prompt),
+                response_length=len(response_text),
+                is_error=False,
+                model=sub_model,
+            )
             return response_text
         except Exception as e:
             call_elapsed = time.time() - call_start
@@ -344,13 +420,44 @@ class PipelineREPL:
                 "response": str(e), "response_length": 0,
                 "cost_usd": 0, "duration_s": round(call_elapsed, 2),
                 "usage": None, "is_error": True,
+                "node_id": str(node_id) if node_id is not None else None,
             })
+            self._write_coverage_entry(
+                node_id=node_id,
+                call_type="llm_query",
+                prompt_length=len(prompt),
+                response_length=0,
+                is_error=True,
+                model=sub_model,
+            )
             return f"Error: LLM query failed - {e}"
 
     def _llm_query_batched(
-        self, prompts: List[str], model: Optional[str] = None
+        self,
+        prompts: List[str],
+        model: Optional[str] = None,
+        node_ids: Optional[List[Optional[str]]] = None,
     ) -> List[str]:
-        """Run several sub-LLM calls concurrently (CPU-count semaphore)."""
+        """Run several sub-LLM calls concurrently (CPU-count semaphore).
+
+        Args:
+            prompts: The prompts to send.
+            model: Optional per-call model override; used for all prompts.
+            node_ids: Optional list of PageIndex node IDs aligned positionally
+                with `prompts` (same length). When provided, each call records
+                its node_id in the coverage log. Use `None` entries for
+                individual prompts that are not node-scoped (e.g., cross-node
+                synthesis). When omitted, all calls are recorded with node_id=None.
+        """
+        if node_ids is not None and len(node_ids) != len(prompts):
+            return [
+                f"Error: llm_query_batched — node_ids length {len(node_ids)} "
+                f"does not match prompts length {len(prompts)}"
+            ] * len(prompts)
+        aligned_ids: List[Optional[str]] = (
+            list(node_ids) if node_ids is not None else [None] * len(prompts)
+        )
+
         sub_model = model or self._current_sub_model()
         sem = asyncio.Semaphore(self._max_concurrent)
 
@@ -377,6 +484,7 @@ class PipelineREPL:
             per_call_time = batch_elapsed / max(len(results), 1)
             responses: List[str] = []
             for i, r in enumerate(results):
+                nid = aligned_ids[i]
                 if isinstance(r, Exception):
                     self._pending_sub_calls.append({
                         "model": sub_model, "prompt": prompts[i],
@@ -384,7 +492,16 @@ class PipelineREPL:
                         "response": str(r), "response_length": 0,
                         "cost_usd": 0, "duration_s": round(per_call_time, 2),
                         "usage": None, "is_error": True,
+                        "node_id": str(nid) if nid is not None else None,
                     })
+                    self._write_coverage_entry(
+                        node_id=nid,
+                        call_type="llm_query_batched",
+                        prompt_length=len(prompts[i]),
+                        response_length=0,
+                        is_error=True,
+                        model=sub_model,
+                    )
                     responses.append(f"Error: LLM query failed - {r}")
                 else:
                     response_text, result_info = r
@@ -400,19 +517,38 @@ class PipelineREPL:
                         "cost_usd": cost,
                         "duration_s": round(duration_ms / 1000, 2) if duration_ms else round(per_call_time, 2),
                         "usage": (result_info or {}).get("usage"), "is_error": False,
+                        "node_id": str(nid) if nid is not None else None,
                     })
+                    self._write_coverage_entry(
+                        node_id=nid,
+                        call_type="llm_query_batched",
+                        prompt_length=len(prompts[i]),
+                        response_length=len(response_text),
+                        is_error=False,
+                        model=sub_model,
+                    )
                     responses.append(response_text)
             return responses
         except Exception as e:
             batch_elapsed = time.time() - batch_start
             per_call_time = batch_elapsed / max(len(prompts), 1)
             for i, p in enumerate(prompts):
+                nid = aligned_ids[i]
                 self._pending_sub_calls.append({
                     "model": sub_model, "prompt": p, "prompt_length": len(p),
                     "response": str(e), "response_length": 0,
                     "cost_usd": 0, "duration_s": round(per_call_time, 2),
                     "usage": None, "is_error": True,
+                    "node_id": str(nid) if nid is not None else None,
                 })
+                self._write_coverage_entry(
+                    node_id=nid,
+                    call_type="llm_query_batched",
+                    prompt_length=len(p),
+                    response_length=0,
+                    is_error=True,
+                    model=sub_model,
+                )
             return [f"Error: LLM query failed - {e}"] * len(prompts)
 
     def _final_var(self, variable_name: str) -> str:

@@ -37,10 +37,7 @@ source:
   # File pattern inclusion - if set, ONLY these files (overrides all other filters)
   include_files:
     - "IScriptCommand.cs"
-    # - "DefaultScriptCommand.cs"
-    # - "ItemLooper.cs"
-    # - "PickList.cs"
-    # - "SequenceManager.cs"
+    - "DefaultScriptCommand.cs"
     # - "HeijunkaData.cs"
     # - "Script.cs"
     # - "DelphiTcscCommands.cs"
@@ -50,9 +47,9 @@ source:
 # OUTPUT CONFIGURATION
 # ============================================================================
 output:
-  metadata_dir: ../output-imes/metadata-phase1
+  metadata_dir: ../output-imes/metadata-questions
   cross_references_dir: ../output-imes/metadata-5p/cross_references/per_file
-  docs_path: ../output-imes/docs-phase1
+  docs_path: ../output-imes/docs-questions
   create_dirs: true
 
 # ============================================================================
@@ -64,8 +61,8 @@ llm:
   temperature: 0.2
 
   # Beta flag for 1M context — applied conditionally when context > 120K tokens
-  betas:
-    - context-1m-2025-08-07
+  # betas:
+  #   - context-1m-2025-08-07
 
   # Phase 1 (code explanation): chunked per-block generator.
   phase1:
@@ -146,18 +143,41 @@ rlm:
 
   # Sections handled statically in Phase 3 assembly (no Phase 2 LLM call).
   skip_sections:
-    - document-header
     - detailed-code-explanation
-    - metadata-appendix
 
   # Sections emitted by pure-Python deterministic generators (zero LLM calls)
   # when the required metadata is present. Falls back to RLM if generator
   # returns None.
   deterministic_sections:
+    - document-header
     - control-flow-analysis
     - assembly-references
     - code-references
     - technical-details
+    - metadata-appendix
+
+  # ────────────────────────────────────────────────────────────────────────
+  # NODE-COVERAGE VERIFIER
+  # ────────────────────────────────────────────────────────────────────────
+  # For each RLM section, every sub-LLM call's `node_id` argument is recorded
+  # to a JSONL log by the Python plumbing (NOT by the root LLM — so the log
+  # cannot be fabricated). After the section finishes, a deterministic pass
+  # diffs the expected set of node IDs (walked from the PageIndex tree)
+  # against the set actually called. Missing nodes trigger a gap-fill pass.
+  coverage:
+    enabled: true
+    # When true, any missing nodes are patched by a direct Python loop that
+    # calls the sub-LLM on each missing node (one call per node) and appends
+    # the findings to the section as a "Coverage Annex". Set to false to only
+    # report the gap without patching.
+    gap_fill_enabled: true
+    # When true, any gap aborts the pipeline with RuntimeError instead of
+    # running gap-fill. Useful for CI checks; keep false for production runs.
+    strict: false
+    # Directory for per-section JSONL logs. Defaults to
+    # `{output.rlm_log_dir}/coverage/` (which itself defaults to
+    # `{output.docs_path}/rlm_logs/coverage/`).
+    # log_dir: ../output-imes/docs-phase1/rlm_logs/coverage
 
 # ============================================================================
 # MERMAID VALIDATION (Phase 2 post-processing)

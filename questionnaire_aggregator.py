@@ -159,15 +159,25 @@ def _aggregate_intro() -> str:
     )
 
 
+def _chunk_aggregate_intro() -> str:
+    return (
+        "_Retrieval questions aggregated from each source-code chunk of the "
+        "detailed code explanation. Each group is answerable from the chunk "
+        "identified in its heading._"
+    )
+
+
 def _format_aggregate_body(
-    extracted: List[Tuple[str, List[str]]], child_heading_level: int = 2
+    extracted: List[Tuple[str, List[str]]],
+    child_heading_level: int = 2,
+    intro: Optional[str] = None,
 ) -> str:
     """Build the aggregate-section body (NO top-level heading — Phase 3 assembly
-    emits that). Each collected Questionnaire-for-X block is re-emitted with
-    its first heading normalized to `child_heading_level`.
+    emits that). Each collected block is re-emitted with its first heading
+    normalized to `child_heading_level`.
     """
     prefix = "#" * child_heading_level
-    parts: List[str] = [_aggregate_intro(), ""]
+    parts: List[str] = [intro if intro is not None else _aggregate_intro(), ""]
     for _title, block in extracted:
         if not block:
             continue
@@ -185,6 +195,77 @@ def _format_aggregate_body(
 # ---------------------------------------------------------------------------
 
 AGGREGATE_SECTION_ID = "questionnaires-for-program"
+CHUNK_AGGREGATE_SECTION_ID = "questionnaires-from-source-code"
+
+
+def extract_chunk_questionnaire_blocks(
+    lines: List[str],
+) -> Tuple[List[str], List[Tuple[str, List[str]]]]:
+    """Cut every 'Retrieval Questions for Chunk-ID: ...' block from `lines`.
+
+    Mirrors `extract_questionnaire_blocks` but keyed to the per-chunk heading
+    emitted by Phase 1 code-explanation chunks.
+    """
+    headings = parse_headings(lines)
+    extracted: List[Tuple[str, List[str]]] = []
+    to_remove: List[Tuple[int, int]] = []
+    for idx, (line_idx, _level, text) in enumerate(headings):
+        if not text.strip().lower().startswith("retrieval questions for chunk-id"):
+            continue
+        end = _section_end(headings, idx, len(lines))
+        block = lines[line_idx:end]
+        while block and block[-1].strip() == "":
+            block.pop()
+        extracted.append((text.strip(), block))
+        to_remove.append((line_idx, end))
+    cleaned = _remove_ranges(lines, to_remove)
+    return cleaned, extracted
+
+
+def aggregate_chunk_questionnaires_in_code_explanation(
+    code_explanation: str,
+    section_outputs: Dict[str, str],
+    program_name: str,
+) -> Tuple[str, Dict[str, str], Optional[Dict[str, Any]]]:
+    """Cut every 'Retrieval Questions for Chunk-ID: ...' block from the Phase-1
+    code-explanation markdown and fold them into a synthetic section
+    'Questionnaires from source-code for <ProgramName>'.
+
+    Args:
+        code_explanation: Full Phase-1 detailed-code-explanation markdown.
+        section_outputs: Phase-2 output dict (already processed by
+            `aggregate_in_section_outputs`).
+        program_name: used to build the aggregate title.
+
+    Returns:
+        (cleaned_code_explanation, new_section_outputs, synthetic_or_None).
+        - `cleaned_code_explanation` has the per-chunk 'Retrieval Questions'
+          blocks removed.
+        - `new_section_outputs` is `section_outputs` with a new entry keyed
+          by `CHUNK_AGGREGATE_SECTION_ID` when questionnaires were found.
+        - `synthetic` is a template-section descriptor suitable for
+          `inject_section_after`, or `None` if no chunk questionnaires existed.
+    """
+    lines = (code_explanation or "").split("\n")
+    cleaned_lines, extracted = extract_chunk_questionnaire_blocks(lines)
+    if not extracted:
+        return code_explanation, section_outputs, None
+
+    title = f"Questionnaires from source-code for {program_name}"
+    aggregate_body = _format_aggregate_body(
+        extracted,
+        child_heading_level=2,
+        intro=_chunk_aggregate_intro(),
+    )
+
+    new_outputs = dict(section_outputs)
+    new_outputs[CHUNK_AGGREGATE_SECTION_ID] = aggregate_body
+
+    synthetic = {
+        "id": CHUNK_AGGREGATE_SECTION_ID,
+        "title": title,
+    }
+    return "\n".join(cleaned_lines), new_outputs, synthetic
 
 
 def aggregate_in_section_outputs(
