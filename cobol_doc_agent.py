@@ -4146,10 +4146,10 @@ def generate_documentation(
                 return str(output_path)
 
         # ═══════════════════════════════════════════════════════════════
-        # PHASE 2: RLM REPL + PageIndex
+        # PHASE 2: PageIndex + deterministic + λ-RLM planner
         # ═══════════════════════════════════════════════════════════════
         # Imported lazily so the module still loads in environments that do
-        # not have claude-agent-sdk installed.
+        # not have claude-agent-sdk installed (planner sub-LLM calls need it).
         from rlm.orchestrator import run_phase2_rlm
         section_outputs = run_phase2_rlm(
             state=state,

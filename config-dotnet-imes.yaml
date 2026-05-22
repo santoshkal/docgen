@@ -69,37 +69,36 @@ llm:
     model: claude-opus-4-6
     thinking: disabled            # Options: disabled, adaptive, or {type: enabled, budget_tokens: N}
 
-  # Phase 2 (RLM REPL + PageIndex). Replaces the legacy per-section Phase 2.
-  # `root_model` drives the ClaudeSDKClient multi-turn loop that writes ```repl``` blocks;
-  # `sub_model` serves the sub-LLM calls fired from within those blocks
-  # (llm_query / llm_query_batched).
-  rlm:
-    root_model: claude-opus-4-6
+  # Phase 2 (λ-RLM planner + PageIndex). The planner runs a fixed combinator
+  # chain Φ = M_synth ∘ REDUCE_CONCAT ∘ MAP(M, leaf_prompt) ∘ FILTER per section;
+  # the LLM is invoked only at MAP leaves (one call per filtered PageIndex
+  # block) and a single synthesis step. No REPL, no exec(), no multi-turn loop.
+  planner:
     sub_model: claude-opus-4-6
     max_output_tokens: 64000
     max_thinking_tokens: 0        # 0 disables thinking (faster responses)
-    max_iterations: 10            # Root-LLM turns per section before forcing FINAL
+    leaf_concurrency: 4           # Max concurrent leaf-LLM calls per section
 
   # Optional fallback (triggered on unrecoverable LLM error, then session-wide).
-  # `fallback.rlm` mirrors `llm.rlm` and is used by Phase 2 once the fallback
-  # manager has been triggered.
+  # `fallback.planner` mirrors `llm.planner` and is used by Phase 2 once the
+  # fallback manager has been triggered.
   # fallback:
   #   provider: claude_sdk
   #   phase1:
   #     model: sonnet
-  #   rlm:
-  #     root_model: claude-sonnet-4-6
+  #   planner:
   #     sub_model: claude-sonnet-4-6
   #     max_output_tokens: 32000
-  #     max_iterations: 10
+  #     leaf_concurrency: 4
 
 # ============================================================================
 # PAGEINDEX CONFIGURATION (Phase 2 input)
 # ============================================================================
-# The Phase 2 RLM pipeline first builds a PageIndex tree from the Phase 1
-# code-explanation markdown. The tree provides chunk → block hierarchy with
-# per-chunk tags/retrieval_questions and per-block purpose/technical_details/
-# cross_references — used by the root LLM for targeted retrieval.
+# Phase 2 first builds a PageIndex tree from the Phase 1 code-explanation
+# markdown. The tree provides a chunk → block hierarchy with per-chunk
+# tags/retrieval_questions and per-block purpose/technical_details/
+# cross_references — consumed by the planner's MAP leaves (one leaf call
+# per block).
 pageindex:
   enabled: true
 
@@ -114,7 +113,8 @@ pageindex:
   # thinning: false
   # min_token_threshold: 500
 
-  # Include full text content in block nodes (used by root LLM for retrieval).
+  # Include full text content in block nodes (used by the planner's leaf
+  # prompts as raw context alongside the structured fields).
   include_text: true
 
   # Force regeneration even if the PageIndex JSON already exists on disk.
@@ -126,10 +126,12 @@ pageindex:
 # ============================================================================
 # RLM (Phase 2) CONFIGURATION
 # ============================================================================
-# Drives the RLM REPL + deterministic-generator loop. Defaults match
-# ~/rlm/demo/pipeline-config.yaml.
+# Routing (Flavor B): one outer `sections` allowlist, deterministic-first when
+# the section is listed under `deterministic_sections`, planner as universal
+# catch-all. Sections in neither `sections` nor `deterministic_sections` are
+# skipped; sections in `skip_sections` are never generated.
 rlm:
-  # Sections dispatched to the RLM REPL (in template order).
+  # Outer allowlist — sections eligible for Phase 2 generation.
   sections:
     - executive-summary
     - program-structure
@@ -146,8 +148,8 @@ rlm:
     - detailed-code-explanation
 
   # Sections emitted by pure-Python deterministic generators (zero LLM calls)
-  # when the required metadata is present. Falls back to RLM if generator
-  # returns None.
+  # when the required metadata is present. Falls back to the planner if the
+  # generator returns None.
   deterministic_sections:
     - document-header
     - control-flow-analysis
@@ -156,36 +158,22 @@ rlm:
     - technical-details
     - metadata-appendix
 
-  # ────────────────────────────────────────────────────────────────────────
-  # NODE-COVERAGE VERIFIER
-  # ────────────────────────────────────────────────────────────────────────
-  # For each RLM section, every sub-LLM call's `node_id` argument is recorded
-  # to a JSONL log by the Python plumbing (NOT by the root LLM — so the log
-  # cannot be fabricated). After the section finishes, a deterministic pass
-  # diffs the expected set of node IDs (walked from the PageIndex tree)
-  # against the set actually called. Missing nodes trigger a gap-fill pass.
-  coverage:
-    enabled: true
-    # When true, any missing nodes are patched by a direct Python loop that
-    # calls the sub-LLM on each missing node (one call per node) and appends
-    # the findings to the section as a "Coverage Annex". Set to false to only
-    # report the gap without patching.
-    gap_fill_enabled: true
-    # When true, any gap aborts the pipeline with RuntimeError instead of
-    # running gap-fill. Useful for CI checks; keep false for production runs.
-    strict: false
-    # Directory for per-section JSONL logs. Defaults to
-    # `{output.rlm_log_dir}/coverage/` (which itself defaults to
-    # `{output.docs_path}/rlm_logs/coverage/`).
-    # log_dir: ../output-imes/docs-phase1/rlm_logs/coverage
+  # Optional per-section CROSS items. Maps section_id → {a, b} where each
+  # value is a dotted path into the metadata dict. When set for a section,
+  # planner items become the Cartesian product of the two referenced lists
+  # instead of PageIndex blocks. Empty by default — uncomment to enable.
+  pairwise_sections: {}
+    # inter-program-communication:
+    #   a: cross_references.cross_file_outgoing
+    #   b: cross_references.cross_file_incoming
 
 # ============================================================================
 # MERMAID VALIDATION (Phase 2 post-processing)
 # ============================================================================
-# After each Phase 2 section is generated, any ```mermaid block inside it is
-# validated via a Docker-based MCP server. Invalid diagrams are handed to an
-# LLM to repair (with the full section as context) and re-validated up to
-# `max_retries` times.
+# After each Phase 2 section is generated (by deterministic generator OR
+# planner), any ```mermaid block inside it is validated via a Docker-based
+# MCP server. Invalid diagrams are handed to an LLM to repair (with the full
+# section as context) and re-validated up to `max_retries` times.
 mermaid_validator:
   enabled: true
   docker_image: mermaid-mcp:test

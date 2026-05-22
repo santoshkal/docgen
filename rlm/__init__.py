@@ -1,13 +1,10 @@
 """
-RLM (Recursive Language Model) Phase 2 package.
+Phase 2 package — PageIndex + deterministic generators + λ-RLM planner.
 
-Replaces the legacy per-section Phase 2 pipeline with the
-RLM REPL + PageIndex + deterministic-generator approach
-originally developed in ~/rlm/demo.
-
-The SDK-dependent modules are imported lazily so that lightweight modules
-(pageindex, deterministic) remain usable without the Claude Agent SDK
-installed (useful for tests and offline tooling).
+Replaces the legacy exec()-based REPL pipeline with the trusted-combinator
+planner approach (Φ = M_synth ∘ REDUCE_CONCAT ∘ MAP(M, leaf_prompt) ∘ FILTER).
+The root LLM never authors control flow; the only neural calls happen at MAP
+leaves and a single synthesis step.
 
 Public entry point:
     from rlm.orchestrator import run_phase2_rlm
