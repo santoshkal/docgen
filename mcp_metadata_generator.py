@@ -57,6 +57,13 @@ class MCPMetadataGenerator:
         if not superbol_image:
             raise ValueError("Missing required config: servers.superbol-lsp.docker_image")
 
+        # Make sure each referenced image is available locally, pulling from
+        # its registry (e.g. ghcr.io) if not. Raises on pull failure.
+        from docker_image_helper import ensure_image
+        print("\nResolving docker images...")
+        for image_ref in (ctags_image, gnucobol_image, superbol_image):
+            ensure_image(image_ref)
+
         config = {
             "mcpServers": {
                 "ctags": {
@@ -460,7 +467,10 @@ class ConfigDrivenMCPMetadataGenerator:
 
     def get_mcp_config(self) -> Dict[str, Any]:
         """Build mcp-use config dynamically from servers_config."""
+        from docker_image_helper import ensure_image
+
         mcp_servers = {}
+        print("\nResolving docker images...")
 
         for server_name, server_cfg in self.servers_config.items():
             if not isinstance(server_cfg, dict):
@@ -471,6 +481,10 @@ class ConfigDrivenMCPMetadataGenerator:
             docker_image = server_cfg.get('docker_image')
             if not docker_image:
                 raise ValueError(f"Missing docker_image for server: {server_name}")
+
+            # Make sure the image is available locally; pull from registry
+            # (e.g. ghcr.io) otherwise. Raises on pull failure.
+            ensure_image(docker_image)
 
             # Create output directory for this server
             server_output_dir = self.output_base_dir / server_name

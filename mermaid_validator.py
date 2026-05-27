@@ -100,6 +100,14 @@ class MermaidValidator:
     async def initialize(self):
         """Initialize MCP client and create session."""
         print("\n  → Initializing Mermaid MCP validator...")
+
+        # Make sure the configured image is available locally before mcp-use
+        # tries to start the container; pull from registry (e.g. ghcr.io)
+        # otherwise. Run in a worker thread so the event loop stays responsive
+        # during a `docker pull`. Raises on pull failure.
+        from docker_image_helper import ensure_image
+        await asyncio.to_thread(ensure_image, self.docker_image)
+
         mcp_config = self.get_mcp_config()
         self.mcp_client = MCPClient.from_dict(mcp_config)
         await self.mcp_client.create_all_sessions()

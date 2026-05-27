@@ -57,7 +57,7 @@ output:
 # ============================================================================
 llm:
   provider: claude_sdk
-  model: claude-opus-4-6
+  model: claude-opus-4-7
   temperature: 0.2
 
   # Beta flag for 1M context — applied conditionally when context > 120K tokens
@@ -66,7 +66,7 @@ llm:
 
   # Phase 1 (code explanation): chunked per-block generator.
   phase1:
-    model: claude-opus-4-6
+    model: claude-opus-4-7
     thinking: disabled            # Options: disabled, adaptive, or {type: enabled, budget_tokens: N}
 
   # Phase 2 (λ-RLM planner + PageIndex). The planner runs a fixed combinator
@@ -74,7 +74,7 @@ llm:
   # the LLM is invoked only at MAP leaves (one call per filtered PageIndex
   # block) and a single synthesis step. No REPL, no exec(), no multi-turn loop.
   planner:
-    sub_model: claude-opus-4-6
+    sub_model: claude-opus-4-7
     max_output_tokens: 64000
     max_thinking_tokens: 0        # 0 disables thinking (faster responses)
     leaf_concurrency: 4           # Max concurrent leaf-LLM calls per section
@@ -108,7 +108,7 @@ pageindex:
   mode: extract
 
   # Used only when mode: llm
-  model: claude-opus-4-6
+  model: claude-opus-4-7
   # concurrency: 4              # Defaults to os.cpu_count()
   # thinning: false
   # min_token_threshold: 500
@@ -137,7 +137,6 @@ rlm:
     - program-structure
     - control-flow-analysis
     - data-flow-analysis
-    - inter-program-communication
     - business-logic
     - error-handling
     - technical-details
@@ -176,7 +175,7 @@ rlm:
 # section as context) and re-validated up to `max_retries` times.
 mermaid_validator:
   enabled: true
-  docker_image: mermaid-mcp:test
+  docker_image: ghcr.io/mcpservershub/mcp-servers/containers/mermaid-mcp-server:sha-c8989d9
   # Arguments passed to `docker` (before the image name). `--rm` keeps the
   # container ephemeral; `-i` keeps stdin open for the MCP stdio transport.
   docker_args:
@@ -249,7 +248,7 @@ metadata:
   servers:
     ctags:
       enabled: true
-      docker_image: ctags-mcp:test
+      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/ctags-mcp-server:sha-c8989d9
       tools:
         - name: generate_tags
           args: { path: "{{workspace}}", languages: ["C#"], output_file: "/output/csharp-project.tags" }
@@ -261,7 +260,7 @@ metadata:
           scope: file
     tree-sitter:
       enabled: true
-      docker_image: treesitter-mcp:test
+      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/tree-sitter-mcp:sha-c8989d9
       tools:
         - name: get_symbols
           args:
@@ -280,7 +279,7 @@ metadata:
           scope: file
     treesitter-graph:
       enabled: true
-      docker_image: treesitter-graph-mcp:test
+      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/tree-sitter-graph-mcp-server:sha-c8989d9
       tools:
         - name: tree_sitter_graph
           args:
