@@ -215,6 +215,7 @@ class CheckpointManager:
             with os.fdopen(temp_fd, 'w') as f:
                 yaml.dump(self.state, f, default_flow_style=False, sort_keys=False)
 
+            os.chmod(temp_path, 0o664)
             # Atomic rename
             os.replace(temp_path, self.checkpoint_path)
 

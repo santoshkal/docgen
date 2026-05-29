@@ -17,8 +17,8 @@
 source:
   language: dotnet
   mode: batch
-  source_files: ~/Downloads/iMES-master
-  workspace: ~/Downloads/iMES-master
+  source_files: /home/santosh/projects/source/iMES-master
+  workspace: /home/santosh/projects/source/iMES-master
 
   # ─────────────────────────────────────────────────────────────────────────
   # FILE FILTERING
@@ -47,9 +47,9 @@ source:
 # OUTPUT CONFIGURATION
 # ============================================================================
 output:
-  metadata_dir: ../output-imes/metadata-questions
-  cross_references_dir: ../output-imes/metadata-5p/cross_references/per_file
-  docs_path: ../output-imes/docs-questions
+  metadata_dir: /home/santosh/projects/output-imes/metadata-questions
+  cross_references_dir: /home/santosh/projects/output-imes/metadata-5p/cross_references/per_file
+  docs_path: /home/santosh/projects/output-imes/docs-generated
   create_dirs: true
 
 # ============================================================================
@@ -57,7 +57,7 @@ output:
 # ============================================================================
 llm:
   provider: claude_sdk
-  model: claude-opus-4-7
+  model: claude-sonnet-4-6
   temperature: 0.2
 
   # Beta flag for 1M context — applied conditionally when context > 120K tokens
@@ -66,7 +66,7 @@ llm:
 
   # Phase 1 (code explanation): chunked per-block generator.
   phase1:
-    model: claude-opus-4-7
+    model: claude-sonnet-4-6
     thinking: disabled            # Options: disabled, adaptive, or {type: enabled, budget_tokens: N}
 
   # Phase 2 (λ-RLM planner + PageIndex). The planner runs a fixed combinator
@@ -74,7 +74,7 @@ llm:
   # the LLM is invoked only at MAP leaves (one call per filtered PageIndex
   # block) and a single synthesis step. No REPL, no exec(), no multi-turn loop.
   planner:
-    sub_model: claude-opus-4-7
+    sub_model: claude-sonnet-4-6
     max_output_tokens: 64000
     max_thinking_tokens: 0        # 0 disables thinking (faster responses)
     leaf_concurrency: 4           # Max concurrent leaf-LLM calls per section
@@ -108,7 +108,7 @@ pageindex:
   mode: extract
 
   # Used only when mode: llm
-  model: claude-opus-4-7
+  model: claude-sonnet-4-6
   # concurrency: 4              # Defaults to os.cpu_count()
   # thinning: false
   # min_token_threshold: 500
@@ -248,7 +248,7 @@ metadata:
   servers:
     ctags:
       enabled: true
-      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/ctags-mcp-server:sha-c8989d9
+      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/ctags-mcp-server:sha-0b0b036
       tools:
         - name: generate_tags
           args: { path: "{{workspace}}", languages: ["C#"], output_file: "/output/csharp-project.tags" }
@@ -260,7 +260,7 @@ metadata:
           scope: file
     tree-sitter:
       enabled: true
-      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/tree-sitter-mcp:sha-c8989d9
+      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/tree-sitter-mcp-server:sha-0b0b036
       tools:
         - name: get_symbols
           args:
@@ -279,7 +279,7 @@ metadata:
           scope: file
     treesitter-graph:
       enabled: true
-      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/tree-sitter-graph-mcp-server:sha-c8989d9
+      docker_image: ghcr.io/mcpservershub/mcp-servers/containers/tree-sitter-graph-mcp-server:sha-0b0b036
       tools:
         - name: tree_sitter_graph
           args:

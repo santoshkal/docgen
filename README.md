@@ -409,7 +409,7 @@ Options:
   --restart                 Ignore checkpoint, restart batch from beginning
   --status                  Show checkpoint status and exit
   --retry-failed            Retry only previously failed files
-  --continue-on-error       Continue processing if a file fails
+  --continue-on-error       Continue processing if a file fails (default for batch)
   --max-retries N           Max retries for failed files (default: 3)
 ```
 
