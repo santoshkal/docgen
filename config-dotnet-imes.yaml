@@ -17,7 +17,7 @@
 source:
   language: dotnet
   mode: batch
-  source_files: /home/santosh/projects/source/iMES-master
+  source_files: /home/santosh/projects/source/iMES-master/
   workspace: /home/santosh/projects/source/iMES-master
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -36,8 +36,9 @@ source:
 
   # File pattern inclusion - if set, ONLY these files (overrides all other filters)
   include_files:
-    - "IScriptCommand.cs"
-    - "DefaultScriptCommand.cs"
+    # - *.cs
+    # - "IScriptCommand.cs"
+    # - "DefaultScriptCommand.cs"
     # - "HeijunkaData.cs"
     # - "Script.cs"
     # - "DelphiTcscCommands.cs"
@@ -47,9 +48,9 @@ source:
 # OUTPUT CONFIGURATION
 # ============================================================================
 output:
-  metadata_dir: /home/santosh/projects/output-imes/metadata-questions
-  cross_references_dir: /home/santosh/projects/output-imes/metadata-5p/cross_references/per_file
-  docs_path: /home/santosh/projects/output-imes/docs-generated
+  metadata_dir: /home/santosh/projects/output-imes/metadata-03-06
+  cross_references_dir: /home/santosh/projects/imes-xref/per_file
+  docs_path: /home/santosh/projects/output-imes/docs-generated-02.06
   create_dirs: true
 
 # ============================================================================
@@ -449,8 +450,8 @@ template:
 # CHECKSUM VALIDATION
 # ============================================================================
 validate_checksums:
-  source_checksum_file_path: ../output-imes/source-checksum.yaml
-  metadata_checksum_file_path: ../output-imes/metadata-checksum.yaml
+  source_checksum_file_path: /home/santosh/projects/output-imes/source-checksum.yaml
+  metadata_checksum_file_path: /home/santosh/projects/output-imes/metadata-checksum.yaml
 
 # ============================================================================
 # LOGGING CONFIGURATION
@@ -467,4 +468,4 @@ logging:
 run_logging:
   console_tee: true
   capture_requests: true
-  capture_traces: true
+  ../output-imescapture_traces: true

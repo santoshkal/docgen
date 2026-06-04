@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime
 
 from mcp import ClientSession
@@ -238,25 +238,191 @@ class Checkpoint:
 
 
 # ---------------------------------------------------------------------------
+# Metrics collector
+# ---------------------------------------------------------------------------
+class MetricsCollector:
+    """Collect MCP tool-call latency metrics, bucketed by C# source subdirectory.
+
+    Output layout under metrics_dir:
+        <subdir>.json          — every call record for that subdirectory
+        <subdir>_summary.json  — p50/p90/p95/p99 + counts for that subdirectory
+        project_summary.json   — aggregated stats across the whole project
+
+    On resume the existing per-subdir files are read and new records are
+    appended so latency history is cumulative across restarts.
+    """
+
+    def __init__(self, output_dir: Path, resume: bool = False):
+        self.metrics_dir = output_dir / "metrics"
+        self.metrics_dir.mkdir(parents=True, exist_ok=True)
+        self.resume = resume
+        # Unsaved records buffered in memory: subdir -> [record, ...]
+        self._pending: dict[str, list] = defaultdict(list)
+
+    def _get_subdir(self, file_path: str) -> str:
+        parts = Path(file_path).parts
+        return parts[0] if len(parts) > 1 else "root"
+
+    def _detail_path(self, subdir: str) -> Path:
+        safe = subdir.replace("/", "__").replace("\\", "__")
+        return self.metrics_dir / f"{safe}.json"
+
+    def record(
+        self,
+        tool: str,
+        file_path: str,
+        phase: int,
+        latency_ms: float,
+        status: str,
+        symbol_name: str = None,
+        symbol_kind: str = None,
+        result_count: int = None,
+    ):
+        """Buffer one tool-call record. Call flush() to persist to disk."""
+        subdir = self._get_subdir(file_path)
+        entry = {
+            "tool": tool,
+            "file": file_path,
+            "phase": phase,
+            "timestamp": datetime.now().isoformat(),
+            "latency_ms": round(latency_ms, 2),
+            "status": status,
+        }
+        if symbol_name is not None:
+            entry["symbol"] = symbol_name
+        if symbol_kind is not None:
+            entry["symbol_kind"] = symbol_kind
+        if result_count is not None:
+            entry["result_count"] = result_count
+        self._pending[subdir].append(entry)
+
+    def flush(self, subdir: str = None):
+        """Persist buffered records to disk. Pass subdir=None to flush all."""
+        targets = [subdir] if subdir else list(self._pending.keys())
+        for sd in targets:
+            records = self._pending.get(sd, [])
+            if not records:
+                continue
+            path = self._detail_path(sd)
+            existing = []
+            if path.exists():
+                with open(path) as f:
+                    existing = json.load(f).get("calls", [])
+            write_json(path, {"directory": sd, "calls": existing + records})
+            self._pending[sd] = []
+
+    def _compute_summary(self, label: str, calls: list) -> dict:
+        if not calls:
+            return {}
+        latencies = [c["latency_ms"] for c in calls]
+        ls = sorted(latencies)
+        n = len(ls)
+
+        def pct(p: float) -> float:
+            return round(ls[min(int(n * p / 100), n - 1)], 2)
+
+        return {
+            "label": label,
+            "total_calls": n,
+            "by_tool": dict(Counter(c["tool"] for c in calls)),
+            "by_phase": {str(k): v for k, v in Counter(c["phase"] for c in calls).items()},
+            "by_status": dict(Counter(c["status"] for c in calls)),
+            "latency_ms": {
+                "min": round(min(latencies), 2),
+                "max": round(max(latencies), 2),
+                "mean": round(sum(latencies) / n, 2),
+                "p50": pct(50),
+                "p90": pct(90),
+                "p95": pct(95),
+                "p99": pct(99),
+            },
+        }
+
+    def write_summaries(self):
+        """Flush all pending records, then write per-subdir and project summaries."""
+        self.flush()
+
+        all_calls = []
+        for detail_file in sorted(self.metrics_dir.glob("*.json")):
+            if "_summary" in detail_file.stem or detail_file.stem == "project_summary":
+                continue
+            with open(detail_file) as f:
+                data = json.load(f)
+            calls = data.get("calls", [])
+            if calls:
+                subdir = data.get("directory", detail_file.stem)
+                summary = self._compute_summary(subdir, calls)
+                if summary:
+                    write_json(self.metrics_dir / f"{detail_file.stem}_summary.json", summary)
+                all_calls.extend(calls)
+
+        if all_calls:
+            project_summary = self._compute_summary("project", all_calls)
+            project_summary["generated_at"] = datetime.now().isoformat()
+            write_json(self.metrics_dir / "project_summary.json", project_summary)
+            lat = project_summary["latency_ms"]
+            print(f"\nMetrics written to {self.metrics_dir}")
+            print(f"  Tool calls tracked: {len(all_calls)}")
+            print(f"  Latency (ms): min={lat['min']}, mean={lat['mean']}, "
+                  f"p95={lat['p95']}, max={lat['max']}")
+
+
+# ---------------------------------------------------------------------------
 # MCP tool callers
 # ---------------------------------------------------------------------------
-async def call_tool(session: ClientSession, name: str, arguments: dict, label: str = ""):
-    """Call an MCP tool with a timeout. Returns error dict if call hangs."""
+async def call_tool(
+    session: ClientSession,
+    name: str,
+    arguments: dict,
+    label: str = "",
+    metrics: MetricsCollector | None = None,
+    metrics_file: str = None,
+    metrics_phase: int = None,
+    metrics_symbol: str = None,
+    metrics_kind: str = None,
+):
+    """Call an MCP tool with a timeout. Returns error dict if call hangs.
+
+    When metrics is supplied the call's wall-clock latency and outcome are
+    recorded via MetricsCollector.record().  Pass metrics_file so the record
+    is bucketed into the right subdirectory.
+    """
     tag = label or name
+    t0 = time.time()
     try:
         result = await asyncio.wait_for(
             session.call_tool(name, arguments=arguments),
             timeout=TOOL_TIMEOUT,
         )
+        latency_ms = (time.time() - t0) * 1000
         data = serialize_result(result)
         if isinstance(data, dict) and not data.get("success", True):
+            status = "error"
             print(f"  [WARN] {tag}: {data.get('error', 'unknown error')}")
+        else:
+            status = "success"
+        if metrics and metrics_file is not None:
+            result_count = None
+            if name == "code_document_symbols" and isinstance(data, dict):
+                result_count = len(data.get("symbols", []))
+            elif name == "code_find_references" and isinstance(data, dict):
+                result_count = len(data.get("locations", []))
+            metrics.record(name, metrics_file, metrics_phase or 0, latency_ms, status,
+                           metrics_symbol, metrics_kind, result_count)
         return data
     except asyncio.TimeoutError:
+        latency_ms = (time.time() - t0) * 1000
         print(f"  [TIMEOUT] {tag}: exceeded {TOOL_TIMEOUT}s, skipping")
+        if metrics and metrics_file is not None:
+            metrics.record(name, metrics_file, metrics_phase or 0, latency_ms, "timeout",
+                           metrics_symbol, metrics_kind, None)
         return {"success": False, "error": f"timeout after {TOOL_TIMEOUT}s", "_timeout": True}
     except Exception as e:
+        latency_ms = (time.time() - t0) * 1000
         print(f"  [ERROR] {tag}: {e}")
+        if metrics and metrics_file is not None:
+            metrics.record(name, metrics_file, metrics_phase or 0, latency_ms, "error",
+                           metrics_symbol, metrics_kind, None)
         return {"success": False, "error": str(e)}
 
 
@@ -304,6 +470,7 @@ async def collect_document_symbols(
     output_dir: Path,
     checkpoint: Checkpoint,
     failure_log: FailureLog,
+    metrics: MetricsCollector | None = None,
 ) -> tuple[dict, int]:
     """Phase 1: collect document symbols for every .cs file.
     Returns (symbol_index, consecutive_timeout_count)."""
@@ -341,6 +508,9 @@ async def collect_document_symbols(
             "code_document_symbols",
             {"file_path": fpath, "language": "csharp"},
             label=tag,
+            metrics=metrics,
+            metrics_file=fpath,
+            metrics_phase=1,
         )
 
         if isinstance(data, dict) and data.get("success"):
@@ -375,8 +545,14 @@ async def collect_document_symbols(
             if consecutive_timeouts >= MAX_CONSECUTIVE_TIMEOUTS:
                 print(f"\n  *** {MAX_CONSECUTIVE_TIMEOUTS} consecutive failures — "
                       f"OmniSharp needs restart ***")
+                if metrics:
+                    metrics.flush()
                 checkpoint.save()
                 return all_symbols, consecutive_timeouts
+
+        # Flush this file's metrics to disk now — mirrors the checkpoint cadence
+        if metrics:
+            metrics.flush(metrics._get_subdir(fpath))
 
     # Build flattened symbol index
     symbol_index = {}
@@ -402,6 +578,7 @@ async def collect_references(
     output_dir: Path,
     checkpoint: Checkpoint,
     failure_log: FailureLog,
+    metrics: MetricsCollector | None = None,
 ) -> tuple[dict, int]:
     """Phase 2: find references for ALL symbols.
     Returns (all_refs, consecutive_timeout_count)."""
@@ -413,7 +590,8 @@ async def collect_references(
     for fpath, symbols in symbol_index.items():
         for sym in symbols:
             if sym.get("line") is not None:
-                all_syms.append(sym)
+                if KIND_NAMES.get(sym.get("kind",0)) not in NOISE_KINDS:
+                    all_syms.append(sym)
 
     print(f"  Total symbols to check: {len(all_syms)}")
 
@@ -422,9 +600,16 @@ async def collect_references(
     skipped = 0
     errors = 0
     consecutive_timeouts = 0
+    prev_fpath = None  # tracks file changes so we flush metrics per-subdir boundary
 
     for i, sym in enumerate(all_syms, 1):
         fpath = sym["file"]
+
+        # When the source file changes, flush buffered metrics for the previous
+        # file's subdirectory — keeps memory footprint low on large projects.
+        if metrics and prev_fpath and prev_fpath != fpath:
+            metrics.flush(metrics._get_subdir(prev_fpath))
+        prev_fpath = fpath
         name = sym["name"]
         kind = sym.get("kind", 0)
         line = sym["line"]
@@ -457,6 +642,11 @@ async def collect_references(
                 "language": "csharp",
             },
             label=tag,
+            metrics=metrics,
+            metrics_file=fpath,
+            metrics_phase=2,
+            metrics_symbol=name,
+            metrics_kind=kind_name,
         )
 
         if isinstance(data, dict) and data.get("success"):
@@ -506,8 +696,14 @@ async def collect_references(
             if consecutive_timeouts >= MAX_CONSECUTIVE_TIMEOUTS:
                 print(f"\n  *** {MAX_CONSECUTIVE_TIMEOUTS} consecutive failures — "
                       f"OmniSharp needs restart ***")
+                if metrics:
+                    metrics.flush()
                 checkpoint.save()
                 return all_refs, consecutive_timeouts
+
+    # Flush any remaining buffered metrics after the loop
+    if metrics:
+        metrics.flush()
 
     # Build aggregated edge lists
     cross_file_edges = []
@@ -736,6 +932,7 @@ async def run_single_session(
     cs_files: list[str],
     checkpoint: Checkpoint,
     failure_log: FailureLog,
+    metrics: MetricsCollector | None = None,
 ) -> bool:
     """Run one MCP session. Returns True if fully complete, False if restart needed."""
 
@@ -763,7 +960,7 @@ async def run_single_session(
                 # Phase 1
                 if not checkpoint.phase1_done:
                     result, timeouts = await collect_document_symbols(
-                        session, cs_files, output_path, checkpoint, failure_log
+                        session, cs_files, output_path, checkpoint, failure_log, metrics
                     )
                     if timeouts >= MAX_CONSECUTIVE_TIMEOUTS:
                         print("\n  Returning for container restart (Phase 1)...")
@@ -779,7 +976,7 @@ async def run_single_session(
                 # Phase 2
                 if not checkpoint.phase2_done:
                     _, timeouts = await collect_references(
-                        session, symbol_index, output_path, checkpoint, failure_log
+                        session, symbol_index, output_path, checkpoint, failure_log, metrics
                     )
                     if timeouts >= MAX_CONSECUTIVE_TIMEOUTS:
                         print("\n  Returning for container restart (Phase 2)...")
@@ -803,6 +1000,7 @@ async def run_metadata_generation(workspace: str, output_dir: str, resume: bool 
 
     checkpoint = Checkpoint(output_path)
     failure_log = FailureLog(output_path)
+    metrics = MetricsCollector(output_path, resume=resume)
 
     if not resume:
         checkpoint.state["started_at"] = datetime.now().isoformat()
@@ -857,7 +1055,7 @@ async def run_metadata_generation(workspace: str, output_dir: str, resume: bool 
             await asyncio.sleep(3)
 
         complete = await run_single_session(
-            workspace_path, output_path, cs_files, checkpoint, failure_log
+            workspace_path, output_path, cs_files, checkpoint, failure_log, metrics
         )
 
         if complete:
@@ -900,6 +1098,8 @@ async def run_metadata_generation(workspace: str, output_dir: str, resume: bool 
         "tools_used": ["code_document_symbols", "code_find_references"],
     }
     write_json(output_path / "summary.json", summary)
+
+    metrics.write_summaries()
 
     print(f"\n{'='*60}")
     print(f"METADATA GENERATION COMPLETE")
