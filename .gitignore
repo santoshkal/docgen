@@ -97,3 +97,4 @@ desktop.ini
 *.key
 *.pem
 scripts/metadata/
+.claude.md

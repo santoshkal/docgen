@@ -36,7 +36,7 @@ from mcp.client.stdio import stdio_client, StdioServerParameters
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-DOCKER_IMAGE = "multilspy-csharp:latest"
+DOCKER_IMAGE = "ghcr.io/mcpservershub/mcp-servers/containers/multilspy-mcp-server:sha-0b0b036"
 CONTAINER_WORKSPACE = "/workspace"
 CONTAINER_CACHE = "/cache"
 
