@@ -42,6 +42,9 @@ CONTAINER_CACHE = "/cache"
 
 TOOL_TIMEOUT = 120          # seconds per tool call
 MAX_CONSECUTIVE_TIMEOUTS = 3  # restart container after this many in a row
+DEFAULT_WORKERS = 4           # parallel Docker containers for Phase 2
+MAX_WORKER_RESTARTS = 20      # per-worker container restart limit before worker gives up
+WORKER_STAGGER_SECONDS = 15   # startup delay between workers (avoids simultaneous OmniSharp indexing)
 
 KIND_NAMES = {
     1: "FILE", 2: "MODULE", 3: "NAMESPACE", 4: "PACKAGE",
@@ -933,6 +936,7 @@ async def run_single_session(
     checkpoint: Checkpoint,
     failure_log: FailureLog,
     metrics: MetricsCollector | None = None,
+    phase2_enabled: bool = True,
 ) -> bool:
     """Run one MCP session. Returns True if fully complete, False if restart needed."""
 
@@ -973,8 +977,8 @@ async def run_single_session(
                     print(f"  Loaded {sum(len(v) for v in symbol_index.values())} symbols "
                           f"from {len(symbol_index)} files")
 
-                # Phase 2
-                if not checkpoint.phase2_done:
+                # Phase 2 (skipped when parallel workers handle it)
+                if phase2_enabled and not checkpoint.phase2_done:
                     _, timeouts = await collect_references(
                         session, symbol_index, output_path, checkpoint, failure_log, metrics
                     )
@@ -990,9 +994,304 @@ async def run_single_session(
     return True
 
 
-async def run_metadata_generation(workspace: str, output_dir: str, resume: bool = False,
-                                   cross_ref_output: Path = None):
-    """Main orchestration with auto-restart on OmniSharp failures."""
+# ---------------------------------------------------------------------------
+# Phase 2 parallel helpers
+# ---------------------------------------------------------------------------
+def _build_phase2_edges(output_path: Path):
+    """Build cross_file_edges.json and intra_file_edges.json from refs_dir/*.json.
+
+    Called after all parallel workers finish so edge lists are always consistent
+    with whatever ref files are on disk, regardless of which worker wrote them.
+    """
+    refs_dir = output_path / "references"
+    if not refs_dir.exists():
+        print("  No references directory found, skipping edge build.")
+        return
+
+    cross_file_edges = []
+    intra_file_edges = []
+    symbols_with_cross = 0
+    symbols_with_intra = 0
+
+    for ref_file in sorted(refs_dir.glob("*.json")):
+        with open(ref_file) as f:
+            ref_data = json.load(f)
+
+        fpath     = ref_data["defined_in"]
+        name      = ref_data["symbol"]
+        kind_name = ref_data.get("kind_name", "?")
+
+        if ref_data.get("cross_file_refs", 0) > 0:
+            symbols_with_cross += 1
+        if ref_data.get("same_file_refs", 0) > 0:
+            symbols_with_intra += 1
+
+        for loc in ref_data.get("cross_file_locations", []):
+            ref_fpath = loc.get("relative_path") or loc.get("uri", "")
+            ref_line  = loc.get("range", {}).get("start", {}).get("line")
+            cross_file_edges.append({
+                "symbol": name, "kind": kind_name,
+                "defined_in": fpath,
+                "defined_at_line": ref_data["defined_at_line"],
+                "referenced_in": ref_fpath,
+                "referenced_at_line": ref_line,
+            })
+
+        for loc in ref_data.get("same_file_locations", []):
+            ref_line = loc.get("range", {}).get("start", {}).get("line")
+            if ref_line is not None and ref_line != ref_data["defined_at_line"]:
+                intra_file_edges.append({
+                    "symbol": name, "kind": kind_name,
+                    "file": fpath,
+                    "defined_at_line": ref_data["defined_at_line"],
+                    "referenced_at_line": ref_line,
+                })
+
+    write_json(output_path / "cross_file_edges.json", cross_file_edges)
+    write_json(output_path / "intra_file_edges.json", intra_file_edges)
+
+    # Update references_summary with edge counts (preserve existing fields)
+    refs_summary_path = output_path / "references_summary.json"
+    existing = {}
+    if refs_summary_path.exists():
+        with open(refs_summary_path) as f:
+            existing = json.load(f)
+    existing.update({
+        "total_cross_file_edges": len(cross_file_edges),
+        "total_intra_file_edges": len(intra_file_edges),
+        "symbols_with_cross_file_refs": symbols_with_cross,
+        "symbols_with_intra_file_refs": symbols_with_intra,
+    })
+    write_json(refs_summary_path, existing)
+
+    print(f"  Cross-file edges:   {len(cross_file_edges)} ({symbols_with_cross} symbols)")
+    print(f"  Intra-file edges:   {len(intra_file_edges)} ({symbols_with_intra} symbols)")
+
+
+async def run_phase2_parallel(
+    symbol_index: dict,
+    workspace_path: str,
+    output_path: Path,
+    checkpoint: Checkpoint,
+    failure_log: FailureLog,
+    metrics: MetricsCollector | None = None,
+    num_workers: int = DEFAULT_WORKERS,
+):
+    """Phase 2: find_references with num_workers parallel Docker containers.
+
+    Each worker owns one Docker container (one OmniSharp instance).  Workers pull
+    symbols off a shared asyncio.Queue independently — no locks needed because
+    asyncio is single-threaded and all shared-state writes (checkpoint, failure_log,
+    metrics flush) are synchronous (no await inside them).
+    """
+
+    # Build work list — skip already checkpointed / failed symbols
+    all_syms = []
+    skipped  = 0
+    for fpath, symbols in symbol_index.items():
+        for sym in symbols:
+            if sym.get("line") is None:
+                continue
+            if KIND_NAMES.get(sym.get("kind", 0)) in NOISE_KINDS:
+                continue
+            ref_key = f"{fpath}::{sym['name']}::{sym['line']}"
+            if (checkpoint.is_phase2_symbol_done(ref_key)
+                    or checkpoint.is_phase2_symbol_failed(ref_key)):
+                skipped += 1
+            else:
+                all_syms.append(sym)
+
+    total_new = len(all_syms)
+    total_all = total_new + skipped
+
+    print(f"\n{'='*60}")
+    print(f"Phase 2: Find References ({num_workers} parallel workers)")
+    print(f"{'='*60}")
+    print(f"  Total symbols:      {total_all}")
+    print(f"  From checkpoint:    {skipped}")
+    print(f"  To process:         {total_new}")
+
+    if not total_new:
+        print("  All symbols already checkpointed — skipping Phase 2.")
+        checkpoint.phase2_done = True
+        checkpoint.save()
+        _build_phase2_edges(output_path)
+        return
+
+    refs_dir = output_path / "references"
+    refs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Fill queue: tuples of (display_index, sym)
+    queue: asyncio.Queue = asyncio.Queue()
+    for i, sym in enumerate(all_syms):
+        await queue.put((skipped + i + 1, sym))
+
+    total_errors = [0]   # list so nested async fn can mutate via index
+
+    async def worker(worker_id: int):
+        # Stagger container starts to spread OmniSharp indexing load
+        if worker_id > 0:
+            await asyncio.sleep(worker_id * WORKER_STAGGER_SECONDS)
+
+        restart_count = 0
+
+        while restart_count <= MAX_WORKER_RESTARTS:
+            if queue.empty():
+                break
+
+            if restart_count > 0:
+                delay = 5 + worker_id * 2
+                print(f"\n  [W{worker_id}] Restarting container "
+                      f"(attempt {restart_count}/{MAX_WORKER_RESTARTS})... "
+                      f"waiting {delay}s")
+                await asyncio.sleep(delay)
+
+            server_params      = make_server_params(workspace_path)
+            consecutive_timeouts = 0
+
+            try:
+                async with stdio_client(server_params) as streams:
+                    async with ClientSession(*streams) as session:
+                        await session.initialize()
+                        await call_tool(
+                            session, "lsp_initialize",
+                            {"workspace_root": CONTAINER_WORKSPACE},
+                            label=f"[W{worker_id}] lsp_initialize",
+                        )
+                        print(f"  [W{worker_id}] Container ready.")
+
+                        while True:
+                            try:
+                                sym_idx, sym = queue.get_nowait()
+                            except asyncio.QueueEmpty:
+                                break
+
+                            fpath     = sym["file"]
+                            name      = sym["name"]
+                            kind      = sym.get("kind", 0)
+                            line      = sym["line"]
+                            col       = sym.get("column", 0)
+                            kind_name = KIND_NAMES.get(kind, f"kind_{kind}")
+                            ref_key   = f"{fpath}::{name}::{line}"
+                            tag = (f"[W{worker_id} {sym_idx}/{total_all}]"
+                                   f" {kind_name} {name} ({fpath}:{line})")
+
+                            print(f"  {tag} ...", end=" ", flush=True)
+
+                            data = await call_tool(
+                                session,
+                                "code_find_references",
+                                {"file_path": fpath, "line": line,
+                                 "column": col, "language": "csharp"},
+                                label=tag,
+                                metrics=metrics,
+                                metrics_file=fpath,
+                                metrics_phase=2,
+                                metrics_symbol=name,
+                                metrics_kind=kind_name,
+                            )
+
+                            if isinstance(data, dict) and data.get("success"):
+                                consecutive_timeouts = 0
+                                locations  = data.get("locations", [])
+                                same_file  = [
+                                    l for l in locations
+                                    if (l.get("relative_path") or l.get("uri", "")) == fpath
+                                ]
+                                cross_file = [
+                                    l for l in locations
+                                    if (l.get("relative_path") or l.get("uri", "")) != fpath
+                                    and (l.get("relative_path") or l.get("uri", ""))
+                                ]
+                                ref_data = {
+                                    "symbol": name, "kind": kind,
+                                    "kind_name": kind_name,
+                                    "defined_in": fpath,
+                                    "defined_at_line": line,
+                                    "parent": sym.get("parent"),
+                                    "total_refs": len(locations),
+                                    "same_file_refs": len(same_file),
+                                    "cross_file_refs": len(cross_file),
+                                    "same_file_locations": same_file,
+                                    "cross_file_locations": cross_file,
+                                }
+                                write_json(
+                                    refs_dir / f"{safe_filename(ref_key)}.json",
+                                    ref_data,
+                                )
+                                checkpoint.mark_phase2_symbol(ref_key)
+                                print(f"{len(locations)} refs "
+                                      f"(same:{len(same_file)}, "
+                                      f"cross:{len(cross_file)})")
+                                if metrics:
+                                    metrics.flush(metrics._get_subdir(fpath))
+
+                            else:
+                                is_timeout = isinstance(data, dict) and data.get("_timeout")
+                                reason     = (data.get("error", "unknown")
+                                              if isinstance(data, dict) else str(data))
+                                total_errors[0] += 1
+                                failure_log.log("phase2_find_references", ref_key, reason)
+                                consecutive_timeouts += 1
+                                fail_type = "TIMEOUT" if is_timeout else "ERROR"
+                                print(f"{fail_type} ({consecutive_timeouts}/"
+                                      f"{MAX_CONSECUTIVE_TIMEOUTS})")
+
+                                if consecutive_timeouts >= MAX_CONSECUTIVE_TIMEOUTS:
+                                    print(f"\n  [W{worker_id}] "
+                                          f"{MAX_CONSECUTIVE_TIMEOUTS} consecutive failures"
+                                          f" — restarting container...")
+                                    break   # exit inner while → restart outer loop
+
+            except Exception as e:
+                print(f"\n  [W{worker_id}] Session error: {e}")
+                failure_log.log("session", f"worker_{worker_id}", str(e))
+
+            if queue.empty():
+                break
+            restart_count += 1
+
+        remaining = queue.qsize()
+        if remaining:
+            print(f"\n  [W{worker_id}] WARNING: Exiting after {restart_count} restarts "
+                  f"with {remaining} items still unprocessed — run with --resume to retry.")
+        else:
+            print(f"  [W{worker_id}] Done.")
+
+    # Launch all workers; stagger is handled inside each worker coroutine
+    print(f"\n  Launching {num_workers} workers "
+          f"(staggered {WORKER_STAGGER_SECONDS}s apart)...")
+    await asyncio.gather(*[worker(i) for i in range(num_workers)])
+
+    if metrics:
+        metrics.flush()
+
+    # Build aggregated edge files from all ref JSONs written by any worker
+    print(f"\n  Building edge lists from {refs_dir}...")
+    _build_phase2_edges(output_path)
+
+    checkpoint.phase2_done = True
+    checkpoint.save()
+
+    print(f"\nPhase 2 complete ({num_workers} workers). "
+          f"Errors: {total_errors[0]}")
+
+
+async def run_metadata_generation(
+    workspace: str,
+    output_dir: str,
+    resume: bool = False,
+    cross_ref_output: Path = None,
+    num_workers: int = DEFAULT_WORKERS,
+):
+    """Main orchestration.
+
+    Phase 1 (document_symbols) always runs on a single container — it's fast
+    (~7 min) and is a prerequisite for Phase 2.
+
+    Phase 2 (find_references) runs on num_workers parallel containers when
+    num_workers > 1, otherwise falls back to the single-container restart loop.
+    """
 
     workspace_path = str(Path(workspace).resolve())
     output_path = Path(output_dir).resolve()
@@ -1016,83 +1315,130 @@ async def run_metadata_generation(workspace: str, output_dir: str, resume: bool 
         print("\nResuming from checkpoint:")
         checkpoint.status()
 
-        # Reset "done" flags if there are failed items to retry
-        # This is the key: --resume means "keep what succeeded, retry everything else"
         p1_failed = checkpoint.state.get("phase1_failed_files", [])
         p2_failed = checkpoint.state.get("phase2_failed_symbols", [])
 
         if checkpoint.phase1_done and p1_failed:
             print(f"\n  Reopening Phase 1: {len(p1_failed)} failed files to retry")
             checkpoint.state["phase1_done"] = False
-            checkpoint.state["phase1_failed_files"] = []  # clear so they get retried
+            checkpoint.state["phase1_failed_files"] = []
             checkpoint.save()
 
         if checkpoint.phase2_done and p2_failed:
             print(f"  Reopening Phase 2: {len(p2_failed)} failed symbols to retry")
             checkpoint.state["phase2_done"] = False
-            checkpoint.state["phase2_failed_symbols"] = []  # clear so they get retried
+            checkpoint.state["phase2_failed_symbols"] = []
             checkpoint.save()
 
-        # Also reopen Phase 2 if Phase 1 got new files on this resume
-        # (Phase 2 needs to process symbols from newly-succeeded files)
         if not checkpoint.phase2_done or p1_failed:
             checkpoint.state["phase2_done"] = False
             checkpoint.save()
 
     start_time = time.time()
-    max_restarts = 20  # safety limit
-    restart_count = 0
+    max_restarts = 20
+    p1_restarts = 0
 
-    while restart_count < max_restarts:
-        if checkpoint.phase1_done and checkpoint.phase2_done:
+    # ------------------------------------------------------------------
+    # Phase 1: single container with restart loop
+    # ------------------------------------------------------------------
+    while p1_restarts < max_restarts:
+        if checkpoint.phase1_done:
             break
 
-        if restart_count > 0:
+        if p1_restarts > 0:
             print(f"\n{'='*60}")
-            print(f"RESTARTING container (attempt {restart_count + 1}/{max_restarts})")
+            print(f"RESTARTING container for Phase 1 "
+                  f"(attempt {p1_restarts + 1}/{max_restarts})")
             print(f"{'='*60}")
-            # Brief pause to let Docker clean up
             await asyncio.sleep(3)
 
         complete = await run_single_session(
-            workspace_path, output_path, cs_files, checkpoint, failure_log, metrics
+            workspace_path, output_path, cs_files,
+            checkpoint, failure_log, metrics,
+            phase2_enabled=False,
         )
-
-        if complete:
+        if complete or checkpoint.phase1_done:
             break
+        p1_restarts += 1
 
-        restart_count += 1
+    if not checkpoint.phase1_done:
+        print(f"\n  WARNING: Phase 1 did not complete after {p1_restarts} restarts.")
 
-    if restart_count >= max_restarts:
-        print(f"\n  WARNING: Hit max restarts ({max_restarts}). Some files may be incomplete.")
-
-    elapsed = time.time() - start_time
-
-    # Load symbol index for post-processing
+    # ------------------------------------------------------------------
+    # Load symbol index (needed for both Phase 2 and post-processing)
+    # ------------------------------------------------------------------
     si_path = output_path / "symbol_index.json"
+    symbol_index = {}
     if si_path.exists():
         with open(si_path) as f:
             symbol_index = json.load(f)
+        print(f"\nLoaded symbol index: "
+              f"{sum(len(v) for v in symbol_index.values())} symbols "
+              f"across {len(symbol_index)} files")
+    else:
+        print("\n  ERROR: symbol_index.json not found — Phase 1 may have failed.")
+
+    # ------------------------------------------------------------------
+    # Phase 2: parallel workers (default) or single-container fallback
+    # ------------------------------------------------------------------
+    p2_restarts = 0
+    if not checkpoint.phase2_done and symbol_index:
+        if num_workers > 1:
+            print(f"\n  Using {num_workers} parallel workers for Phase 2.")
+            await run_phase2_parallel(
+                symbol_index, workspace_path, output_path,
+                checkpoint, failure_log, metrics, num_workers,
+            )
+        else:
+            # Single-worker mode: same restart loop as before
+            while p2_restarts < max_restarts:
+                if checkpoint.phase2_done:
+                    break
+                if p2_restarts > 0:
+                    print(f"\n{'='*60}")
+                    print(f"RESTARTING container for Phase 2 "
+                          f"(attempt {p2_restarts + 1}/{max_restarts})")
+                    print(f"{'='*60}")
+                    await asyncio.sleep(3)
+                complete = await run_single_session(
+                    workspace_path, output_path, cs_files,
+                    checkpoint, failure_log, metrics,
+                    phase2_enabled=True,
+                )
+                if complete or checkpoint.phase2_done:
+                    break
+                p2_restarts += 1
+
+            if p2_restarts >= max_restarts:
+                print(f"\n  WARNING: Hit max restarts ({max_restarts}) in Phase 2.")
+
+    elapsed = time.time() - start_time
+
+    # ------------------------------------------------------------------
+    # Post-processing
+    # ------------------------------------------------------------------
+    if symbol_index:
         resolve_intra_file_references(symbol_index, output_path)
         write_per_file_cross_references(symbol_index, output_path, cross_ref_output)
 
-    # Write final summary
-    total_syms = sum(len(v) for v in symbol_index.values()) if si_path.exists() else 0
     cross_edges_file = output_path / "cross_file_edges.json"
     intra_edges_file = output_path / "intra_file_edges.json"
     cross_count = len(json.load(open(cross_edges_file))) if cross_edges_file.exists() else 0
     intra_count = len(json.load(open(intra_edges_file))) if intra_edges_file.exists() else 0
+    total_syms  = sum(len(v) for v in symbol_index.values())
 
     summary = {
         "workspace": workspace_path,
         "generated_at": datetime.now().isoformat(),
         "elapsed_seconds": round(elapsed, 1),
+        "num_workers": num_workers,
         "total_cs_files": len(cs_files),
-        "files_with_symbols": len(symbol_index) if si_path.exists() else 0,
+        "files_with_symbols": len(symbol_index),
         "total_symbols": total_syms,
         "cross_file_edges": cross_count,
         "intra_file_edges": intra_count,
-        "container_restarts": restart_count,
+        "p1_container_restarts": p1_restarts,
+        "p2_container_restarts": p2_restarts if num_workers == 1 else "n/a (parallel)",
         "total_failures": len(failure_log.failures),
         "output_dir": str(output_path),
         "tools_used": ["code_document_symbols", "code_find_references"],
@@ -1104,11 +1450,14 @@ async def run_metadata_generation(workspace: str, output_dir: str, resume: bool 
     print(f"\n{'='*60}")
     print(f"METADATA GENERATION COMPLETE")
     print(f"{'='*60}")
+    print(f"  Workers (Phase 2):    {num_workers}")
     print(f"  Files processed:      {len(cs_files)}")
     print(f"  Symbols extracted:    {total_syms}")
     print(f"  Cross-file edges:     {cross_count}")
     print(f"  Intra-file edges:     {intra_count}")
-    print(f"  Container restarts:   {restart_count}")
+    print(f"  P1 restarts:          {p1_restarts}")
+    if num_workers == 1:
+        print(f"  P2 restarts:          {p2_restarts}")
     print(f"  Failures:             {len(failure_log.failures)}")
     print(f"  Elapsed time:         {elapsed:.1f}s ({elapsed/3600:.1f} hrs)")
     print(f"  Output:               {output_path}")
@@ -1137,6 +1486,13 @@ def main():
     parser.add_argument("--resume", "-r", action="store_true")
     parser.add_argument("--status", "-s", action="store_true")
     parser.add_argument(
+        "--workers", "-n",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help=(f"Number of parallel Docker containers for Phase 2 "
+              f"(default: {DEFAULT_WORKERS}; use 1 to disable parallelism)"),
+    )
+    parser.add_argument(
         "--cross-ref-output",
         default=None,
         help="Directory for per-file cross-reference JSONs "
@@ -1161,7 +1517,7 @@ def main():
         return
 
     asyncio.run(run_metadata_generation(args.workspace, args.output, args.resume,
-                                         cross_ref_output))
+                                         cross_ref_output, args.workers))
 
 
 if __name__ == "__main__":
