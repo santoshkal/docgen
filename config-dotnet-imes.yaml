@@ -49,7 +49,6 @@ source:
 # ============================================================================
 output:
   metadata_dir: /home/santosh/projects/output-imes/metadata-03-06
-  cross_references_dir: /home/santosh/projects/imes-xref/per_file
   docs_path: /home/santosh/projects/output-imes/docs-generated-02.06
   create_dirs: true
 
@@ -244,8 +243,29 @@ program_map:
 # METADATA GENERATION
 # ============================================================================
 metadata:
-  generate: true
+  generate: false
   skip_existing: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # MULTILSPY — OmniSharp LSP cross-reference extraction.
+  # Runs FIRST before all other MCP servers.
+  # Writes per_file/ and metrics/ into output.metadata_dir.
+  # Set skip_if_exists: true (default) to skip when per_file/ already exists.
+  # Set resume: true to continue an interrupted run from checkpoint.
+  # ─────────────────────────────────────────────────────────────────────────
+  multilspy:
+    enabled: true
+    docker_image: ghcr.io/mcpservershub/mcp-servers/containers/multilspy-mcp-server:sha-0b0b036
+    workers: 1                    # 1 worker on a 2-core server; increase for more powerful machines
+    tool_timeout: 120             # seconds per MCP tool call
+    max_consecutive_timeouts: 3   # consecutive failures before container restart
+    max_worker_restarts: 20       # max restarts per worker before it gives up
+    worker_stagger_seconds: 15    # startup delay between workers (avoids simultaneous OmniSharp indexing)
+    noise_kinds:
+      - NAMESPACE                 # symbol kinds whose cross-references are discarded
+    resume: false                 # set true to resume an interrupted run
+    skip_if_exists: true          # skip if output.metadata_dir/per_file/ is already non-empty
+
   servers:
     ctags:
       enabled: true

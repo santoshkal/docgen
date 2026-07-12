@@ -4072,20 +4072,25 @@ def generate_documentation(
         # ═══════════════════════════════════════════════════════════════
         # Initialize Relationship Provider (multilspy cross-references)
         # ═══════════════════════════════════════════════════════════════
-        cross_ref_dir = (full_config or {}).get("output", {}).get("cross_references_dir")
+        # Derive cross-reference path: metadata_dir/per_file/ (multilspy output).
+        # Falls back to the legacy cross_references_dir key if metadata_dir is absent.
+        _out_cfg = (full_config or {}).get("output", {})
+        _metadata_dir = _out_cfg.get("metadata_dir")
+        cross_ref_dir = (
+            str(Path(_metadata_dir) / "per_file") if _metadata_dir
+            else _out_cfg.get("cross_references_dir")
+        )
         if cross_ref_dir:
             cross_ref_path = Path(cross_ref_dir)
             if not cross_ref_path.is_dir():
-                raise FileNotFoundError(
-                    f"cross_references_dir configured but not found: {cross_ref_path}"
-                )
-            if not any(cross_ref_path.glob("*.json")):
-                raise FileNotFoundError(
-                    f"cross_references_dir is empty (no JSON files): {cross_ref_path}"
-                )
-            from relationship_provider import RelationshipProvider
-            state["relationship_provider"] = RelationshipProvider(str(cross_ref_path))
-            print(f"→ Cross-reference metadata loaded from {cross_ref_path}")
+                print(f"→ Cross-reference directory not found (multilspy not yet run?): "
+                      f"{cross_ref_path}")
+            elif not any(cross_ref_path.glob("*.json")):
+                print(f"→ Cross-reference directory is empty: {cross_ref_path}")
+            else:
+                from relationship_provider import RelationshipProvider
+                state["relationship_provider"] = RelationshipProvider(str(cross_ref_path))
+                print(f"→ Cross-reference metadata loaded from {cross_ref_path}")
 
         # ═══════════════════════════════════════════════════════════════
         # Initialize LLM Fallback Manager (if fallback configured)

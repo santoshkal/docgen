@@ -14,6 +14,7 @@ The mcp-use library handles:
 
 import asyncio
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -703,6 +704,88 @@ class ConfigDrivenMCPMetadataGenerator:
                 json.dump(data, f, indent=2)
 
 
+# ---------------------------------------------------------------------------
+# multilspy pre-step (runs before all other MCP servers)
+# ---------------------------------------------------------------------------
+
+# Intermediate files/dirs created by generate_multilspy_metadata.py that are
+# not needed after the run completes.  per_file/, metrics/, and checkpoint.json
+# are preserved so the Agent can read xrefs and resume is always possible.
+_MULTILSPY_CLEANUP_DIRS  = ["document_symbols", "references"]
+_MULTILSPY_CLEANUP_FILES = [
+    "symbol_index.json", "cross_file_edges.json", "intra_file_edges.json",
+    "intra_file_resolved.json", "references_summary.json",
+    "init_result.json", "failed_files.json", "summary.json",
+]
+
+
+def _multilspy_output_exists(metadata_dir: str) -> bool:
+    """Return True if per_file/ inside metadata_dir is non-empty."""
+    per_file = Path(metadata_dir) / "per_file"
+    return per_file.is_dir() and any(per_file.iterdir())
+
+
+def _cleanup_multilspy_intermediates(metadata_dir: str) -> None:
+    """Remove bulk intermediate files from metadata_dir after a successful run."""
+    base = Path(metadata_dir)
+    for d in _MULTILSPY_CLEANUP_DIRS:
+        target = base / d
+        if target.is_dir():
+            shutil.rmtree(target)
+            print(f"  [multilspy] removed {target.name}/")
+    for f in _MULTILSPY_CLEANUP_FILES:
+        target = base / f
+        if target.exists():
+            target.unlink()
+            print(f"  [multilspy] removed {target.name}")
+
+
+async def run_multilspy_pre_step(full_config: Dict[str, Any], workspace: str) -> None:
+    """Run multilspy metadata generation before the other MCP servers.
+
+    Reads all parameters from full_config['metadata']['multilspy'].
+    Writes per_file/ and metrics/ directly into full_config['output']['metadata_dir'].
+    Skips silently if per_file/ already exists and skip_if_exists is True.
+    Errors are caught and logged so they never block the rest of the pipeline.
+    """
+    cfg = full_config.get("metadata", {}).get("multilspy", {})
+    if not cfg.get("enabled", False):
+        return
+
+    metadata_dir = full_config.get("output", {}).get("metadata_dir", "")
+    if not metadata_dir:
+        print("[multilspy] WARNING: output.metadata_dir not set — skipping multilspy step.")
+        return
+
+    if cfg.get("skip_if_exists", True) and _multilspy_output_exists(metadata_dir):
+        print(f"[multilspy] per_file/ already exists in {metadata_dir} — skipping.")
+        return
+
+    print(f"\n{'='*60}")
+    print(f"[multilspy] Starting cross-reference extraction")
+    print(f"  workspace:    {workspace}")
+    print(f"  output_dir:   {metadata_dir}")
+    print(f"  workers:      {cfg.get('workers', 4)}")
+    print(f"{'='*60}\n")
+
+    try:
+        import sys as _sys
+        import os as _os
+        # Make scripts/ importable when running from the docgen root
+        _scripts_dir = str(Path(__file__).parent / "scripts")
+        if _scripts_dir not in _sys.path:
+            _sys.path.insert(0, _scripts_dir)
+
+        from generate_multilspy_metadata import run_metadata_generation_from_config
+        await run_metadata_generation_from_config(cfg, workspace, metadata_dir)
+        print(f"\n[multilspy] Cleaning up intermediate files...")
+        _cleanup_multilspy_intermediates(metadata_dir)
+        print(f"[multilspy] Done. Cross-references available at {metadata_dir}/per_file/\n")
+    except Exception as e:
+        print(f"\n[multilspy] ERROR: {e}")
+        print("[multilspy] Continuing with other MCP servers.\n")
+
+
 def create_metadata_generator(config: Dict[str, Any], workspace_path: str, output_base_dir: str):
     """
     Factory: auto-detect config format and return the right generator.
@@ -742,12 +825,19 @@ def generate_metadata_sync(
         servers_config: Optional server configuration dict from YAML config
         config: Optional full config dict — if provided, uses factory to pick generator
     """
-    if config:
-        generator = create_metadata_generator(config, workspace_path, output_dir)
-    else:
-        generator = MCPMetadataGenerator(workspace_path, output_dir, servers_config)
+    async def _run():
+        # Step 1: multilspy cross-reference extraction (runs first, if configured)
+        if config:
+            await run_multilspy_pre_step(config, workspace_path)
 
-    asyncio.run(generator.generate_all_metadata(cobol_files))
+        # Step 2: other MCP servers (ctags, tree-sitter, treesitter-graph, …)
+        if config:
+            generator = create_metadata_generator(config, workspace_path, output_dir)
+        else:
+            generator = MCPMetadataGenerator(workspace_path, output_dir, servers_config)
+        await generator.generate_all_metadata(cobol_files)
+
+    asyncio.run(_run())
 
     # After asyncio.run() closes the event loop, lingering Docker subprocess
     # transports hit __del__ and print noisy RuntimeError ("Event loop is

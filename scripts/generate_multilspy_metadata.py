@@ -1283,6 +1283,11 @@ async def run_metadata_generation(
     resume: bool = False,
     cross_ref_output: Path = None,
     num_workers: int = DEFAULT_WORKERS,
+    tool_timeout: int = TOOL_TIMEOUT,
+    max_consecutive_timeouts: int = MAX_CONSECUTIVE_TIMEOUTS,
+    max_worker_restarts: int = MAX_WORKER_RESTARTS,
+    worker_stagger_seconds: int = WORKER_STAGGER_SECONDS,
+    noise_kinds: set = None,
 ):
     """Main orchestration.
 
@@ -1291,7 +1296,40 @@ async def run_metadata_generation(
 
     Phase 2 (find_references) runs on num_workers parallel containers when
     num_workers > 1, otherwise falls back to the single-container restart loop.
+
+    The tool_timeout, max_consecutive_timeouts, max_worker_restarts,
+    worker_stagger_seconds, and noise_kinds parameters override the module-level
+    constants when called programmatically from the pipeline (e.g., via YAML config).
     """
+    # Temporarily override module-level constants for this invocation.
+    # Safe in asyncio: single-threaded, no concurrent callers.
+    global TOOL_TIMEOUT, MAX_CONSECUTIVE_TIMEOUTS, MAX_WORKER_RESTARTS
+    global WORKER_STAGGER_SECONDS, NOISE_KINDS
+    _saved = (TOOL_TIMEOUT, MAX_CONSECUTIVE_TIMEOUTS, MAX_WORKER_RESTARTS,
+              WORKER_STAGGER_SECONDS, NOISE_KINDS)
+    TOOL_TIMEOUT             = tool_timeout
+    MAX_CONSECUTIVE_TIMEOUTS = max_consecutive_timeouts
+    MAX_WORKER_RESTARTS      = max_worker_restarts
+    WORKER_STAGGER_SECONDS   = worker_stagger_seconds
+    if noise_kinds is not None:
+        NOISE_KINDS = noise_kinds
+    try:
+        await _run_metadata_generation_impl(
+            workspace, output_dir, resume, cross_ref_output, num_workers
+        )
+    finally:
+        (TOOL_TIMEOUT, MAX_CONSECUTIVE_TIMEOUTS, MAX_WORKER_RESTARTS,
+         WORKER_STAGGER_SECONDS, NOISE_KINDS) = _saved
+
+
+async def _run_metadata_generation_impl(
+    workspace: str,
+    output_dir: str,
+    resume: bool = False,
+    cross_ref_output: Path = None,
+    num_workers: int = DEFAULT_WORKERS,
+):
+    """Internal implementation — called by run_metadata_generation()."""
 
     workspace_path = str(Path(workspace).resolve())
     output_path = Path(output_dir).resolve()
@@ -1466,6 +1504,37 @@ async def run_metadata_generation(
         print(f"\n  Failure breakdown:")
         failure_log.summary()
         print(f"\n  See {failure_log.path} for full details")
+
+
+# ---------------------------------------------------------------------------
+# Pipeline integration entry point (called by mcp_metadata_generator.py)
+# ---------------------------------------------------------------------------
+async def run_metadata_generation_from_config(
+    multilspy_cfg: dict,
+    workspace: str,
+    metadata_dir: str,
+):
+    """Run metadata generation from a YAML config dict.
+
+    Called by mcp_metadata_generator.run_multilspy_pre_step() so all
+    parameters come from the config-dotnet-*.yaml file instead of the CLI.
+    Output is written directly into metadata_dir (per_file/ and metrics/
+    subdirs are created there).
+    """
+    await run_metadata_generation(
+        workspace=workspace,
+        output_dir=metadata_dir,
+        resume=multilspy_cfg.get("resume", False),
+        cross_ref_output=Path(metadata_dir),
+        num_workers=multilspy_cfg.get("workers", DEFAULT_WORKERS),
+        tool_timeout=multilspy_cfg.get("tool_timeout", TOOL_TIMEOUT),
+        max_consecutive_timeouts=multilspy_cfg.get(
+            "max_consecutive_timeouts", MAX_CONSECUTIVE_TIMEOUTS),
+        max_worker_restarts=multilspy_cfg.get("max_worker_restarts", MAX_WORKER_RESTARTS),
+        worker_stagger_seconds=multilspy_cfg.get(
+            "worker_stagger_seconds", WORKER_STAGGER_SECONDS),
+        noise_kinds=set(multilspy_cfg.get("noise_kinds", list(NOISE_KINDS))),
+    )
 
 
 # ---------------------------------------------------------------------------
